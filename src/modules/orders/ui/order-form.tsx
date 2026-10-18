@@ -170,10 +170,14 @@ export function OrderForm({ sector: sectorId, salesStaff, initial }: Props) {
           sector={sector}
           errors={fe}
           onChange={(patch) => patchLine(l.key, patch)}
-          onRemove={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}
+          onRemove={() => {
+            action.clearErrors();
+            setLines((ls) => ls.filter((x) => x.key !== l.key));
+          }}
         />
       ))}
       {fe.lines && <p role="alert" className="text-red-700">{fe.lines}</p>}
+      <UnplacedLineErrors errors={fe} lineCount={lines.length} />
       {lines.length < MAX_LINES && (
         <Button type="button" variant="secondary" onClick={() => setLines((ls) => [...ls, emptyLine()])}>Ürün ekle</Button>
       )}
@@ -250,6 +254,22 @@ function LineEditor({ index, count, line: l, preview, currency, sector, errors, 
         </div>
       </details>
     </section>
+  );
+}
+
+// Satır kartında alanı olmayan satır hataları (ör. bölüm notu uzunluğu) kaybolmasın diye listelenir.
+const PLACED = /^lines\.\d+\.(product\.|quantity$|unitPrice$|vatRate$|packaging\.capacity$)/;
+
+function UnplacedLineErrors({ errors, lineCount }: { errors: Record<string, string | undefined>; lineCount: number }) {
+  const rest = Object.entries(errors).filter(([k, v]) => v && /^lines\.\d+\./.test(k) && !PLACED.test(k));
+  if (!rest.length) return null;
+  return (
+    <ul role="alert" className="list-disc pl-5 text-red-700">
+      {rest.map(([k, v]) => {
+        const n = Number(k.split('.')[1]);
+        return <li key={k}>{lineCount > 1 ? `Ürün ${n + 1}: ` : ''}{v}</li>;
+      })}
+    </ul>
   );
 }
 

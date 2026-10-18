@@ -28,8 +28,13 @@ beforeAll(async () => {
     VALUES
       ('00000000-0000-4000-8000-0000000000b1', '00000000-0000-4000-8000-000000000001', 'S-2026-000001', '00000000-0000-4000-8000-0000000000a1', '2026-10-01', '{"width":45}', 2222, '5.0000', '10.00', 'TRY', 1222100, '{"type":"sack","capacity":1000,"packages":3}', '{"printing":"Logo"}', 'ready_to_invoice', 2180, 0, 'u'),
       ('00000000-0000-4000-8000-0000000000b2', '00000000-0000-4000-8000-000000000001', 'S-2026-000002', '00000000-0000-4000-8000-0000000000a1', '2026-10-02', '{"width":40}', 1000, '4.0000', '10.00', 'TRY', 440000, '{"type":"none","capacity":0,"packages":0}', '{}', 'cancelled', 0, 0, 'u'),
-      ('00000000-0000-4000-8000-0000000000b3', '00000000-0000-4000-8000-000000000001', 'S-2026-000003', '00000000-0000-4000-8000-0000000000a1', '2026-10-03', '{"width":30}', 500, '3.0000', '20.00', 'TRY', 180000, '{"type":"box","capacity":250,"packages":2}', '{}', 'draft', 0, 0, 'u');
-    INSERT INTO jobs (id, company_id, order_id, no, stage) VALUES ('00000000-0000-4000-8000-0000000000c1', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000b1', 'S-2026-000001', 'completed');
+      ('00000000-0000-4000-8000-0000000000b3', '00000000-0000-4000-8000-000000000001', 'S-2026-000003', '00000000-0000-4000-8000-0000000000a1', '2026-10-03', '{"width":30}', 500, '3.0000', '20.00', 'TRY', 180000, '{"type":"box","capacity":250,"packages":2}', '{}', 'draft', 0, 0, 'u'),
+      ('00000000-0000-4000-8000-0000000000b4', '00000000-0000-4000-8000-000000000001', 'S-2026-000004', '00000000-0000-4000-8000-0000000000a1', '2026-10-04', '{"width":30}', 500, '3.0000', '20.00', 'TRY', 180000, '{"type":"none","capacity":0,"packages":0}', '{}', 'invoiced', 500, 500, 'u'),
+      ('00000000-0000-4000-8000-0000000000b5', '00000000-0000-4000-8000-000000000001', 'S-2026-000005', '00000000-0000-4000-8000-0000000000a1', '2026-10-05', '{"width":30}', 500, '3.0000', '20.00', 'TRY', 180000, '{"type":"none","capacity":0,"packages":0}', '{}', 'in_production', 480, 0, 'u');
+    INSERT INTO jobs (id, company_id, order_id, no, stage) VALUES
+      ('00000000-0000-4000-8000-0000000000c1', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000b1', 'S-2026-000001', 'completed'),
+      ('00000000-0000-4000-8000-0000000000c4', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000b4', 'S-2026-000004', 'shipped'),
+      ('00000000-0000-4000-8000-0000000000c5', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000b5', 'S-2026-000005', 'review');
   `);
   await migrate(db, { migrationsFolder: 'drizzle' });
 });
@@ -47,18 +52,27 @@ describe('0021 sipariş satırları göçü', () => {
       ['S-2026-000001', 1, 2222, '5.0000', '1222100', 'done', 2180],
       ['S-2026-000002', 1, 1000, '4.0000', '440000', 'cancelled', 0],
       ['S-2026-000003', 1, 500, '3.0000', '180000', 'open', 0],
+      ['S-2026-000004', 1, 500, '3.0000', '180000', 'done', 500],
+      ['S-2026-000005', 1, 500, '3.0000', '180000', 'in_production', 480],
     ]);
     expect(lines[0]!.department_notes).toEqual({ printing: 'Logo' });
     expect(lines[0]!.packaging.packages).toBe(3);
   });
 
   it('iş satıra bağlanır ve numarası "/1" alır', async () => {
-    const [job] = await rows<{ no: string; line_no: number }>(`SELECT j.no, l.line_no FROM jobs j JOIN order_lines l ON l.id = j.order_line_id`);
-    expect(job).toEqual({ no: 'S-2026-000001/1', line_no: 1 });
+    const jobs = await rows<{ no: string; line_no: number }>(`SELECT j.no, l.line_no FROM jobs j JOIN order_lines l ON l.id = j.order_line_id ORDER BY j.no`);
+    expect(jobs).toEqual([{ no: 'S-2026-000001/1', line_no: 1 }, { no: 'S-2026-000004/1', line_no: 1 }, { no: 'S-2026-000005/1', line_no: 1 }]);
   });
 
   it('zorunlu satır güvenliği göçten sonra yeniden açıktır (yeni tablo dahil)', async () => {
     const forced = await rows<{ relname: string; relforcerowsecurity: boolean }>(`SELECT relname, relforcerowsecurity FROM pg_class WHERE relname IN ('orders', 'jobs', 'order_lines') ORDER BY relname`);
     expect(forced.map((r) => [r.relname, r.relforcerowsecurity])).toEqual([['jobs', true], ['order_lines', true], ['orders', true]]);
+  });
+});
+
+describe('iş ile satır tutarlılığı', () => {
+  it('iş başka siparişin satırına bağlanamaz', async () => {
+    const [other] = await rows<{ id: string }>(`SELECT id FROM order_lines WHERE order_id = '00000000-0000-4000-8000-0000000000b3'`);
+    await expect(client.query(`UPDATE jobs SET order_line_id = '${other!.id}' WHERE id = '00000000-0000-4000-8000-0000000000c1'`)).rejects.toThrow(/jobs_order_line_fk/);
   });
 });

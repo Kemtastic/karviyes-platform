@@ -30,21 +30,25 @@ export async function getLineForProduction(tx: Tx, lineId: string) {
 
 // Üretime alınmamış (açık) satırlar.
 export async function openLinesForProduction(tx: Tx, orderId: string) {
-  const [o] = await tx.select({ status: orders.status }).from(orders).where(eq(orders.id, orderId));
+  // Sipariş önce kilitlenir: eşzamanlı düzenleme ile kilit sırası hep sipariş → satır olsun.
+  const [o] = await tx.select({ status: orders.status }).from(orders).where(eq(orders.id, orderId)).for('update');
   if (!o) throw new AppError('NOT_FOUND', 'Sipariş bulunamadı.');
   if (o.status !== 'draft' && o.status !== 'in_production') throw new AppError('INVALID_STATE', 'Sipariş bu işlem için uygun durumda değil.');
   return tx.select(lineView).from(orderLines).innerJoin(orders, eq(orders.id, orderLines.orderId)).innerJoin(parties, eq(parties.id, orders.partyId)).where(and(eq(orderLines.orderId, orderId), eq(orderLines.status, 'open'))).orderBy(asc(orderLines.lineNo));
 }
 
 // Sipariş satırı kilitlenir; durum, tutar ve adetler satırlardan yeniden hesaplanır.
-async function recomputeOrder(tx: Tx, orderId: string) {
+async function recomputeOrder(tx: Tx, orderId: string, cancelReason?: string) {
   const [o] = await tx.select({ status: orders.status }).from(orders).where(eq(orders.id, orderId)).for('update');
   if (!o) throw new AppError('NOT_FOUND', 'Sipariş bulunamadı.');
   const lines = await tx.select({ status: orderLines.status, totalMinor: orderLines.totalMinor, producedQty: orderLines.producedQty, shippedQty: orderLines.shippedQty }).from(orderLines).where(eq(orderLines.orderId, orderId));
+  const status = deriveOrderStatus(o.status, lines.map((l) => l.status));
   await tx
     .update(orders)
     .set({
-      status: deriveOrderStatus(o.status, lines.map((l) => l.status)),
+      status,
+      // Son satır iptal edilip sipariş iptale düşerse neden siparişe de yazılır.
+      ...(status === 'cancelled' && o.status !== 'cancelled' && cancelReason ? { cancelReason } : {}),
       totalMinor: orderTotalMinor(lines),
       producedQty: lines.reduce((s, l) => s + l.producedQty, 0),
       shippedQty: lines.reduce((s, l) => s + l.shippedQty, 0),
@@ -61,7 +65,7 @@ async function lineTransition(tx: Tx, lineId: string, from: LineStatus[], to: Li
     .where(and(eq(orderLines.id, lineId), inArray(orderLines.status, from)))
     .returning({ orderId: orderLines.orderId });
   if (!updated.length) throw new AppError('INVALID_STATE', 'Sipariş satırı bu işlem için uygun durumda değil.');
-  await recomputeOrder(tx, updated[0]!.orderId);
+  await recomputeOrder(tx, updated[0]!.orderId, extra.cancelReason ?? undefined);
 }
 
 export const markLineInProduction = (tx: Tx, lineId: string) => lineTransition(tx, lineId, ['open'], 'in_production');

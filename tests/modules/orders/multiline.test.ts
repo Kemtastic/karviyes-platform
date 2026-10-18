@@ -4,7 +4,7 @@ import { runtime, testUser } from '../../helpers/runtime';
 import { createParty } from '@/core/parties/service';
 import { createStaff } from '@/core/users/service';
 import { addPayment, createOrder, updateOrder } from '@/modules/orders/server/actions';
-import { orderForOffice } from '@/modules/orders/server/queries';
+import { exportOrders, orderForOffice } from '@/modules/orders/server/queries';
 import { addFabricRolls, approveReview, cancelJob, finishStage, reserveFabric, sendToStage, startProduction, startStage } from '@/modules/production/server/actions';
 import { jobDetail } from '@/modules/production/server/queries';
 
@@ -110,5 +110,32 @@ describe('satır bazında üretim', () => {
     if (!o.ok) throw new Error(o.message);
     expect([o.data.status, o.data.lines.map((l) => l.status), o.data.total.minor, o.data.balance.minor]).toEqual(['ready_to_invoice', ['done', 'cancelled'], '1100000', '1000000']);
     expect(await addPayment({ orderId: r.data.id, amount: '10.000' }, sales())).toMatchObject({ ok: true });
+  });
+});
+
+describe('inceleme düzeltmeleri (çok satır)', () => {
+  it('son satır üretimden iptal edilince siparişin iptal nedeni yazılır', async () => {
+    const r = await createOrder({ ...header(), lines: [twoLines()[0]!] }, sales());
+    if (!r.ok) throw new Error('x');
+    const started = await startProduction({ orderId: r.data.id }, tracking());
+    if (!started.ok) throw new Error(started.message);
+    await cancelJob({ jobId: started.data.id, reason: 'Müşteri vazgeçti', version: await version(started.data.id) }, tracking());
+    const o = await orderForOffice({ id: r.data.id }, sales());
+    expect(o.ok && [o.data.status, o.data.cancelReason]).toEqual(['cancelled', 'Müşteri vazgeçti']);
+  });
+
+  it('iptal edilen satırın adedi sipariş adedine girmez', async () => {
+    const r = await createOrder({ ...header(), lines: twoLines() }, sales());
+    if (!r.ok) throw new Error('x');
+    const started = await startProduction({ orderId: r.data.id }, tracking());
+    if (!started.ok) throw new Error(started.message);
+    await cancelJob({ jobId: started.data.ids[1]!, reason: 'İkinci ürün iptal', version: await version(started.data.ids[1]!) }, tracking());
+    const o = await orderForOffice({ id: r.data.id }, sales());
+    expect(o.ok && o.data.quantity).toBe(1000);
+    // Excel: iptal satırının tutarı toplama girmez ve satır durumu görünür.
+    const ex = await exportOrders({}, sales());
+    if (!ex.ok) throw new Error(ex.message);
+    const mine = ex.data.rows.filter((row) => row[0] === r.data.no).map((row) => Object.fromEntries(ex.data.headers.map((h, i) => [h, row[i]])));
+    expect(mine.map((m) => [m.Satır, m['Satır durumu'], m.Toplam])).toEqual([[1, 'Üretimde', '11000,00'], [2, 'İptal', '0,00']]);
   });
 });

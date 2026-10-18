@@ -31,6 +31,8 @@ CREATE INDEX "order_lines_status_idx" ON "order_lines" USING btree ("company_id"
 --> statement-breakpoint
 ALTER TABLE "order_lines" ADD CONSTRAINT "order_lines_company_id_uq" UNIQUE ("company_id", "id");
 --> statement-breakpoint
+ALTER TABLE "order_lines" ADD CONSTRAINT "order_lines_company_order_id_uq" UNIQUE ("company_id", "order_id", "id");
+--> statement-breakpoint
 ALTER TABLE "order_lines" ADD CONSTRAINT "order_lines_order_fk" FOREIGN KEY ("company_id", "order_id") REFERENCES "orders"("company_id", "id");
 --> statement-breakpoint
 ALTER TABLE "order_lines" ADD CONSTRAINT "order_lines_status_ck" CHECK ("status" IN ('open', 'in_production', 'done', 'cancelled'));
@@ -41,7 +43,7 @@ INSERT INTO "order_lines" ("company_id", "order_id", "line_no", "product", "quan
 SELECT o."company_id", o."id", 1, o."product", o."quantity", o."unit_price", o."vat_rate", o."total_minor", o."packaging", coalesce(o."department_notes", '{}'::jsonb),
   CASE
     WHEN j."id" IS NULL THEN CASE WHEN o."status" = 'cancelled' THEN 'cancelled' ELSE 'open' END
-    WHEN j."stage" = 'completed' THEN 'done'
+    WHEN j."stage" IN ('completed', 'shipped') THEN 'done'
     WHEN j."stage" = 'cancelled' THEN 'cancelled'
     ELSE 'in_production'
   END,
@@ -61,7 +63,8 @@ DROP INDEX "jobs_company_order_uq";
 --> statement-breakpoint
 CREATE UNIQUE INDEX "jobs_company_line_uq" ON "jobs" USING btree ("company_id","order_line_id");
 --> statement-breakpoint
-ALTER TABLE "jobs" ADD CONSTRAINT "jobs_order_line_fk" FOREIGN KEY ("company_id", "order_line_id") REFERENCES "order_lines"("company_id", "id");
+-- İşin siparişi ile satırı aynı siparişe ait olmalı.
+ALTER TABLE "jobs" ADD CONSTRAINT "jobs_order_line_fk" FOREIGN KEY ("company_id", "order_id", "order_line_id") REFERENCES "order_lines"("company_id", "order_id", "id");
 --> statement-breakpoint
 ALTER TABLE "orders" ALTER COLUMN "product" DROP NOT NULL;
 --> statement-breakpoint

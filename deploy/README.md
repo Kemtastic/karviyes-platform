@@ -43,6 +43,10 @@ docker compose run --rm tools pnpm db:migrate
 docker compose up -d app
 ```
 
+Güncellemeden önce mutlaka elle yedek alın (`docker compose run --rm --entrypoint /bin/sh backup /scripts/yedekle.sh`). Göçler yalnızca ileri yönlüdür: eski sürüme dönmek için kodu geri almak yetmez, güncelleme öncesi yedekten geri yükleyin.
+
+- **v1.1 (0021 sipariş satırları):** ürün bilgisi siparişten satırlara taşınır, iş numaralarına `/1` eklenir. Bu göçten sonra açılan siparişlerde eski sürümün okuduğu alanlar boştur; v1.0'a yalnızca yedekten dönülebilir.
+
 ## Yedek ve geri yükleme
 
 - `backup` kabı her gece 02:30 (İstanbul) veritabanı + yüklenen dosyaları **age ile şifreli** tek dosyaya yazar: `backups` biriminde `yedek_<tarih>.tar.age`.

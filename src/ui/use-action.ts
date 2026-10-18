@@ -21,5 +21,11 @@ export function useAction<I, O>(action: (input: I) => Promise<ActionResult<O>>) 
     });
   }
 
-  return { run, pending, error, fieldErrors };
+  // Form yapısı değişince (ör. satır silinince) eski alan hataları yanlış yerde kalmasın.
+  function clearErrors() {
+    setError('');
+    setFieldErrors({});
+  }
+
+  return { run, pending, error, fieldErrors, clearErrors };
 }

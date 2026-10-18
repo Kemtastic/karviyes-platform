@@ -8,7 +8,7 @@ import { DEPARTMENT_ROLES, type Role } from '@/core/modules/types';
 import { decimalCell } from '@/core/export/csv';
 import { formatDate } from '@/core/dates';
 import { getSector } from '@/sectors';
-import { ORDER_STATUS_LABELS as STATUS_TEXT } from '../ui/status-labels';
+import { LINE_STATUS_LABELS as LINE_TEXT, ORDER_STATUS_LABELS as STATUS_TEXT } from '../ui/status-labels';
 import { ORDER_STATUSES, orderLines, orderPayments, orders } from '../db/schema';
 import { orderBalance, receivableTotal } from '../domain/totals';
 
@@ -34,7 +34,11 @@ function productsText(ctx: ActionCtx, lines: LineRow[]): string {
   return texts.length > 2 ? `${texts.slice(0, 2).join(' + ')} +${texts.length - 2} ürün` : texts.join(' + ');
 }
 
-const sumQty = (lines: LineRow[]) => lines.reduce((s, l) => s + l.quantity, 0);
+// Sipariş adedi: iptal edilen satırlar düşülür (tutarla aynı kural; tamamı iptalse hepsi).
+const sumQty = (lines: LineRow[]) => {
+  const live = lines.filter((l) => l.status !== 'cancelled');
+  return (live.length ? live : lines).reduce((s, l) => s + l.quantity, 0);
+};
 
 export const listOrders = defineAction({
   name: 'orders.list',
@@ -220,7 +224,7 @@ export const exportOrders = defineAction({
     const headers = [
       'Sipariş No', 'Satır', 'Tarih', 'Müşteri', 'Yetkili', 'Telefon', 'Satışçı',
       ...fields.map((f) => (f.unit ? `${f.label} (${f.unit})` : f.label)),
-      'Kumaş eni (cm)', 'Adet', 'Üretilen', 'Sevk edilen', 'Birim fiyat', 'KDV %', 'Para birimi', 'Kur', 'Toplam', 'Tahsilat', 'Kalan', 'Durum', 'Fatura No',
+      'Kumaş eni (cm)', 'Adet', 'Üretilen', 'Sevk edilen', 'Birim fiyat', 'KDV %', 'Para birimi', 'Kur', 'Toplam', 'Tahsilat', 'Kalan', 'Satır durumu', 'Durum', 'Fatura No',
     ];
     // Satır başına bir Excel satırı; tahsilat ve kalan siparişe aittir, yalnızca ilk satırda yazılır (toplanınca çift sayılmasın).
     const out = rows.flatMap(({ o, party, seller }) => (lines.get(o.id) ?? []).map((l) => {
@@ -229,6 +233,8 @@ export const exportOrders = defineAction({
       const paid = paidOf.get(o.id) ?? 0n;
       const receivable = receivableTotal(o.status, money(o.totalMinor, o.currency as Currency)).minor;
       const first = l.lineNo === 1;
+      // İptal edilen satırın tutarı sipariş toplamına girmez (tamamı iptalse sipariş zaten bakiyesizdir).
+      const lineTotal = l.status === 'cancelled' && o.status !== 'cancelled' ? 0n : l.totalMinor;
       return [
         o.no, l.lineNo, formatDate(o.orderDate), party.name, party.contactName, party.phone, seller ?? '',
         ...fields.map((f) => {
@@ -240,7 +246,7 @@ export const exportOrders = defineAction({
         }),
         sector.materials(validated, l.quantity).find((m) => m.kind === 'fabric')?.widthCm ?? null,
         l.quantity, l.producedQty, l.shippedQty, decimalText(l.unitPrice), decimalText(l.vatRate), o.currency, decimalText(o.fxRate),
-        decimalCell(l.totalMinor), first ? decimalCell(paid) : '', first ? decimalCell(receivable - paid) : '', STATUS_TEXT[o.status], o.invoiceMark?.no ?? '',
+        decimalCell(lineTotal), first ? decimalCell(paid) : '', first ? decimalCell(receivable - paid) : '', LINE_TEXT[l.status], STATUS_TEXT[o.status], o.invoiceMark?.no ?? '',
       ];
     }));
     await ctx.audit({ entity: 'order', entityId: ctx.companyId, after: { export: 'orders', rows: out.length, status: i.status ?? 'all' } });
