@@ -91,3 +91,16 @@ describe('defineAction', () => {
     expect(await echo({ ad: 'Yük' }, rt(u))).toMatchObject({ ok: false, code: 'RATE_LIMITED' });
   });
 });
+
+describe('zorunlu 2FA eylem düzeyinde', () => {
+  it('2FA kurmamış yönetici hiçbir eylemi çalıştıramaz', async () => {
+    const r = await echo({ ad: 'Ali' }, rt({ ...user(t.companyA, ['admin'], 'iki-adimsiz'), twoFactorEnabled: false }));
+    expect(r).toMatchObject({ ok: false, code: 'FORBIDDEN' });
+    if (!r.ok) expect(r.message).toMatch(/iki adımlı/i);
+  });
+
+  it('bölüm tableti 2FA olmadan çalışır', async () => {
+    const tablet = defineAction({ name: 'test.tablet', roles: ['printing'], input: z.object({}), run: async () => 'tamam' });
+    expect(await tablet({}, rt({ ...user(t.companyA, ['printing'], 'tablet'), kind: 'device', twoFactorEnabled: false }))).toEqual({ ok: true, data: 'tamam' });
+  });
+});

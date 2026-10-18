@@ -18,6 +18,24 @@ describe('VPS paketi', () => {
     expect(readFileSync('Dockerfile', 'utf8')).toMatch(/^USER app$/m);
   });
 
+  it('dosya birimi uygulama kullanıcısına ait (root olmayan kullanıcı yazabilir)', () => {
+    expect(readFileSync('Dockerfile', 'utf8')).toContain('mkdir -p /files && chown app:app /files');
+  });
+
+  it('geri yükleme servisi dosyaları yazılabilir bağlar ve gizli anahtarı dışarıdan alır', () => {
+    const restore = compose.services.restore as Service & { volumes?: string[]; profiles?: string[] };
+    expect(restore?.profiles).toEqual(['restore']);
+    expect(restore?.volumes).toEqual(expect.arrayContaining(['files:/files']));
+    expect(restore?.volumes?.some((v) => v.endsWith(':/anahtar/age.key:ro'))).toBe(true);
+  });
+
+  it('yedek betiği her adımın başarısını ayrı denetler (yarım arşiv üretmez)', () => {
+    const sh = readFileSync('deploy/backup/yedekle.sh', 'utf8');
+    // tar çıktısı doğrudan age'e borulanmaz (POSIX sh'ta pipefail yok, tar hatası gizlenir).
+    expect(sh.split('\n').some((l) => l.includes('tar ') && l.includes('| age'))).toBe(false);
+    expect(sh).toContain('mv "$out.tmp" "$out"');
+  });
+
   it('yalnızca ters vekil (Caddy) 80/443 açar', () => {
     const exposed = Object.entries(compose.services).filter(([, s]) => s.ports?.length).map(([n]) => n);
     expect(exposed).toEqual(['caddy']);

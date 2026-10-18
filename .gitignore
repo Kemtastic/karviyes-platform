@@ -13,3 +13,6 @@ next-env.d.ts
 kurulum.config.json
 .next-e2e/
 test-results/
+deploy/age.key
+deploy/kurulum.env
+deploy/kurulum.config.json

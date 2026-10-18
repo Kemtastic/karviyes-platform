@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { ZodError, type ZodType, type ZodTypeDef } from 'zod';
 import type { CurrentUser } from '@/core/auth/session';
-import { assertRoles } from '@/core/auth/policy';
+import { assertRoles, mustEnrollTwoFactor } from '@/core/auth/policy';
 import { rowsOf, type Db, type Tx } from '@/core/db/client';
 import { withCompany, writeAudit } from '@/core/db/scope';
 import { AppError, type AppErrorCode } from '@/core/errors';
@@ -94,6 +94,8 @@ export function defineAction<I, O>(spec: ActionSpec<I, O>): Action<O> {
       const rt = runtime ?? (await defaultRuntime());
       const user = rt.user;
       if (!user) throw new AppError('UNAUTHENTICATED', 'Oturum açmanız gerekiyor.');
+      // 2FA zorunlu rollerde yalnızca ekran düzeni değil, her eylem de 2FA ister.
+      if (mustEnrollTwoFactor(user, rt.cfg)) throw new AppError('FORBIDDEN', 'Önce iki adımlı doğrulamayı kurmanız gerekiyor.');
       if (spec.module) requireModule(spec.module, rt.cfg);
       assertRoles(user.roles, spec.roles);
       if (spec.rateLimit !== false) await checkRateLimit(rt.db, user.userId);

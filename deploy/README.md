@@ -48,7 +48,13 @@ docker compose up -d app
 - `backup` kabı her gece 02:30 (İstanbul) veritabanı + yüklenen dosyaları **age ile şifreli** tek dosyaya yazar: `backups` biriminde `yedek_<tarih>.tar.age`.
 - Saklama: 30 günlük yedek + 12 ay boyunca her ayın 1'i.
 - **Sunucu dışı kopya şarttır** (sunucu kaybında yedek de gider): örn. `rclone copy` ile farklı bir sağlayıcıya, günlük cron.
-- Geri yükleme: `deploy/backup/geri-yukle.sh <yedek.tar.age> <gizli-anahtar>` (backup kabı içinde, `PGDATABASE` vb. tanımlıyken).
+- Geri yükleme: age gizli anahtarını geçici olarak `deploy/age.key` olarak koyun, uygulamayı durdurun ve çalıştırın:
+  ```bash
+  docker compose stop app
+  docker compose --profile restore run --rm restore /yedek/yedek_<tarih>.tar.age
+  docker compose up -d app && rm age.key
+  ```
+- `STORAGE_DRIVER=s3` kullanılıyorsa yüklenen dosyalar bu yedeğe girmez; depolama tarafında sürümleme/yedek açın.
 - **Tatbikat:** üç ayda bir, boş bir sunucuda geri yükleme yapın; `/api/saglik` ve birkaç sipariş ekranını kontrol edin; tarihi kayda geçirin.
 
 ## Kontrol listesi

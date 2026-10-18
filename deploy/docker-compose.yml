@@ -65,6 +65,25 @@ services:
     depends_on:
       db: { condition: service_healthy }
 
+  # Geri yükleme (yalnızca gerektiğinde): docker compose --profile restore run --rm restore /yedek/<dosya>.tar.age
+  # age gizli anahtarı sunucuda tutulmaz; geri yükleme anında ./age.key olarak koyulur ve sonra silinir.
+  restore:
+    image: postgres:17-alpine
+    profiles: [restore]
+    environment:
+      PGHOST: db
+      PGUSER: uretim_owner
+      PGPASSWORD: ${DB_PASSWORD}
+      PGDATABASE: uretim
+    volumes:
+      - ./backup:/scripts:ro
+      - backups:/yedek:ro
+      - files:/files
+      - ./age.key:/anahtar/age.key:ro
+    entrypoint: ['/bin/sh', '-c', 'apk add --no-cache age >/dev/null && /bin/sh /scripts/geri-yukle.sh "$0" /anahtar/age.key']
+    depends_on:
+      db: { condition: service_healthy }
+
   # Tek seferlik komutlar: docker compose run --rm tools pnpm kurulum
   tools:
     build: { context: .., target: tools }
