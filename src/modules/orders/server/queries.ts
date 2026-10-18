@@ -81,7 +81,7 @@ export const listOrders = defineAction({
       const total = money(o.totalMinor, o.currency as Currency);
       const own = pays.filter((p) => p.orderId === o.id).map((p) => ({ kind: p.kind, amountMinor: p.amountMinor, currency: p.currency as Currency }));
       return {
-        id: o.id, no: o.no, orderDate: o.orderDate, partyName, status: o.status, quantity: sumQty(lines.get(o.id) ?? []),
+        id: o.id, no: o.no, orderDate: o.orderDate, deliveryDate: o.deliveryDate, partyName, status: o.status, quantity: sumQty(lines.get(o.id) ?? []),
         product: productsText(ctx, lines.get(o.id) ?? []), total: moneyToJSON(total), balance: moneyToJSON(orderBalance(receivableTotal(o.status, total), own)), version: o.version,
       };
     });
@@ -107,7 +107,7 @@ export const orderForOffice = defineAction({
     const plateIds = lines.map((l) => l.plateId).filter((x): x is string => Boolean(x));
     const plateNames = new Map(plateIds.length ? (await ctx.tx.select({ id: plates.id, name: plates.name }).from(plates).where(inArray(plates.id, plateIds))).map((p) => [p.id, p.name]) : []);
     return {
-      id: o.id, no: o.no, version: o.version, status: o.status, orderDate: o.orderDate,
+      id: o.id, no: o.no, version: o.version, status: o.status, orderDate: o.orderDate, deliveryDate: o.deliveryDate,
       party: { id: party.id, name: party.name, phone: party.phone, city: party.city },
       salesperson: seller?.name ?? null, salespersonStaffId: o.salespersonStaffId,
       quantity: sumQty(lines), currency: o.currency, fxRate: o.fxRate, fxRateDate: o.fxRateDate, fxSource: o.fxSource,

@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { istanbulToday } from '@/core/dates';
 import { moneyFromJSON, type Currency } from '@/core/money';
-import { CalendarDays, Pencil, Printer, UserRound, Wallet } from 'lucide-react';
+import { CalendarClock, CalendarDays, Pencil, Printer, UserRound, Wallet } from 'lucide-react';
 import { Badge } from '@/ui/badge';
 import { Button, buttonClasses } from '@/ui/button';
 import { Card } from '@/ui/card';
@@ -15,13 +15,13 @@ import { Modal } from '@/ui/modal';
 import { Money } from '@/ui/money';
 import { MoneyInput } from '@/ui/money-input';
 import { useAction } from '@/ui/use-action';
-import { addPaymentAction, cancelOrderAction, correctPaymentAction, markInvoicedAction } from './actions';
+import { addPaymentAction, cancelOrderAction, correctPaymentAction, markInvoicedAction, setDeliveryDateAction } from './actions';
 import { PACKAGING_LABELS } from '../domain/packaging';
 import { LINE_STATUS_LABELS, LINE_STATUS_TONES, ORDER_STATUS_LABELS, ORDER_STATUS_TONES } from './status-labels';
 
 type MoneyJson = { minor: string; currency: Currency };
 type Order = {
-  id: string; no: string; version: number; status: keyof typeof ORDER_STATUS_LABELS; orderDate: string;
+  id: string; no: string; version: number; status: keyof typeof ORDER_STATUS_LABELS; orderDate: string; deliveryDate: string | null;
   party: { id: string; name: string; phone: string; city: string }; salesperson: string | null;
   quantity: number; currency: string; fxRate: string | null; fxRateDate: string | null; total: MoneyJson; balance: MoneyJson;
   lines: {
@@ -55,6 +55,7 @@ export function OrderDetail({ order: o, canMarkInvoice, stageLabels = {} }: { or
           <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-stone-600">
             <Badge tone={ORDER_STATUS_TONES[o.status]}>{ORDER_STATUS_LABELS[o.status]}</Badge>
             <span className="inline-flex items-center gap-1.5"><CalendarDays aria-hidden className="h-4 w-4 text-stone-400" /><DateText value={o.orderDate} /></span>
+            <DeliveryDate order={o} onDone={done} />
             {o.salesperson && <span className="inline-flex items-center gap-1.5"><UserRound aria-hidden className="h-4 w-4 text-stone-400" />Satış: {o.salesperson}</span>}
             <Link href={`/cariler/${o.party.id}`} className="font-medium text-stone-700 underline-offset-2 hover:underline">Cari kartı</Link>
           </p>
@@ -204,5 +205,29 @@ function Tile({ label, children, highlight = false }: { label: string; children:
       <p className="mb-1 text-xs font-medium uppercase tracking-wide text-stone-500">{label}</p>
       {children}
     </div>
+  );
+}
+
+// Teslim tarihi: üretim sürerken de güncellenebilir; geçmişse ve sevk bitmediyse kırmızı.
+function DeliveryDate({ order: o, onDone }: { order: Order; onDone: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const save = useAction(setDeliveryDateAction);
+  const late = o.deliveryDate && o.deliveryDate < istanbulToday() && o.status !== 'cancelled' && o.status !== 'invoiced' && o.shippedQty < o.quantity;
+  if (editing) {
+    return (
+      <form className="inline-flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); const v = String(new FormData(e.currentTarget).get('deliveryDate') ?? ''); save.run({ id: o.id, deliveryDate: v || null }, () => { setEditing(false); onDone(); }); }}>
+        <input type="date" name="deliveryDate" aria-label="Teslim tarihi" defaultValue={o.deliveryDate ?? ''} min={o.orderDate} className={`${fieldClass} min-h-9 w-auto py-1 text-sm`} />
+        <Button className="min-h-9 px-3" disabled={save.pending}>Kaydet</Button>
+        <Button type="button" variant="ghost" className="min-h-9 px-2" onClick={() => setEditing(false)}>Vazgeç</Button>
+        {save.error && <span role="alert" className="text-red-700">{save.error}</span>}
+      </form>
+    );
+  }
+  return (
+    <span className={`inline-flex items-center gap-1.5 ${late ? 'font-semibold text-red-700' : ''}`}>
+      <CalendarClock aria-hidden className={`h-4 w-4 ${late ? '' : 'text-stone-400'}`} />
+      {o.deliveryDate ? <>Teslim <DateText value={o.deliveryDate} />{late && ' · gecikti'}</> : 'Teslim tarihi yok'}
+      {o.status !== 'cancelled' && <button type="button" onClick={() => setEditing(true)} className="ml-1 text-xs font-medium text-stone-500 underline hover:text-stone-800">{o.deliveryDate ? 'değiştir' : 'ekle'}</button>}
+    </span>
   );
 }

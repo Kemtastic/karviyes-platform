@@ -42,3 +42,7 @@ Bağımsız kod incelemesi (alt ajan), güvenlik kontrolü, örnek veriye yeni m
   - Ruling: Stok/ürün kartı, irsaliye, personel cari, tekrarlayan fatura, UBL içe aktarma eski sistemde vardı; ilk sürüme alınmadı (üretim stoğu zaten ayrı) — maliyet: muhasebeci isterse ek faz.
 - **F2 bitti**: mutabakat ön muhasebe modülünün parçası (ayrı modül değil), göç 0026; bağlantı firma~kayıt~256 bit anahtar, yalnız SHA-256 özeti saklanır, 30 gün; karşı taraf oturumsuz cevaplar (bir kez), PDF mektup + ekstre. 5 servis testi + e2e.
   - Ruling: E-posta gönderilemezse bağlantı yine verilir (kopyala-ilet) — maliyet: yok.
+- **F1b bitti** (08c367a): ön muhasebe tahsilatı isteğe bağlı olarak siparişe de işlenir (sipariş modülünün `server/api.ts` açık arayüzüyle, aynı işlemde); hareket iptalinde sipariş tarafına düzeltme. Göç 0027.
+- **F3 bitti**: siparişe teslim tarihi (göç 0028, üretim sürerken değiştirilebilir), ana sayfada uyarılar (geciken/yaklaşan teslim, 3+ gün hareketsiz iş, 2+ gün kumaş bekleyen iş), bölüm ekranında yeni iş şeridi ve isteğe bağlı sesli uyarı (cihazda saklanır), Üretim İçgörüleri sayfası (bobin durumu, ölçü başına satış ve bobin başı satış, sevk bekleyen mamul ve değeri).
+  - Ruling: Uyarı eşikleri (3 gün hareketsiz, 2 gün kumaş, 3 gün teslim) sabit; firmaya göre ayar sonra — maliyet: firma farklı eşik isterse kurulum ayarına taşınır.
+

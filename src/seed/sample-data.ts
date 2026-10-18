@@ -36,6 +36,13 @@ function ok<T>(r: ActionResult<T>, what: string): T {
   return r.data;
 }
 
+// Teslim tarihi: sipariş tarihinden birkaç hafta sonra (bir kısmı geçmiş olur, uyarılar görünsün).
+function plusDays(date: string, days: number): string {
+  const d = new Date(`${date}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 export async function seedSampleData({ db, companyId, cfg, auth, tabletPassword }: Seed): Promise<{ created: boolean; tablets: { role: string; loginEmail: string }[] }> {
   const existing = await withCompany(companyId, (tx) => tx.select({ id: parties.id }).from(parties).where(like(parties.taxId, '999%')).limit(1), db);
   const user: CurrentUser = { userId: 'ornek-veri', email: 'ornek-veri@example.com', name: 'Örnek veri', companyId, membershipId: '00000000-0000-0000-0000-000000000000', roles: ['admin', 'tracking', 'sales'], kind: 'person', staffId: null, twoFactorEnabled: true };
@@ -87,7 +94,7 @@ export async function seedSampleData({ db, companyId, cfg, auth, tabletPassword 
     const product = { width: s.en, height: s.boy, gusset: s.koruk, shape: s.model, handle: s.tutma, handleLength: s.tutma === 'Kulplu' ? 40 : '', gsm: s.gramaj, colour: s.renk, print: s.baski, rolls: s.bobin, biye: 5 };
     const r = ok(
       await createOrder({
-        partyId: partyIds.get(s.musteri)!, salespersonStaffId: salesIds[i % salesIds.length]!, orderDate: s.tarih, product,
+        partyId: partyIds.get(s.musteri)!, salespersonStaffId: salesIds[i % salesIds.length]!, orderDate: s.tarih, deliveryDate: plusDays(s.tarih, 21 + (i % 4) * 7), product,
         unitPrice: String(s.birimFiyat), vatRate: '10', currency: 'TRY', deposit: i % 3 === 0 ? '1.500,00' : '', packaging: { type: 'sack', capacity: 2000 },
         departmentNotes: { printing: s.not },
       }, rt),

@@ -30,6 +30,7 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
           party: { id: o.party.id, name: o.party.name },
           salespersonStaffId: o.salespersonStaffId,
           orderDate: o.orderDate,
+          deliveryDate: o.deliveryDate,
           currency: o.currency as Currency,
           fxRate: o.fxRate,
           fxRateDate: o.fxRateDate,

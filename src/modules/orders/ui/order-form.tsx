@@ -25,6 +25,7 @@ export type OrderInitial = {
   party: { id: string; name: string };
   salespersonStaffId: string | null;
   orderDate: string;
+  deliveryDate: string | null;
   currency: Currency;
   fxRate: string | null;
   fxRateDate: string | null;
@@ -149,6 +150,7 @@ export function OrderForm({ sector: sectorId, salesStaff, initial, initialPlates
       partyId: party?.id ?? '',
       salespersonStaffId: f.salespersonStaffId,
       orderDate: f.orderDate,
+      deliveryDate: f.deliveryDate || null,
       currency,
       fxRate: currency !== 'TRY' ? fxRate || undefined : undefined,
       fxRateDate: currency !== 'TRY' ? fxRateDate || undefined : undefined,
@@ -175,6 +177,7 @@ export function OrderForm({ sector: sectorId, salesStaff, initial, initialPlates
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="sm:col-span-2"><CustomerPicker value={party} onChange={choose} error={fe.partyId} /></div>
           <FormField label="Sipariş tarihi" required error={fe.orderDate}><input type="date" name="orderDate" defaultValue={initial?.orderDate ?? istanbulToday()} className={fieldClass} /></FormField>
+          <FormField label="Teslim tarihi" error={fe.deliveryDate} hint="Müşteriye söz verilen tarih"><input type="date" name="deliveryDate" defaultValue={initial?.deliveryDate ?? ''} className={fieldClass} /></FormField>
           <FormField label="Satış yapan" required error={fe.salespersonStaffId}>
             <select name="salespersonStaffId" className={fieldClass} defaultValue={initial?.salespersonStaffId ?? ''}>
               <option value="" disabled>Seçin</option>

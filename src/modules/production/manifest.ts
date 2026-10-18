@@ -11,5 +11,6 @@ export const productionManifest: ModuleManifest = {
     { href: '/uretim/klise', label: 'Klişeler', roles: ['admin', 'tracking', 'sales'], icon: 'stamp' },
     { href: '/uretim/sevk', label: 'Sevk Geçmişi', roles: ['admin', 'tracking', 'sales'], icon: 'truck' },
     { href: '/uretim/raporlar', label: 'Raporlar', roles: ['admin', 'tracking'], icon: 'chart' },
+    { href: '/uretim/icgoruler', label: 'Üretim İçgörüleri', roles: ['admin', 'tracking', 'accounting'], icon: 'chart' },
   ],
 };

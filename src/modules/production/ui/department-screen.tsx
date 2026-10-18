@@ -1,23 +1,60 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { BellRing, Volume2, VolumeX } from 'lucide-react';
 import { DateText } from '@/ui/date-text';
 import { queueAction } from './actions';
+import { beep, newJobIds } from './new-jobs';
 import { StageWork } from './stage-work';
 
 type Item = { id: string; no: string; stage: string; stageStatus: string; version: number; reviewNote: string; productText: string; note: string; quantity: number; partyName: string; orderDate: string; packaging: { type: string; capacity: number; packages: number } };
 
 const POLL_MS = 10_000;
+const SOUND_KEY = 'bolum-ses';
+const soundListeners = new Set<() => void>();
+function subscribeSound(fn: () => void) {
+  soundListeners.add(fn);
+  return () => soundListeners.delete(fn);
+}
+function readSound(): boolean {
+  try {
+    return window.localStorage.getItem(SOUND_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+function writeSound(on: boolean) {
+  try {
+    window.localStorage.setItem(SOUND_KEY, on ? '1' : '0');
+  } catch {
+    // tarayıcı depolaması kapalı
+  }
+  soundListeners.forEach((fn) => fn());
+}
 
 export function DepartmentScreen({ stage, title, sector, initial, staff }: { stage: string; title: string; sector: string; initial: Item[]; staff: { id: string; name: string }[] }) {
   const [items, setItems] = useState(initial);
   const [tab, setTab] = useState<'waiting' | 'in_progress'>('waiting');
   const [openId, setOpenId] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
+  const known = useRef(new Set(initial.map((i) => i.id)));
+  const [fresh, setFresh] = useState<string[]>([]);
+  // Sesli uyarı tercihi bu cihazda saklanır; sunucuda kapalı sayılır (hidrasyon uyuşmazlığı olmaz).
+  const sound = useSyncExternalStore(subscribeSound, readSound, () => false);
+  const toggleSound = () => {
+    writeSound(!sound);
+    if (!sound) beep();
+  };
 
   const reload = useCallback(async () => {
     try {
       const r = await queueAction({ stage });
       if (r.ok) {
+        const added = newJobIds(known.current, r.data);
+        for (const j of r.data) known.current.add(j.id);
+        if (added.length) {
+          setFresh((f) => [...f, ...added]);
+          if (sound) beep();
+        }
         setItems(r.data);
         setOffline(false);
       }
@@ -25,7 +62,7 @@ export function DepartmentScreen({ stage, title, sector, initial, staff }: { sta
       // Bağlantı kopukken modal değil üst şerit gösterilir; yeniden denenir.
       setOffline(true);
     }
-  }, [stage]);
+  }, [stage, sound]);
 
   useEffect(() => {
     const t = setInterval(() => void reload(), POLL_MS);
@@ -43,11 +80,22 @@ export function DepartmentScreen({ stage, title, sector, initial, staff }: { sta
           <p className="text-xs font-semibold uppercase tracking-wider text-stone-500">Bölüm ekranı</p>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-[26px]">{title}</h1>
         </div>
-        <p className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-stone-600 shadow-sm ring-1 ring-stone-200">
-          <span aria-hidden className={`h-2 w-2 rounded-full ${offline ? 'bg-amber-500' : 'animate-pulse bg-emerald-500'}`} />
-          {offline ? 'Bağlantı bekleniyor' : 'Canlı · kendiliğinden yenilenir'}
-        </p>
+        <span className="flex items-center gap-2">
+          <button type="button" onClick={toggleSound} aria-pressed={sound} className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-white px-3 text-xs font-medium text-stone-600 shadow-sm ring-1 ring-stone-200 hover:bg-stone-50">
+            {sound ? <Volume2 aria-hidden className="h-4 w-4" /> : <VolumeX aria-hidden className="h-4 w-4" />} Sesli uyarı {sound ? 'açık' : 'kapalı'}
+          </button>
+          <p className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-stone-600 shadow-sm ring-1 ring-stone-200">
+            <span aria-hidden className={`h-2 w-2 rounded-full ${offline ? 'bg-amber-500' : 'animate-pulse bg-emerald-500'}`} />
+            {offline ? 'Bağlantı bekleniyor' : 'Canlı · kendiliğinden yenilenir'}
+          </p>
+        </span>
       </div>
+      {fresh.length > 0 && (
+        <p role="status" className="flex items-center justify-between gap-3 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 font-semibold text-sky-900">
+          <span className="inline-flex items-center gap-2"><BellRing aria-hidden className="h-5 w-5" /> {fresh.length} yeni iş geldi</span>
+          <button type="button" onClick={() => setFresh([])} className="text-sm font-medium underline">Tamam</button>
+        </p>
+      )}
       <div role="tablist" className="grid grid-cols-2 gap-1 rounded-2xl bg-stone-200/70 p-1">
         {(['waiting', 'in_progress'] as const).map((t) => (
           <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className="min-h-14 rounded-xl text-base font-semibold text-stone-600 transition-colors aria-selected:bg-white aria-selected:text-stone-900 aria-selected:shadow-sm sm:text-lg">
@@ -60,9 +108,9 @@ export function DepartmentScreen({ stage, title, sector, initial, staff }: { sta
         <ul className="space-y-3">
           {list.map((i) => (
             <li key={i.id}>
-              <button onClick={() => setOpenId(i.id)} aria-current={openId === i.id ? 'true' : undefined} className="w-full rounded-2xl border border-stone-200/80 bg-white p-5 text-left shadow-[var(--shadow-card)] transition hover:border-stone-300 aria-[current=true]:border-[var(--brand)] aria-[current=true]:ring-4 aria-[current=true]:ring-[var(--brand-soft)]">
+              <button onClick={() => { setOpenId(i.id); setFresh((f) => f.filter((x) => x !== i.id)); }} aria-current={openId === i.id ? 'true' : undefined} className={`w-full rounded-2xl border bg-white p-5 ${fresh.includes(i.id) ? 'border-sky-400 ring-4 ring-sky-100' : 'border-stone-200/80'} text-left shadow-[var(--shadow-card)] transition hover:border-stone-300 aria-[current=true]:border-[var(--brand)] aria-[current=true]:ring-4 aria-[current=true]:ring-[var(--brand-soft)]`}>
                 <span className="flex items-start justify-between gap-2">
-                  <strong className="text-lg leading-snug">{i.partyName}</strong>
+                  <strong className="text-lg leading-snug">{i.partyName}{fresh.includes(i.id) && <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 align-middle text-xs font-semibold text-sky-800">Yeni</span>}</strong>
                   <span className="shrink-0 font-mono text-xs font-medium text-stone-500">{i.no}</span>
                 </span>
                 <span className="mt-1 block text-stone-600">{i.productText}</span>

@@ -32,6 +32,7 @@ const orderBase = z.object({
   partyId: z.string().uuid(),
   salespersonStaffId: z.string().uuid(),
   orderDate: z.string().date(),
+  deliveryDate: z.string().date().nullable().optional(),
   currency: z.enum(CURRENCIES),
   fxRate: z.string().optional(),
   fxRateDate: z.string().date().optional(),
@@ -157,6 +158,28 @@ async function loadOrder(ctx: ActionCtx, id: string) {
   return o;
 }
 
+function deliveryOf(i: { orderDate: string; deliveryDate?: string | null }): string | null {
+  if (!i.deliveryDate) return null;
+  if (i.deliveryDate < i.orderDate) throw new AppError('VALIDATION', 'Teslim tarihi sipariş tarihinden önce olamaz.', { deliveryDate: 'Sipariş tarihi veya sonrası.' });
+  return i.deliveryDate;
+}
+
+// Teslim tarihi üretim sürerken de değişebilir (müşteriyle yeni tarih konuşulduğunda).
+export const setDeliveryDate = defineAction({
+  name: 'orders.setDeliveryDate',
+  module: 'orders',
+  roles: OFFICE,
+  input: z.object({ id: z.string().uuid(), deliveryDate: z.string().date().nullable() }),
+  run: async (ctx, i) => {
+    const o = await loadOrder(ctx, i.id);
+    if (o.status === 'cancelled') throw new AppError('INVALID_STATE', 'İptal edilmiş siparişin teslim tarihi değiştirilemez.');
+    const deliveryDate = deliveryOf({ orderDate: o.orderDate, deliveryDate: i.deliveryDate });
+    await ctx.tx.update(orders).set({ deliveryDate }).where(eq(orders.id, o.id));
+    await ctx.audit({ entity: 'order', entityId: o.id, before: { deliveryDate: o.deliveryDate }, after: { deliveryDate } });
+    return { id: o.id };
+  },
+});
+
 const conflict = () => new AppError('CONFLICT', 'Bu kayıt başka biri tarafından değiştirildi, sayfayı yenileyin.');
 
 export const createOrder = defineAction({
@@ -172,7 +195,7 @@ export const createOrder = defineAction({
     const [row] = await ctx.tx
       .insert(orders)
       .values({
-        companyId: ctx.companyId, no, partyId: i.partyId, salespersonStaffId: i.salespersonStaffId, orderDate: i.orderDate,
+        companyId: ctx.companyId, no, partyId: i.partyId, salespersonStaffId: i.salespersonStaffId, orderDate: i.orderDate, deliveryDate: deliveryOf(i),
         currency: i.currency, fxRate: p.fxRate, fxRateDate: p.fxRateDate, fxSource: p.fxSource, totalMinor: p.totalMinor, createdBy: ctx.user.userId,
       })
       .returning({ id: orders.id });
@@ -201,7 +224,7 @@ export const updateOrder = defineAction({
     const updated = await ctx.tx
       .update(orders)
       .set({
-        partyId: i.partyId, salespersonStaffId: i.salespersonStaffId, orderDate: i.orderDate, currency: i.currency,
+        partyId: i.partyId, salespersonStaffId: i.salespersonStaffId, orderDate: i.orderDate, deliveryDate: deliveryOf(i), currency: i.currency,
         fxRate: p.fxRate, fxRateDate: p.fxRateDate, fxSource: p.fxSource, totalMinor: p.totalMinor, version: before.version + 1,
       })
       .where(and(eq(orders.id, i.id), eq(orders.version, i.version), eq(orders.status, 'draft')))

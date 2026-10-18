@@ -9,7 +9,11 @@ import { cachedTcmbRate } from '@/core/fx/tcmb';
 import { listPlates } from '@/modules/production/server/plates';
 import { searchParties } from '@/core/parties/service';
 import { lastOrderLines } from '@/modules/orders/server/queries';
-import { addPayment, cancelOrder, correctPayment, createOrder, markInvoiced, updateOrder } from '@/modules/orders/server/actions';
+import { addPayment, cancelOrder, correctPayment, createOrder, markInvoiced, setDeliveryDate, updateOrder } from '@/modules/orders/server/actions';
+
+export async function setDeliveryDateAction(input: unknown) {
+  return setDeliveryDate(input);
+}
 
 export async function lastOrderLinesAction(input: unknown) {
   return lastOrderLines(input);

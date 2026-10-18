@@ -16,6 +16,8 @@ export const orders = pgTable(
     partyId: uuid('party_id').notNull(),
     salespersonStaffId: uuid('salesperson_staff_id'),
     orderDate: date('order_date').notNull(),
+    /** Müşteriye söz verilen teslim tarihi (isteğe bağlı); gecikme uyarıları buna göre. */
+    deliveryDate: date('delivery_date'),
     // v1.1'den beri ürün bilgisi order_lines'tadır; bu dört alan ve packaging/departmentNotes yalnızca eski kayıtlar için durur (sonraki sürümde kaldırılacak).
     product: jsonb('product').$type<Record<string, unknown>>(),
     quantity: integer('quantity'),
