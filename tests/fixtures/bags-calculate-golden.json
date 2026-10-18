@@ -1,0 +1,479 @@
+[
+ {
+  "input": {
+   "width": 20,
+   "height": 25,
+   "gusset": 0,
+   "biye": 0,
+   "biyeType": "without",
+   "shape": "Körüksüz",
+   "rolls": 1,
+   "rollMetres": 1200
+  },
+  "expected": {
+   "fabricCm": 50,
+   "kazan": 20,
+   "perRoll": 6000,
+   "target": 6000,
+   "tolerance": 20,
+   "metres": 1200
+  }
+ },
+ {
+  "input": {
+   "width": 20,
+   "height": 42,
+   "gusset": 14,
+   "biye": 5,
+   "biyeType": "with",
+   "shape": "Alt Körüklü",
+   "rolls": 3,
+   "rollMetres": 1000
+  },
+  "expected": {
+   "fabricCm": 108,
+   "kazan": 20,
+   "perRoll": 5000,
+   "target": 15000,
+   "tolerance": 60,
+   "metres": 3000
+  }
+ },
+ {
+  "input": {
+   "width": 20,
+   "height": 70,
+   "gusset": 11,
+   "biye": 0,
+   "biyeType": "with",
+   "shape": "3D",
+   "rolls": 6,
+   "rollMetres": 1000
+  },
+  "expected": {
+   "fabricCm": 151,
+   "kazan": 35,
+   "perRoll": 2857.1428571428573,
+   "target": 17142,
+   "tolerance": 120,
+   "metres": 6000
+  }
+ },
+ {
+  "input": {
+   "width": 35,
+   "height": 25,
+   "gusset": 8,
+   "biye": 5,
+   "biyeType": "with",
+   "shape": "Üçgen Kesim",
+   "rolls": 1,
+   "rollMetres": 1000
+  },
+  "expected": {
+   "fabricCm": 68,
+   "kazan": 35,
+   "perRoll": 2857.1428571428573,
+   "target": 2857,
+   "tolerance": 20,
+   "metres": 1000
+  }
+ },
+ {
+  "input": {
+   "width": 35,
+   "height": 42,
+   "gusset": 0,
+   "biye": 0,
+   "biyeType": "with",
+   "shape": "Körüksüz",
+   "rolls": 3,
+   "rollMetres": 1200
+  },
+  "expected": {
+   "fabricCm": 84,
+   "kazan": 35,
+   "perRoll": 3428.5714285714284,
+   "target": 10285,
+   "tolerance": 60,
+   "metres": 3600
+  }
+ },
+ {
+  "input": {
+   "width": 35,
+   "height": 70,
+   "gusset": 11,
+   "biye": 5,
+   "biyeType": "without",
+   "shape": "Alt Körüklü",
+   "rolls": 6,
+   "rollMetres": 1000
+  },
+  "expected": {
+   "fabricCm": 151,
+   "kazan": 35,
+   "perRoll": 2857.1428571428573,
+   "target": 17142,
+   "tolerance": 120,
+   "metres": 6000
+  }
+ },
+ {
+  "input": {
+   "width": 48,
+   "height": 25,
+   "gusset": 8,
+   "biye": 0,
+   "biyeType": "with",
+   "shape": "3D",
+   "rolls": 1,
+   "rollMetres": 1000
+  },
+  "expected": {
+   "fabricCm": 58,
+   "kazan": 60,
+   "perRoll": 1666.6666666666667,
+   "target": 1666,
+   "tolerance": 20,
+   "metres": 1000
+  }
+ },
+ {
+  "input": {
+   "width": 48,
+   "height": 42,
+   "gusset": 14,
+   "biye": 5,
+   "biyeType": "with",
+   "shape": "Üçgen Kesim",
+   "rolls": 3,
+   "rollMetres": 1000
+  },
+  "expected": {
+   "fabricCm": 108,
+   "kazan": 48,
+   "perRoll": 2083.3333333333335,
+   "target": 6250,
+   "tolerance": 60,
+   "metres": 3000
+  }
+ },
+ {
+  "input": {
+   "width": 48,
+   "height": 70,
+   "gusset": 0,
+   "biye": 0,
+   "biyeType": "with",
+   "shape": "Körüksüz",
+   "rolls": 6,
+   "rollMetres": 1200
+  },
+  "expected": {
+   "fabricCm": 140,
+   "kazan": 48,
+   "perRoll": 2500,
+   "target": 15000,
+   "tolerance": 120,
+   "metres": 7200
+  }
+ },
+ {
+  "input": {
+   "width": 60,
+   "height": 25,
+   "gusset": 8,
+   "biye": 5,
+   "biyeType": "with",
+   "shape": "Alt Körüklü",
+   "rolls": 1,
+   "rollMetres": 1000
+  },
+  "expected": {
+   "fabricCm": 68,
+   "kazan": 60,
+   "perRoll": 1666.6666666666667,
+   "target": 1666,
+   "tolerance": 20,
+   "metres": 1000
+  }
+ },
+ {
+  "input": {
+   "width": 60,
+   "height": 42,
+   "gusset": 14,
+   "biye": 0,
+   "biyeType": "without",
+   "shape": "3D",
+   "rolls": 3,
+   "rollMetres": 1000
+  },
+  "expected": {
+   "fabricCm": 98,
+   "kazan": 75,
+   "perRoll": 1333.3333333333333,
+   "target": 4000,
+   "tolerance": 60,
+   "metres": 3000
+  }
+ },
+ {
+  "input": {
+   "width": 60,
+   "height": 70,
+   "gusset": 11,
+   "biye": 5,
+   "biyeType": "with",
+   "shape": "Üçgen Kesim",
+   "rolls": 6,
+   "rollMetres": 1000
+  },
+  "expected": {
+   "fabricCm": 161,
+   "kazan": 60,
+   "perRoll": 1666.6666666666667,
+   "target": 10000,
+   "tolerance": 120,
+   "metres": 6000
+  }
+ },
+ {
+  "input": {
+   "width": 33,
+   "height": 40,
+   "gusset": 0,
+   "biye": 5,
+   "biyeType": "with",
+   "shape": "Körüksüz",
+   "rolls": 2,
+   "rollMetres": 1000
+  },
+  "expected": {
+   "fabricCm": 90,
+   "kazan": 33,
+   "perRoll": 3030.3030303030305,
+   "target": 6060,
+   "tolerance": 40,
+   "metres": 2000
+  }
+ },
+ {
+  "input": {
+   "width": 57,
+   "height": 40,
+   "gusset": 0,
+   "biye": 5,
+   "biyeType": "with",
+   "shape": "Körüksüz",
+   "rolls": 2,
+   "rollMetres": 1000
+  },
+  "expected": {
+   "fabricCm": 90,
+   "kazan": 57,
+   "perRoll": 1754.3859649122808,
+   "target": 3508,
+   "tolerance": 40,
+   "metres": 2000
+  }
+ },
+ {
+  "input": {
+   "width": 33,
+   "height": 40,
+   "gusset": 13,
+   "biye": 5,
+   "biyeType": "with",
+   "shape": "Alt Körüklü",
+   "rolls": 2,
+   "rollMetres": 1000
+  },
+  "expected": {
+   "fabricCm": 103,
+   "kazan": 33,
+   "perRoll": 3030.3030303030305,
+   "target": 6060,
+   "tolerance": 40,
+   "metres": 2000
+  }
+ },
+ {
+  "input": {
+   "width": 57,
+   "height": 40,
+   "gusset": 13,
+   "biye": 5,
+   "biyeType": "with",
+   "shape": "Alt Körüklü",
+   "rolls": 2,
+   "rollMetres": 1000
+  },
+  "expected": {
+   "fabricCm": 103,
+   "kazan": 57,
+   "perRoll": 1754.3859649122808,
+   "target": 3508,
+   "tolerance": 40,
+   "metres": 2000
+  }
+ },
+ {
+  "input": {
+   "width": 33,
+   "height": 40,
+   "gusset": 13,
+   "biye": 5,
+   "biyeType": "with",
+   "shape": "3D",
+   "rolls": 2,
+   "rollMetres": 1000
+  },
+  "expected": {
+   "fabricCm": 103,
+   "kazan": 50,
+   "perRoll": 2000,
+   "target": 4000,
+   "tolerance": 40,
+   "metres": 2000
+  }
+ },
+ {
+  "input": {
+   "width": 57,
+   "height": 40,
+   "gusset": 13,
+   "biye": 5,
+   "biyeType": "with",
+   "shape": "3D",
+   "rolls": 2,
+   "rollMetres": 1000
+  },
+  "expected": {
+   "fabricCm": 103,
+   "kazan": 70,
+   "perRoll": 1428.5714285714287,
+   "target": 2857,
+   "tolerance": 40,
+   "metres": 2000
+  }
+ },
+ {
+  "input": {
+   "width": 33,
+   "height": 40,
+   "gusset": 13,
+   "biye": 5,
+   "biyeType": "with",
+   "shape": "Üçgen Kesim",
+   "rolls": 2,
+   "rollMetres": 1000
+  },
+  "expected": {
+   "fabricCm": 103,
+   "kazan": 33,
+   "perRoll": 3030.3030303030305,
+   "target": 6060,
+   "tolerance": 40,
+   "metres": 2000
+  }
+ },
+ {
+  "input": {
+   "width": 57,
+   "height": 40,
+   "gusset": 13,
+   "biye": 5,
+   "biyeType": "with",
+   "shape": "Üçgen Kesim",
+   "rolls": 2,
+   "rollMetres": 1000
+  },
+  "expected": {
+   "fabricCm": 103,
+   "kazan": 57,
+   "perRoll": 1754.3859649122808,
+   "target": 3508,
+   "tolerance": 40,
+   "metres": 2000
+  }
+ },
+ {
+  "input": {
+   "width": 41,
+   "height": 50,
+   "gusset": 12,
+   "biye": 4,
+   "biyeType": "with",
+   "shape": "3D",
+   "rolls": 4
+  },
+  "expected": {
+   "fabricCm": 120,
+   "kazan": 55,
+   "perRoll": 1818.1818181818182,
+   "target": 7272,
+   "tolerance": 80,
+   "metres": 4000
+  }
+ },
+ {
+  "input": {
+   "width": 22,
+   "height": 30,
+   "gusset": 0,
+   "biye": 0,
+   "biyeType": "without",
+   "shape": "Körüksüz",
+   "rolls": 1
+  },
+  "expected": {
+   "fabricCm": 60,
+   "kazan": 22,
+   "perRoll": 4545.454545454545,
+   "target": 4545,
+   "tolerance": 20,
+   "metres": 1000
+  }
+ },
+ {
+  "input": {
+   "width": 0,
+   "height": 40,
+   "gusset": 0,
+   "biye": 0,
+   "biyeType": "with",
+   "shape": "Körüksüz",
+   "rolls": 2
+  },
+  "expected": {
+   "fabricCm": 80,
+   "kazan": 0,
+   "perRoll": 0,
+   "target": 0,
+   "tolerance": 40,
+   "metres": 2000
+  }
+ },
+ {
+  "input": {
+   "width": 59,
+   "height": 69,
+   "gusset": 16,
+   "biye": 6,
+   "biyeType": "with",
+   "shape": "Alt Körüklü",
+   "rolls": 5,
+   "rollMetres": 900
+  },
+  "expected": {
+   "fabricCm": 166,
+   "kazan": 59,
+   "perRoll": 1525.4237288135594,
+   "target": 7627,
+   "tolerance": 100,
+   "metres": 4500
+  }
+ }
+]
