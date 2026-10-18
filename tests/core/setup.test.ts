@@ -46,6 +46,13 @@ describe('kurulum komutu', () => {
     expect(await withCompany(r.companyId, (tx) => tx.select().from(memberships), db)).toHaveLength(1);
   });
 
+  it('tekrar kurulum ayarlardan değiştirilen firma adını ezmez', async () => {
+    await db.update(companies).set({ name: 'Karviyes Ambalaj San. Tic. Ltd. Şti.' }).where(eq(companies.slug, 'karviyes'));
+    await setup();
+    const [c] = await db.select().from(companies).where(eq(companies.slug, 'karviyes'));
+    expect(c!.name).toBe('Karviyes Ambalaj San. Tic. Ltd. Şti.');
+  });
+
   it('kısa parolayla yönetici oluşturulmaz', async () => {
     await expect(setup({ ...admin, email: 'baska@example.com', password: 'kisa' })).rejects.toThrow(/12/);
   });

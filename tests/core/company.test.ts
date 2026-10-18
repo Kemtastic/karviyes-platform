@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestDb, type TestDb } from '../helpers/db';
 import { runtime, testUser } from '../helpers/runtime';
-import { listAudit, updateCompanyBranding } from '@/core/company/service';
+import { companyProfile, listAudit, updateCompanyBranding } from '@/core/company/service';
 
 let t: TestDb;
 beforeAll(async () => { t = await createTestDb(); });
@@ -27,5 +27,13 @@ describe('firma ayarları', () => {
 
   it('satışçı denetim kaydını göremez', async () => {
     expect(await listAudit({}, runtime(t, testUser(t.companyA, ['sales'])))).toMatchObject({ ok: false, code: 'FORBIDDEN' });
+  });
+});
+
+describe('firma profili (v1.1)', () => {
+  it('belge ve ekranlar için güncel firma adını her rol okur', async () => {
+    await updateCompanyBranding({ name: 'Belge Adı A.Ş.', brandColor: '#123456' }, admin());
+    const r = await companyProfile({}, runtime(t, testUser(t.companyA, ['cutting'], { kind: 'device' })));
+    expect(r).toMatchObject({ ok: true, data: { name: 'Belge Adı A.Ş.', brandColor: '#123456' } });
   });
 });

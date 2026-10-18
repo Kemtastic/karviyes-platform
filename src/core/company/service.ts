@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { defineAction } from '@/core/action';
 import { auditLog, companies } from '@/core/db/schema';
 import { AppError } from '@/core/errors';
+import { ROLES } from '@/core/modules/types';
 
 export const updateCompanyBranding = defineAction({
   name: 'company.branding',
@@ -22,6 +23,19 @@ export const updateCompanyBranding = defineAction({
       .returning();
     await ctx.audit({ entity: 'company', entityId: ctx.companyId, before, after: row });
     return { name: row!.name, brandColor: row!.brandColor, logoFileId: row!.logoFileId };
+  },
+});
+
+// Firma adı, rengi ve logosu: kabuk ve belgeler (PDF) buradan okur, kurulum dosyasından değil.
+export const companyProfile = defineAction({
+  name: 'company.profile',
+  roles: [...ROLES],
+  rateLimit: false,
+  input: z.object({}),
+  run: async (ctx) => {
+    const [row] = await ctx.tx.select({ name: companies.name, brandColor: companies.brandColor, logoFileId: companies.logoFileId }).from(companies).where(eq(companies.id, ctx.companyId));
+    if (!row) throw new AppError('NOT_FOUND', 'Firma bulunamadı.');
+    return row;
   },
 });
 

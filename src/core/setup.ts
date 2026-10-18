@@ -22,7 +22,6 @@ export async function runSetup({ db, auth, cfg, admin, migrate }: SetupInput): P
   const companyId = existing
     ? existing.id
     : (await db.insert(companies).values({ name: cfg.company.name, slug: cfg.company.slug, brandColor: cfg.company.brandColor }).returning({ id: companies.id }))[0]!.id;
-  if (existing) await db.update(companies).set({ name: cfg.company.name }).where(eq(companies.id, companyId));
 
   const ctx = await auth.$context;
   const email = admin.email.trim().toLowerCase();

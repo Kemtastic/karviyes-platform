@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { and, eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/core/db/client';
 import { withCompany } from '@/core/db/scope';
@@ -71,10 +72,11 @@ export async function resolveCurrentUser(auth: Auth, db: Db, companyId: string, 
   };
 }
 
-export async function getCurrentUser(): Promise<CurrentUser | null> {
+// Aynı istekte (layout, sayfa, eylemler) oturum bir kez çözülür.
+export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const { headers } = await import('next/headers');
   return resolveCurrentUser(await getAuth(), await getDb(), await getCompanyId(), await headers());
-}
+});
 
 export async function requireUser(): Promise<CurrentUser> {
   const user = await getCurrentUser();
