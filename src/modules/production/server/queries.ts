@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, notInArray } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, lte, notInArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { defineAction } from '@/core/action';
 import { parties, staff } from '@/core/db/schema';
@@ -230,5 +230,28 @@ export const productionSummary = defineAction({
       review: sum((r) => r.stage === 'review'),
       readyToShip: sum((r) => r.stage === 'completed'),
     };
+  },
+});
+
+// Sevk geçmişi: tarih aralığındaki sevkler (yeniden eskiye), iş, müşteri ve ürünle.
+export const shipmentHistory = defineAction({
+  name: 'production.shipments',
+  module: 'production',
+  roles: OFFICE,
+  rateLimit: false,
+  input: z.object({ from: z.string().date(), to: z.string().date() }),
+  run: async (ctx, i) => {
+    const sector = getSector(ctx.cfg.sector);
+    const rows = await ctx.tx
+      .select({ s: shipments, jobNo: jobs.no, jobId: jobs.id, product: orderLines.product, partyName: parties.name })
+      .from(shipments)
+      .innerJoin(jobs, eq(jobs.id, shipments.jobId))
+      .innerJoin(orderLines, eq(orderLines.id, jobs.orderLineId))
+      .innerJoin(orders, eq(orders.id, jobs.orderId))
+      .innerJoin(parties, eq(parties.id, orders.partyId))
+      .where(and(gte(shipments.shippedAt, i.from), lte(shipments.shippedAt, i.to)))
+      .orderBy(desc(shipments.shippedAt), desc(shipments.createdAt))
+      .limit(2000);
+    return rows.map((r) => ({ id: r.s.id, shippedAt: r.s.shippedAt, qty: r.s.qty, note: r.s.note, jobId: r.jobId, jobNo: r.jobNo, partyName: r.partyName, product: sector.describe(r.product) }));
   },
 });

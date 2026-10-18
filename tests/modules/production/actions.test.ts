@@ -17,7 +17,7 @@ import {
   startProduction,
   startStage,
 } from '@/modules/production/server/actions';
-import { departmentQueue, jobDetail, productionSummary } from '@/modules/production/server/queries';
+import { departmentQueue, jobDetail, productionSummary, shipmentHistory } from '@/modules/production/server/queries';
 
 let t: TestDb;
 let partyId: string;
@@ -171,5 +171,23 @@ describe('ana sayfa özeti', () => {
     if (!after.ok) throw new Error(after.message);
     expect(after.data.waitingFabric).toBe(before.data.waitingFabric + 1);
     expect(Object.keys(after.data).sort()).toEqual(['inProduction', 'readyToShip', 'review', 'waitingFabric']);
+  });
+});
+
+describe('sevk geçmişi', () => {
+  it('tarih aralığındaki sevkler iş, müşteri ve ürünle; bölüm tableti göremez', async () => {
+    const { jobId } = await readyAtCutting();
+    await startStage({ jobId, machine: 'Kesim 1', staffIds: [operatorId], version: await version(jobId) }, device('cutting'));
+    await finishStage({ jobId, good: 2200, cutWaste: 5, version: await version(jobId) }, device('cutting'));
+    await startStage({ jobId, machine: 'Masa 1', staffIds: [operatorId], version: await version(jobId) }, device('finishing'));
+    await finishStage({ jobId, good: 2180, cutWaste: 20, sacks: 3, version: await version(jobId) }, device('finishing'));
+    await approveReview({ jobId, version: await version(jobId) }, tracking());
+    await shipJob({ jobId, qty: 1000, shippedAt: '2026-11-02', note: 'İlk parti', version: await version(jobId) }, tracking());
+    await shipJob({ jobId, qty: 500, shippedAt: '2026-11-20', version: await version(jobId) }, tracking());
+    const r = await shipmentHistory({ from: '2026-11-01', to: '2026-11-10' }, tracking());
+    if (!r.ok) throw new Error(r.message);
+    expect(r.data.map((s) => [s.shippedAt, s.qty, s.note, s.partyName])).toEqual([['2026-11-02', 1000, 'İlk parti', 'Örnek']]);
+    expect(r.data[0]!.jobNo).toMatch(/\/1$/);
+    expect(await shipmentHistory({ from: '2026-11-01', to: '2026-11-30' }, device('finishing'))).toMatchObject({ ok: false, code: 'FORBIDDEN' });
   });
 });

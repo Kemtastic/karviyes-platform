@@ -9,6 +9,7 @@ export const productionManifest: ModuleManifest = {
     { href: '/uretim/bolum', label: 'Bölüm Ekranı', roles: ['slitting', 'printing', 'cutting', 'finishing', 'repair', 'admin', 'tracking'], icon: 'hammer' },
     { href: '/uretim/kumas', label: 'Kumaş Stoğu', roles: ['admin', 'tracking'], icon: 'layers' },
     { href: '/uretim/klise', label: 'Klişeler', roles: ['admin', 'tracking', 'sales'], icon: 'stamp' },
+    { href: '/uretim/sevk', label: 'Sevk Geçmişi', roles: ['admin', 'tracking', 'sales'], icon: 'truck' },
     { href: '/uretim/raporlar', label: 'Raporlar', roles: ['admin', 'tracking'], icon: 'chart' },
   ],
 };

@@ -275,3 +275,10 @@ test('klişe/poze sipariş satırına bağlanır', async ({ page }) => {
   await page.waitForURL(/\/siparisler\/[0-9a-f-]{36}$/);
   await expect(page.getByText('Klişe: E2E Logo')).toBeVisible();
 });
+
+test('sevk geçmişi', async ({ page }) => {
+  await login(page);
+  await page.goto('/uretim/sevk?bas=2020-01-01');
+  await expect(page.getByRole('heading', { name: 'Sevk geçmişi' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'E2E Gıda Ltd. Şti.' }).first()).toBeVisible();
+});
