@@ -15,11 +15,14 @@ const connections = (shared.__dbConnections ??= new Map());
 
 // DATABASE_URL "pglite://memory" veya "pglite://<dizin>" ise gömülü PGlite, aksi hâlde Postgres havuzu.
 // "pglite://memory" her çağrıda yeni, boş bir veritabanıdır (testler için).
-export function connectDb(url: string): Promise<Db> {
+export function connectDb(url: string, opts: { autoMigrate?: boolean } = {}): Promise<Db> {
   if (url === 'pglite://memory') return open(url);
   let connection = connections.get(url);
   if (!connection) {
-    connection = open(url);
+    connection = open(url).then(async (db) => {
+      if (opts.autoMigrate) await migrateDb(db, url);
+      return db;
+    });
     connections.set(url, connection);
   }
   return connection;
@@ -44,7 +47,9 @@ async function open(url: string): Promise<Db> {
 }
 
 export function getDb(): Promise<Db> {
-  instance ??= connectDb(getEnv().DATABASE_URL);
+  const url = getEnv().DATABASE_URL;
+  // Gömülü PGlite (geliştirme/demo) açılırken göçleri kendisi uygular: ayrı bir süreç aynı klasörü açıp bozmasın.
+  instance ??= connectDb(url, { autoMigrate: url.startsWith('pglite://') });
   return instance;
 }
 

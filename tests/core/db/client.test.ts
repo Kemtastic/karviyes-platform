@@ -32,3 +32,18 @@ describe('PGlite tek örnek', () => {
     }
   });
 });
+
+describe('PGlite otomatik göç', () => {
+  it('autoMigrate ile açılan dosya veritabanında tablolar hazırdır', async () => {
+    const base = mkdtempSync(join(tmpdir(), 'pglite-'));
+    try {
+      const url = `pglite://${join(base, 'db')}`;
+      const db = await connectDb(url, { autoMigrate: true });
+      const rows = rowsOf<{ n: number }>(await db.execute(sql`select count(*)::int as n from information_schema.tables where table_name = 'companies'`));
+      expect(rows[0]?.n).toBe(1);
+      await closeDb(url);
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
+  });
+});

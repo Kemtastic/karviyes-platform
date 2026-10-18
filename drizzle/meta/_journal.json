@@ -43,6 +43,20 @@
       "when": 1792290930139,
       "tag": "0005_rate_limits_grant",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792291658458,
+      "tag": "0006_staff_invites",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792291659849,
+      "tag": "0007_staff_invites_secure",
+      "breakpoints": true
     }
   ]
 }
