@@ -3,7 +3,7 @@ import { cloneElement, isValidElement, useId, type ReactElement } from 'react';
 type Props = { label: string; hint?: string; error?: string; required?: boolean; children: ReactElement<Record<string, unknown>> };
 
 export const fieldClass =
-  'w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-base text-stone-900 shadow-sm placeholder:text-stone-400 transition-colors hover:border-stone-400 focus:border-[var(--brand)] focus:outline-none focus:ring-4 focus:ring-[var(--brand-soft)] aria-[invalid=true]:border-red-600 aria-[invalid=true]:ring-red-100 disabled:bg-stone-50';
+  'w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-base text-stone-900 shadow-sm placeholder:text-stone-400 transition-colors hover:border-stone-400 focus:border-[var(--brand)] focus:outline-none focus:ring-4 focus:ring-[var(--brand-soft)] aria-[invalid=true]:border-red-600 aria-[invalid=true]:ring-red-100 disabled:bg-stone-50 file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-stone-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-stone-700 hover:file:bg-stone-200';
 
 // Etiket, ipucu ve hata metnini alana erişilebilir biçimde bağlar.
 export function FormField({ label, hint, error, required, children }: Props) {

@@ -35,14 +35,23 @@ export function CallDialog({ party, onClose, onDone }: { party: { id: string; na
         <FormField label="Sonraki arama" hint="Boş bırakılırsa takip listesine düşmez" error={log.fieldErrors.nextDate}>
           <input type="date" min={istanbulToday()} value={nextDate} onChange={(e) => setNextDate(e.target.value)} className={fieldClass} />
         </FormField>
-        <div className="flex flex-wrap gap-2">
-          {QUICK.map(([label, days]) => (
-            <Button key={label} type="button" variant="secondary" onClick={() => setNextDate(addDays(days))}>{label}</Button>
-          ))}
-          <Button type="button" variant="ghost" onClick={() => setNextDate('')}>Takip yok</Button>
+        <div className="flex flex-wrap gap-1.5">
+          {QUICK.map(([label, days]) => {
+            const on = nextDate === addDays(days);
+            return (
+              <button key={label} type="button" aria-pressed={on} onClick={() => setNextDate(addDays(days))}
+                className={`min-h-9 rounded-full border px-3.5 text-sm font-medium transition-colors ${on ? 'border-[var(--brand)] bg-[var(--brand-soft)] text-[var(--brand-strong)]' : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50'}`}>
+                {label}
+              </button>
+            );
+          })}
+          <button type="button" aria-pressed={!nextDate} onClick={() => setNextDate('')}
+            className={`min-h-9 rounded-full border px-3.5 text-sm font-medium transition-colors ${!nextDate ? 'border-stone-900 bg-stone-900 text-white' : 'border-dashed border-stone-300 text-stone-600 hover:bg-stone-50'}`}>
+            Takip yok
+          </button>
         </div>
-        {log.error && <p role="alert" className="text-red-700">{log.error}</p>}
-        <div className="flex justify-end gap-2">
+        {log.error && <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-800">{log.error}</p>}
+        <div className="flex justify-end gap-2 border-t border-stone-100 pt-4">
           <Button type="button" variant="secondary" onClick={onClose}>Vazgeç</Button>
           <Button disabled={log.pending}>{log.pending ? 'Kaydediliyor…' : 'Görüşmeyi kaydet'}</Button>
         </div>

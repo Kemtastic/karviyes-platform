@@ -131,7 +131,26 @@ export async function seedSampleData({ db, companyId, cfg, auth, tabletPassword 
     await step(production.finishStage, { jobId, good: q, cutWaste: 3, sacks: Math.ceil(q / 2000) }, 'bitiş bitir');
     if (target === 'review') continue;
     await step(production.approveReview, { jobId }, 'onay');
-    if (target === 'shipped') await step(production.shipJob, { jobId, qty: q, shippedAt: '2026-10-15' }, 'sevk');
+    if (target === 'shipped') {
+      // İki parça sevk: rapor ve sevk geçmişi dolu görünsün.
+      const first = Math.floor(q / 2);
+      await step(production.shipJob, { jobId, qty: first, shippedAt: '2026-10-13', note: 'İlk parti' }, 'sevk');
+      await step(production.shipJob, { jobId, qty: q - first, shippedAt: '2026-10-15', note: 'Kalan' }, 'sevk');
+    }
+  }
+  // Önceki haftalardan tamamen sevk edilmiş birkaç iş daha (farklı müşteri, tarih ve personel).
+  const extraShips: [string, string][] = [['2026-09-24', 'Masa 1'], ['2026-10-02', 'Masa 2'], ['2026-10-09', 'Masa 1']];
+  for (const [i, [date, table]] of extraShips.entries()) {
+    const orderId = orderIds[5 + i];
+    const rollId = rolls[4 + i];
+    if (!orderId || !rollId) break;
+    const jobId = ok(await production.startProduction({ orderId }, rt), 'üretime al').id;
+    const q = await qtyOf(jobId);
+    await toCuttingDone(jobId, q, rollId);
+    await step(production.startStage, { jobId, machine: table, staffIds: [workerIds['Gül Dikiş']!] }, 'bitiş başlat');
+    await step(production.finishStage, { jobId, good: q, cutWaste: 2 + i, sacks: Math.ceil(q / 2000) }, 'bitiş bitir');
+    await step(production.approveReview, { jobId }, 'onay');
+    await step(production.shipJob, { jobId, qty: q, shippedAt: date, note: i === 1 ? 'Müşteri kendisi aldı' : '' }, 'sevk');
   }
   await step(production.reserveFabric, { jobId: jobIds[3]!, rollIds: [rolls[3]!] }, 'kumaş ayır');
   const d4 = ok(await jobDetail({ id: jobIds[3]! }, rt), 'iş');

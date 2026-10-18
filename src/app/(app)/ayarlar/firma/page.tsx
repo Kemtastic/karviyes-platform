@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/core/auth/session';
 import { getDb } from '@/core/db/client';
 import { withCompany } from '@/core/db/scope';
 import { companies } from '@/core/db/schema';
+import { PageHeader } from '@/ui/page-header';
 import { BrandingForm } from './branding-form';
 
 export default async function CompanySettingsPage() {
@@ -12,8 +13,8 @@ export default async function CompanySettingsPage() {
   const [c] = await withCompany(user.companyId, (tx) => tx.select().from(companies).where(eq(companies.id, user.companyId)), await getDb());
   if (!c) notFound();
   return (
-    <div className="max-w-xl space-y-4">
-      <h1 className="text-2xl font-semibold tracking-tight sm:text-[26px]">Firma ayarları</h1>
+    <div className="max-w-3xl space-y-5">
+      <PageHeader title="Firma ayarları" description="Firma adı, logo ve ana renk; menüde, düğmelerde ve çıktılarda kullanılır." />
       <BrandingForm name={c.name} brandColor={c.brandColor ?? '#c2410c'} logoFileId={c.logoFileId} />
     </div>
   );

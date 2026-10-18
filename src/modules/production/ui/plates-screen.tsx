@@ -1,7 +1,11 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { Plus, Stamp } from 'lucide-react';
+import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
+import { EmptyState } from '@/ui/empty-state';
+import { PageHeader } from '@/ui/page-header';
 import { FormField, fieldClass } from '@/ui/form-field';
 import { Modal } from '@/ui/modal';
 import { useAction } from '@/ui/use-action';
@@ -14,26 +18,42 @@ export function PlatesScreen({ rows }: { rows: Plate[] }) {
   const router = useRouter();
   const [adding, setAdding] = useState(false);
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-[26px]">Klişeler</h1>
-        <Button onClick={() => setAdding(true)}>Klişe ekle</Button>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {rows.map((p) => (
-          <article key={p.id} className="space-y-2 rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)] p-5">
-            {p.fileIds[0] && (
-              // eslint-disable-next-line @next/next/no-img-element -- kendi dosya uç noktamız
-              <img src={`/api/files/${p.fileIds[0]}`} alt={`${p.name} klişe görseli`} className="h-40 w-full rounded-lg bg-stone-100 object-contain" />
-            )}
-            <h2 className="text-[15px] font-semibold text-stone-900">{p.name}</h2>
-            <p className="text-sm text-stone-600">{p.partyName}</p>
-            {p.colours && <p className="text-sm">Renkler: {p.colours}</p>}
-            {p.notes && <p className="text-sm text-stone-600">{p.notes}</p>}
-          </article>
-        ))}
-        {!rows.length && <p className="rounded-xl border border-dashed border-stone-300 p-8 text-center text-stone-500 sm:col-span-3">Henüz klişe yok.</p>}
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="Klişeler"
+        description="Müşterilere ait baskı klişeleri ve pozeler. Sipariş satırına bağlanan klişe iş kartında ve baskı bölümünde görünür."
+        actions={<Button onClick={() => setAdding(true)}><Plus aria-hidden className="h-4 w-4" /> Klişe ekle</Button>}
+      />
+      {rows.length ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {rows.map((p) => (
+            <article key={p.id} className="group overflow-hidden rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:shadow-md">
+              <div className="grid h-40 place-items-center border-b border-stone-100 bg-[repeating-linear-gradient(45deg,#fafaf9_0,#fafaf9_10px,#f5f5f4_10px,#f5f5f4_20px)]">
+                {p.fileIds[0] ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- kendi dosya uç noktamız
+                  <img src={`/api/files/${p.fileIds[0]}`} alt={`${p.name} klişe görseli`} className="h-full w-full object-contain p-3" />
+                ) : (
+                  <span className="grid h-14 w-14 place-items-center rounded-2xl bg-white text-stone-400 shadow-sm"><Stamp aria-hidden className="h-6 w-6" /></span>
+                )}
+              </div>
+              <div className="space-y-2 p-4">
+                <div>
+                  <h2 className="text-[15px] font-semibold text-stone-900">{p.name}</h2>
+                  <p className="text-sm text-stone-500">{p.partyName}</p>
+                </div>
+                {p.colours && (
+                  <p className="flex flex-wrap gap-1">
+                    {p.colours.split(/[,+/·]/).map((c) => c.trim()).filter(Boolean).map((c) => <Badge key={c} tone="neutral" dot={false}>{c}</Badge>)}
+                  </p>
+                )}
+                {p.notes && <p className="text-sm text-stone-600">{p.notes}</p>}
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <EmptyState title="Henüz klişe yok." hint="Müşterinin logosu ya da baskı görseli için ilk klişeyi ekleyin." action={<Button variant="secondary" onClick={() => setAdding(true)}>İlk klişeyi ekle</Button>} />
+      )}
       {adding && <PlateModal onClose={() => setAdding(false)} onDone={() => { setAdding(false); router.refresh(); }} />}
     </div>
   );
@@ -59,13 +79,13 @@ function PlateModal({ onClose, onDone }: { onClose: () => void; onDone: () => vo
       <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.currentTarget)); create.run({ partyId: party?.id ?? '', name: f.name, colours: f.colours, notes: f.notes, fileIds: fileId ? [fileId] : [] }, onDone); }}>
         <FormField label="Müşteri" required error={create.fieldErrors.partyId}>
           {party ? (
-            <span className="flex justify-between rounded-lg border border-stone-300 px-3 py-2.5"><strong>{party.name}</strong><button type="button" className="underline" onClick={() => setParty(null)}>Değiştir</button></span>
+            <span className="flex items-center justify-between rounded-xl border border-[color-mix(in_srgb,var(--brand)_30%,white)] bg-[var(--brand-softer)] px-3 py-2.5"><strong className="font-medium">{party.name}</strong><button type="button" className="text-sm font-medium text-[var(--brand-strong)] hover:underline" onClick={() => setParty(null)}>Değiştir</button></span>
           ) : (
             <input className={fieldClass} placeholder="Müşteri ara" onChange={async (e) => { const r = await searchCustomersAction({ q: e.target.value }); setResults(r.ok ? r.data : []); }} />
           )}
         </FormField>
         {!party && results.length > 0 && (
-          <ul className="max-h-48 overflow-auto rounded-lg border border-stone-200">{results.map((r) => <li key={r.id}><button type="button" className="w-full px-3 py-2 text-left hover:bg-stone-100" onClick={() => setParty(r)}>{r.name}</button></li>)}</ul>
+          <ul className="max-h-48 divide-y divide-stone-100 overflow-auto rounded-xl border border-stone-200 shadow-sm">{results.map((r) => <li key={r.id}><button type="button" className="w-full px-3 py-2.5 text-left text-sm hover:bg-[var(--brand-softer)]" onClick={() => setParty(r)}>{r.name}</button></li>)}</ul>
         )}
         <FormField label="Klişe adı" required error={create.fieldErrors.name}><input name="name" className={fieldClass} /></FormField>
         <FormField label="Baskı renkleri"><input name="colours" className={fieldClass} /></FormField>
@@ -74,7 +94,10 @@ function PlateModal({ onClose, onDone }: { onClose: () => void; onDone: () => vo
           <input type="file" accept="image/png,image/jpeg,image/webp,application/pdf" onChange={(e) => e.target.files?.[0] && void upload(e.target.files[0])} className={fieldClass} />
         </FormField>
         {create.error && <p role="alert" className="text-sm text-red-700">{create.error}</p>}
-        <Button disabled={create.pending}>Kaydet</Button>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="secondary" onClick={onClose}>Vazgeç</Button>
+          <Button disabled={create.pending}>Kaydet</Button>
+        </div>
       </form>
     </Modal>
   );
