@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import { ZodError, type ZodType } from 'zod';
+import { ZodError, type ZodType, type ZodTypeDef } from 'zod';
 import type { CurrentUser } from '@/core/auth/session';
 import { assertRoles } from '@/core/auth/policy';
 import { rowsOf, type Db, type Tx } from '@/core/db/client';
@@ -34,7 +34,9 @@ export type ActionSpec<I, O> = {
   name: string;
   module?: ModuleId;
   roles: Role[];
-  input: ZodType<I>;
+  input: ZodType<I, ZodTypeDef, unknown>;
+  /** Okuma sorgularında false: yazma hız sınırını tüketmez. */
+  rateLimit?: boolean;
   audit?: (input: I, output: O) => AuditRecord | null;
   run: (ctx: ActionCtx, input: I) => Promise<O>;
 };
@@ -94,7 +96,7 @@ export function defineAction<I, O>(spec: ActionSpec<I, O>): Action<O> {
       if (!user) throw new AppError('UNAUTHENTICATED', 'Oturum açmanız gerekiyor.');
       if (spec.module) requireModule(spec.module, rt.cfg);
       assertRoles(user.roles, spec.roles);
-      await checkRateLimit(rt.db, user.userId);
+      if (spec.rateLimit !== false) await checkRateLimit(rt.db, user.userId);
       const input = spec.input.parse(raw, { errorMap: trErrorMap });
       const data = await withCompany(
         user.companyId,

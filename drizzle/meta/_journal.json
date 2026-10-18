@@ -57,6 +57,20 @@
       "when": 1792291659849,
       "tag": "0007_staff_invites_secure",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792291929130,
+      "tag": "0008_parties",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792291930490,
+      "tag": "0009_parties_secure",
+      "breakpoints": true
     }
   ]
 }
