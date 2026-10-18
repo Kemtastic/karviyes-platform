@@ -9,11 +9,16 @@ export type Tx = PgTransaction<PgQueryResultHKT, Schema, ExtractTablesWithRelati
 let instance: Promise<Db> | undefined;
 
 // DATABASE_URL "pglite://memory" veya "pglite://<dizin>" ise gömülü PGlite, aksi hâlde Postgres havuzu.
-async function connect(url: string): Promise<Db> {
+export async function connectDb(url: string): Promise<Db> {
   if (url.startsWith('pglite://')) {
     const { PGlite } = await import('@electric-sql/pglite');
     const { drizzle } = await import('drizzle-orm/pglite');
     const target = url.slice('pglite://'.length);
+    if (target !== 'memory') {
+      const { mkdirSync } = await import('node:fs');
+      const { dirname } = await import('node:path');
+      mkdirSync(dirname(target), { recursive: true });
+    }
     const client = target === 'memory' ? new PGlite() : new PGlite(target);
     return drizzle(client, { schema }) as unknown as Db;
   }
@@ -23,7 +28,7 @@ async function connect(url: string): Promise<Db> {
 }
 
 export function getDb(): Promise<Db> {
-  instance ??= connect(getEnv().DATABASE_URL);
+  instance ??= connectDb(getEnv().DATABASE_URL);
   return instance;
 }
 
