@@ -10,3 +10,4 @@ test-results/
 .superpowers/
 *.tsbuildinfo
 next-env.d.ts
+kurulum.config.json

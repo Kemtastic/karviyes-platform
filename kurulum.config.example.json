@@ -1,0 +1,6 @@
+{
+  "company": { "name": "Karviyes Ambalaj", "slug": "karviyes", "brandColor": "#c2410c" },
+  "modules": ["orders", "production"],
+  "sector": "bags",
+  "security": { "twoFactorRequiredRoles": ["admin", "tracking"] }
+}
