@@ -7,6 +7,8 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   // Veritabanı sürücüleri paketlenmez; Node çalışma zamanında doğrudan yüklenir.
   serverExternalPackages: ['@electric-sql/pglite', 'pg'],
+  // PDF uçları gömülü Türkçe yazı tipini okur; derlemeye dahil edilir.
+  outputFileTracingIncludes: { '/api/pdf/**': ['./src/core/pdf/fonts/**'] },
 };
 
 export default nextConfig;

@@ -137,3 +137,14 @@ describe('üretim eylemleri', () => {
     expect(await jobDetail({ id: jobId }, runtime(t, testUser(t.companyB, ['tracking'])))).toMatchObject({ ok: false, code: 'NOT_FOUND' });
   });
 });
+
+describe('rapor için makine ve personel', () => {
+  it('bitirirken seçilmezse başlatmadaki makine ve personel bitirme kaydına taşınır', async () => {
+    const { jobId } = await readyAtCutting();
+    await startStage({ jobId, machine: 'Kesim 2', staffIds: [operatorId], version: await version(jobId) }, device('cutting'));
+    await finishStage({ jobId, good: 2200, cutWaste: 4, version: await version(jobId) }, device('cutting'));
+    const d = await jobDetail({ id: jobId }, tracking());
+    const finished = d.ok && d.data.events.find((e) => e.kind === 'finished');
+    expect(finished && [finished.machine, finished.staff]).toEqual(['Kesim 2', ['Emre Kesim']]);
+  });
+});

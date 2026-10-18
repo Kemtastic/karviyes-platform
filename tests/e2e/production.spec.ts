@@ -115,7 +115,19 @@ test('sipariş → üretim → kesim (telefon) → kesim bitiş → kontrol → 
   await page.getByRole('button', { name: 'Sevk et' }).click();
   await expect(page.getByText('Sevk edilebilir: 1.180 adet')).toBeVisible();
 
+  // İş emri PDF (fiyatsız) ve rapor
+  const jobId = jobUrl.split('/').pop();
+  const pdf = await page.request.get(`/api/pdf/is-emri/${jobId}`);
+  expect(pdf.status()).toBe(200);
+  expect(pdf.headers()['content-type']).toBe('application/pdf');
+  expect((await pdf.body()).subarray(0, 5).toString()).toBe('%PDF-');
+  await page.goto('/uretim/raporlar');
+  await expect(page.getByRole('cell', { name: 'Emre Usta' }).first()).toBeVisible();
+
   // Sipariş durumu
   await page.goto('/siparisler?durum=ready_to_invoice');
   await expect(page.getByRole('cell', { name: 'E2E Gıda Ltd. Şti.' })).toBeVisible();
+  await page.getByRole('cell', { name: 'E2E Gıda Ltd. Şti.' }).click();
+  const orderPdf = await page.request.get(page.url().replace('/siparisler/', '/api/pdf/siparis/'));
+  expect(orderPdf.status()).toBe(200);
 });

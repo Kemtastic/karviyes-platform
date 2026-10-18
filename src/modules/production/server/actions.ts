@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { defineAction, type ActionCtx } from '@/core/action';
 import { istanbulToday } from '@/core/dates';
@@ -181,7 +181,16 @@ export const finishStage = defineAction({
     if (i.good !== undefined) data.good = i.good;
     if (i.metres !== undefined) data.metres = i.metres;
     if (i.quantityAcknowledged) data.quantityAcknowledged = true;
-    const next = await apply(ctx, loaded, i.version, { type: 'finish', good: i.good }, { kind: 'finished', data, staffIds: i.staffIds, machine: i.machine, note: i.note });
+    // Bitirirken makine/personel seçilmezse aşamanın başlatma kaydındakiler kullanılır (raporlar bitirme kaydını okur).
+    const [started] = await ctx.tx
+      .select({ machine: jobEvents.machine, staffIds: jobEvents.staffIds })
+      .from(jobEvents)
+      .where(and(eq(jobEvents.jobId, i.jobId), eq(jobEvents.stage, stage), eq(jobEvents.kind, 'started')))
+      .orderBy(desc(jobEvents.at))
+      .limit(1);
+    const staffIds = i.staffIds.length ? i.staffIds : (started?.staffIds ?? []);
+    const machine = i.machine || started?.machine || '';
+    const next = await apply(ctx, loaded, i.version, { type: 'finish', good: i.good }, { kind: 'finished', data, staffIds, machine, note: i.note });
     if (stage === 'slitting') await ctx.tx.update(fabricRolls).set({ status: 'used' }).where(and(eq(fabricRolls.reservedJobId, i.jobId), eq(fabricRolls.status, 'reserved')));
     if (stage === 'finishing') await onProductionProgress(ctx.tx, { orderId: loaded.order.id, producedQty: next.producedQty });
     return { id: i.jobId, stage: next.stage };
