@@ -64,4 +64,6 @@ Bağımsız kod incelemesi (alt ajan), güvenlik kontrolü, örnek veriye yeni m
   - Ruling: Ba-Bs varsayılan eşiği 5.000 TL (ekranda değiştirilebilir); iade ve dövizli faturalar otomatik girmez — maliyet: güncel eşik/kural farklıysa mali müşavir düzeltir (ekranda uyarı var).
 - **F9 bitti**: karışık KDV oranlı fatura kaydı (6 orana kadar satır, her oranın KDV'si ayrı yuvarlanır, e-Faturadaki KDV satır başına ±1 TL farkla elle girilebilir), sipariş faturasında oran kırılımı, KDV özetinde oran bazlı tablo. Göç 0030 (`fin_invoices.rates`).
 - **F10 bitti**: fatura-tahsilat eşleştirme (göç 0031 `fin_allocations`): tahsilat/ödemede kapatılacak faturalar seçilebilir; seçilenler önce kapanır, kalan FIFO; hareket iptal edilince eşleştirme düşer.
+- **F11 bitti**: dövizli fatura kaydında kur zorunlu (TCMB'den getir düğmesi; göç 0032), Ba-Bs dövizli faturaları kuruyla TL'ye çevirir.
+  - Ertelenen: dönem sonu kur değerlemesi ve kur farkı faturası (mali müşavirle kural netleşince).
 

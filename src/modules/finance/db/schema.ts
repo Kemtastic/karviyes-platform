@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { bigint, boolean, date, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { bigint, boolean, date, index, integer, jsonb, numeric, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 export const ACCOUNT_KINDS = ['cash', 'bank'] as const;
 // İade faturası (satış iadesi müşteriden gelir, alış iadesi tedarikçiye kesilir) cariyi ters yönde etkiler.
@@ -44,6 +44,9 @@ export const finInvoices = pgTable(
     withholdingMinor: bigint('withholding_minor', { mode: 'bigint' }).notNull().default(sql`0`),
     /** KDV oranı kırılımı: [{ rate: '20', base: kuruş, vat: kuruş }] (karışık oranlı fatura). */
     rates: jsonb('rates').$type<{ rate: string; base: string; vat: string }[]>().notNull().default([]),
+    /** Dövizli faturada TL karşılığı için kur (TCMB ya da faturadaki) ve tarihi. */
+    fxRate: numeric('fx_rate', { precision: 18, scale: 6 }),
+    fxRateDate: date('fx_rate_date'),
     totalMinor: bigint('total_minor', { mode: 'bigint' }).notNull(),
     note: text('note').notNull().default(''),
     status: text('status', { enum: ['recorded', 'cancelled'] }).notNull().default('recorded'),

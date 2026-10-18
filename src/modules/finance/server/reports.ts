@@ -4,6 +4,7 @@ import { defineAction } from '@/core/action';
 import { formatDate } from '@/core/dates';
 import { parties } from '@/core/db/schema';
 import { decimalCell } from '@/core/export/csv';
+import { mulPrice } from '@/core/money';
 import { finInvoices } from '../db/schema';
 import { INVOICE_KIND_LABELS } from '../domain/ledger';
 import { FIN } from './actions';
@@ -34,7 +35,7 @@ export const babsReport = defineAction({
   run: async (ctx, i) => {
     const { from, to } = monthRange(i.month);
     const rows = await ctx.tx
-      .select({ kind: finInvoices.kind, partyId: finInvoices.partyId, currency: finInvoices.currency, base: finInvoices.baseMinor, name: parties.name, taxId: parties.taxId, taxOffice: parties.taxOffice })
+      .select({ kind: finInvoices.kind, partyId: finInvoices.partyId, currency: finInvoices.currency, base: finInvoices.baseMinor, fxRate: finInvoices.fxRate, name: parties.name, taxId: parties.taxId, taxOffice: parties.taxOffice })
       .from(finInvoices)
       .innerJoin(parties, eq(parties.id, finInvoices.partyId))
       .where(and(eq(finInvoices.status, 'recorded'), inArray(finInvoices.kind, ['sales', 'purchase']), gte(finInvoices.date, from), lte(finInvoices.date, to)));
@@ -44,7 +45,10 @@ export const babsReport = defineAction({
     const foreign: { form: 'Ba' | 'Bs'; name: string; taxId: string; currency: string; count: number }[] = [];
     for (const r of rows) {
       const form = r.kind === 'purchase' ? 'Ba' : 'Bs';
-      if (r.currency !== 'TRY') {
+      // Dövizli fatura kuruyla TL'ye çevrilir; kuru olmayan eski kayıt ayrı listelenir.
+      let base = r.base;
+      if (r.currency !== 'TRY' && r.fxRate) base = (mulPrice(r.fxRate.replace(/(\.\d{4})\d+$/, '$1'), r.base) + 50n) / 100n;
+      if (r.currency !== 'TRY' && !r.fxRate) {
         const f = foreign.find((x) => x.form === form && x.taxId === r.taxId && x.currency === r.currency && x.name === r.name);
         if (f) f.count += 1;
         else foreign.push({ form, name: r.name, taxId: r.taxId, currency: r.currency, count: 1 });
@@ -53,7 +57,7 @@ export const babsReport = defineAction({
       const key = `${form}|${r.partyId}`;
       const g = groups.get(key) ?? { form, partyId: r.partyId, name: r.name, taxId: r.taxId, taxOffice: r.taxOffice, count: 0, base: 0n };
       g.count += 1;
-      g.base += r.base;
+      g.base += base;
       groups.set(key, g);
     }
     const list = [...groups.values()]

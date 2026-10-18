@@ -159,6 +159,14 @@ export const VAT_RATES = [0, 1, 10, 20] as const;
 /** e-Faturadaki KDV, hesaplanandan satır başına en çok bu kadar farklı girilebilir (kuruş yuvarlama farkları). */
 const VAT_TOLERANCE = 100n;
 
+/** Dövizli faturada kur zorunlu (TL karşılığı: KDV ve Ba-Bs için); TL faturada kur saklanmaz. */
+function fxOf(i: { currency: Currency; fxRate?: string; fxRateDate?: string; date: string }): { fxRate: string | null; fxRateDate: string | null } {
+  if (i.currency === 'TRY') return { fxRate: null, fxRateDate: null };
+  const text = (i.fxRate ?? '').replace(',', '.');
+  if (!/^\d+(\.\d{1,6})?$/.test(text) || !(Number(text) > 0)) throw new AppError('VALIDATION', 'Dövizli faturada kur zorunlu (TL karşılığı için).', { fxRate: 'Kuru girin ya da TCMB\'den getirin.' });
+  return { fxRate: text, fxRateDate: i.fxRateDate ?? i.date };
+}
+
 /** Oran satırlarından fatura toplamı: her oranın KDV'si ayrı yuvarlanır; tevkifat toplam KDV üzerinden. */
 function invoiceFromLines(lines: { base: string; vatRate: number; vat?: string }[], cur: Currency, withholdingTenths: number) {
   if (!lines.length) throw new AppError('VALIDATION', 'Matrahı yazın.', { base: 'Matrahı yazın.' });
@@ -209,10 +217,13 @@ export const recordInvoice = defineAction({
     vatRate: z.coerce.number().min(0).max(100).optional(),
     lines: z.array(z.object({ base: z.string().trim().min(1, 'Matrahı yazın.').max(30), vatRate: z.coerce.number().min(0).max(100), vat: z.string().trim().max(30).optional() })).min(1).max(6).optional(),
     withholding: z.coerce.number().int().min(0).max(10).default(0),
+    fxRate: z.string().trim().max(20).optional(),
+    fxRateDate: isoDate.optional(),
     note,
   }),
   run: async (ctx, i) => {
     await party(ctx, i.partyId, i.kind === 'sales' || i.kind === 'sales_return' ? 'customer' : 'supplier');
+    const fx = fxOf(i);
     notFuture('date')(i.date);
     await assertOpen(ctx, i.date);
     if (i.due && i.due < i.date) throw new AppError('VALIDATION', 'Vade fatura tarihinden önce olamaz.', { due: 'Fatura tarihi veya sonrası.' });
@@ -226,7 +237,7 @@ export const recordInvoice = defineAction({
       .insert(finInvoices)
       .values({
         companyId: ctx.companyId, kind: i.kind, partyId: i.partyId, docNo: i.docNo, date: i.date, due: i.due, currency: i.currency,
-        baseMinor: t.base, vatMinor: t.vat, withholdingMinor: t.withholding, totalMinor: t.total, rates: t.rates, note: i.note, createdBy: ctx.user.userId,
+        baseMinor: t.base, vatMinor: t.vat, withholdingMinor: t.withholding, totalMinor: t.total, rates: t.rates, ...fx, note: i.note, createdBy: ctx.user.userId,
       })
       .returning({ id: finInvoices.id });
     await ctx.audit({ entity: 'fin_invoice', entityId: row!.id, after: { kind: i.kind, partyId: i.partyId, docNo: i.docNo, total: t.total.toString(), currency: i.currency } });

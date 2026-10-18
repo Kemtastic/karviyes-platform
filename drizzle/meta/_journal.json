@@ -225,6 +225,13 @@
       "when": 1792363192754,
       "tag": "0031_allocations",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1792363448314,
+      "tag": "0032_invoice_fx",
+      "breakpoints": true
     }
   ]
 }

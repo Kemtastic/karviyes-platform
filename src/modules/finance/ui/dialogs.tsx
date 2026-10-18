@@ -7,7 +7,7 @@ import { FormField, fieldClass } from '@/ui/form-field';
 import { Modal } from '@/ui/modal';
 import { useAction } from '@/ui/use-action';
 import {
-  createAccountAction, endorseCheckAction, findPartiesAction, partyOpenInvoicesAction, partyOpenOrdersAction, issueCheckAction, receiveCheckAction, recordExpenseAction, recordInvoiceAction,
+  createAccountAction, endorseCheckAction, financeTcmbRateAction, findPartiesAction, partyOpenInvoicesAction, partyOpenOrdersAction, issueCheckAction, receiveCheckAction, recordExpenseAction, recordInvoiceAction,
   recordPaymentAction, setOpeningAction, settleCheckAction, transferAction,
 } from './actions';
 
@@ -116,6 +116,9 @@ export function InvoiceDialog({ kind, party: fixed, onClose, onDone }: Done & { 
   // Her oran ayrı satır (karışık oranlı fatura); KDV e-Faturadaki tutarla küçük farkla elle düzeltilebilir.
   const [lines, setLines] = useState([{ base: '', rate: '20', vat: '' }]);
   const [withholding, setWithholding] = useState('0');
+  const [cur, setCur] = useState('TRY');
+  const [fxRate, setFxRate] = useState('');
+  const [fxNote, setFxNote] = useState('');
   const f = save.fieldErrors;
   const num = (v: string) => Number(v.replace(/\./g, '').replace(',', '.')) || 0;
   const calc = lines.map((l) => ({ base: num(l.base), vat: l.vat ? num(l.vat) : Math.round(num(l.base) * Number(l.rate)) / 100 }));
@@ -126,14 +129,26 @@ export function InvoiceDialog({ kind, party: fixed, onClose, onDone }: Done & { 
   const fmt = (n: number) => n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return (
     <Modal open title={INVOICE_TITLES[kind]} onClose={onClose} dirty={lines.some((l) => l.base)}>
-      <form className="space-y-4" onSubmit={(e) => { const d = formData(e); save.run({ docNo: d.docNo, currency: d.currency, date: d.date, note: d.note, withholding: d.withholding, kind, partyId: party?.id ?? '', due: d.due || null, lines: lines.map((l) => ({ base: l.base, vatRate: l.rate, ...(l.vat ? { vat: l.vat } : {}) })) }, onDone); }}>
+      <form className="space-y-4" onSubmit={(e) => { const d = formData(e); save.run({ docNo: d.docNo, currency: d.currency, date: d.date, note: d.note, withholding: d.withholding, ...(cur !== 'TRY' ? { fxRate, fxRateDate: d.date } : {}), kind, partyId: party?.id ?? '', due: d.due || null, lines: lines.map((l) => ({ base: l.base, vatRate: l.rate, ...(l.vat ? { vat: l.vat } : {}) })) }, onDone); }}>
         <p className="rounded-xl bg-stone-100 px-3 py-2 text-xs text-stone-600">Bu ekran fatura <strong>kesmez</strong>; e-Fatura, e-Arşiv ya da kâğıt olarak kesilmiş faturayı cariye işler.</p>
         {kind.endsWith('_return') && <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900">İade faturası cariyi ters yönde etkiler ve KDV özetinde düşülür.</p>}
         {!fixed && <PartyPicker value={party} onChange={setParty} kind={customerSide ? 'customer' : 'supplier'} error={f.partyId} label={customerSide ? 'Müşteri' : 'Tedarikçi'} />}
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField label="Fatura no" required error={f.docNo}><input name="docNo" className={`${fieldClass} font-mono`} placeholder="GIB2026000000001" /></FormField>
-          <FormField label="Para birimi" required error={f.currency}><select name="currency" className={fieldClass}>{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</select></FormField>
+          <FormField label="Para birimi" required error={f.currency}><select name="currency" value={cur} onChange={(e) => setCur(e.target.value)} className={fieldClass}>{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</select></FormField>
           <FormField label="Fatura tarihi" required error={f.date}><input type="date" name="date" defaultValue={today()} max={today()} className={fieldClass} /></FormField>
+          {cur !== 'TRY' && (
+            <FormField label={`Kur (1 ${cur} = ? TL)`} required error={f.fxRate} hint={fxNote || 'Faturadaki kur; TL karşılığı ve Ba-Bs için'}>
+              <span className="flex gap-2">
+                <input inputMode="decimal" value={fxRate} onChange={(e) => setFxRate(e.target.value)} className={fieldClass} placeholder="41,2500" />
+                <button type="button" className="shrink-0 rounded-xl border border-stone-300 px-3 text-sm font-medium hover:bg-stone-50" onClick={async (e) => {
+                  const date = ((e.currentTarget.form?.elements.namedItem('date') as HTMLInputElement | null)?.value) || today();
+                  const r = await financeTcmbRateAction({ currency: cur, date });
+                  if (r.ok) { setFxRate(r.data.rate.replace('.', ',')); setFxNote(`${r.data.source} · ${r.data.rateDate.split('-').reverse().join('.')}`); } else setFxNote(r.message);
+                }}>TCMB</button>
+              </span>
+            </FormField>
+          )}
           <FormField label="Vade" error={f.due} hint="Boşsa vadesiz"><input type="date" name="due" className={fieldClass} /></FormField>
           <FormField label="Tevkifat" error={f.withholding} hint="KDV'nin onda kaçı">
             <select name="withholding" value={withholding} onChange={(e) => setWithholding(e.target.value)} className={fieldClass}>

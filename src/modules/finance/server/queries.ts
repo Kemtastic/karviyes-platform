@@ -197,7 +197,7 @@ export const invoicesList = defineAction({
       .limit(1000);
     return rows.map(({ f, partyName }) => ({
       id: f.id, kind: f.kind, partyId: f.partyId, partyName, docNo: f.docNo, date: f.date, due: f.due, currency: f.currency as Currency,
-      base: s(f.baseMinor), vat: s(f.vatMinor), withholding: s(f.withholdingMinor), total: s(f.totalMinor), rates: f.rates, note: f.note, status: f.status, cancelNote: f.cancelNote,
+      base: s(f.baseMinor), vat: s(f.vatMinor), withholding: s(f.withholdingMinor), total: s(f.totalMinor), rates: f.rates, fxRate: f.fxRate, fxRateDate: f.fxRateDate, note: f.note, status: f.status, cancelNote: f.cancelNote,
     }));
   },
 });
