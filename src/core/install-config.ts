@@ -13,7 +13,7 @@ const schema = z.object({
   }),
   modules: z.array(z.string()).min(1),
   sector: z.literal('bags'),
-  security: z.object({ twoFactorRequiredRoles: z.array(z.enum(ROLES)).default(['admin', 'tracking']) }).default({}),
+  security: z.object({ twoFactorRequiredRoles: z.array(z.enum(ROLES)).default(['admin', 'accounting', 'tracking']) }).default({}),
 });
 
 export type InstallConfig = Omit<z.infer<typeof schema>, 'modules'> & { modules: ModuleId[] };

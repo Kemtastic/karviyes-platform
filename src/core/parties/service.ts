@@ -9,7 +9,7 @@ import { PROVINCES, districtsOf, isDistrictOf } from './locations';
 import { normalizeSearch } from './search';
 import { validateTaxId } from './tax-id';
 
-const EDITORS: Role[] = ['admin', 'sales', 'tracking'];
+const EDITORS: Role[] = ['admin', 'sales', 'accounting', 'tracking'];
 
 const partyFields = z
   .object({

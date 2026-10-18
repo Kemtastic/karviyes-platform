@@ -13,8 +13,8 @@ describe('kurulum ayarı ve modüller', () => {
     expect(() => parseInstallConfig({ ...base, modules: ['orders', 'uzay'] })).toThrow(/uzay/);
   });
 
-  it('2FA zorunlu roller varsayılanı admin ve tracking', () => {
-    expect(parseInstallConfig({ ...base, modules: ['orders'] }).security.twoFactorRequiredRoles).toEqual(['admin', 'tracking']);
+  it('2FA zorunlu roller varsayılanı yönetici, muhasebe ve üretim takip', () => {
+    expect(parseInstallConfig({ ...base, modules: ['orders'] }).security.twoFactorRequiredRoles).toEqual(['admin', 'accounting', 'tracking']);
   });
 
   it('açık modüller bağımlılık sırasıyla döner', () => {

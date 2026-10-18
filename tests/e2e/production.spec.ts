@@ -295,3 +295,38 @@ test('Türkçe Windows CSV (Windows-1254) içe aktarımında harfler bozulmaz', 
   await dialog.getByRole('button', { name: 'Tamam' }).click();
   await expect(page.getByRole('cell', { name: 'Şişli Ğıda Çanta' })).toBeVisible();
 });
+
+test('ön muhasebe: hesap aç, satış faturası kaydet, tahsilat al, ekstre ve yaşlandırma', async ({ page }) => {
+  await login(page);
+  await page.goto('/muhasebe/hesaplar');
+  await page.getByRole('button', { name: 'Hesap aç' }).click();
+  let dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Hesap adı').fill('E2E Banka');
+  await dialog.getByLabel('Açılış bakiyesi').fill('1.000,00');
+  await dialog.getByRole('button', { name: 'Hesabı aç' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByText('E2E Banka')).toBeVisible();
+
+  await page.goto('/muhasebe/faturalar');
+  await page.getByRole('button', { name: 'Satış faturası' }).click();
+  dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Müşteri').fill('E2E');
+  await dialog.getByRole('button', { name: 'E2E Gıda Ltd. Şti.' }).click();
+  await dialog.getByLabel('Fatura no').fill('E2E2026000000001');
+  await dialog.getByLabel('Matrah (KDV hariç)').fill('10.000');
+  await expect(dialog.getByText('12.000,00')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Faturayı kaydet' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole('cell', { name: 'E2E2026000000001' })).toBeVisible();
+
+  await page.goto('/muhasebe/cariler');
+  await page.getByRole('cell', { name: 'E2E Gıda Ltd. Şti.' }).click();
+  await page.waitForURL(/\/muhasebe\/cariler\/[0-9a-f-]{36}$/);
+  await page.getByRole('button', { name: 'Tahsilat al' }).click();
+  dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Tutar').fill('2.000');
+  await dialog.getByRole('button', { name: 'Tahsilatı kaydet' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole('region', { name: 'TRY hesabı' }).getByText('10.000,00 ₺').first()).toBeVisible();
+  await expect(page.getByText('Cari bize borçlu')).toBeVisible();
+});

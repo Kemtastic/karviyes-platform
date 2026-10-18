@@ -1,9 +1,13 @@
 import {
+  Banknote,
   Building2,
   ChartColumn,
   ClipboardList,
   Factory,
   Hammer,
+  Landmark,
+  Receipt,
+  ScrollText,
   History,
   House,
   IdCard,
@@ -34,6 +38,10 @@ const ICONS: Record<string, LucideIcon> = {
   'id-card': IdCard,
   building: Building2,
   history: History,
+  banknote: Banknote,
+  landmark: Landmark,
+  receipt: Receipt,
+  scroll: ScrollText,
 };
 
 export function NavIcon({ name, className = 'h-[18px] w-[18px]' }: { name: string; className?: string }) {

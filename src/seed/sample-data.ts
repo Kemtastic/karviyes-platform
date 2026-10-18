@@ -15,6 +15,8 @@ import * as production from '@/modules/production/server/actions';
 import { jobDetail } from '@/modules/production/server/queries';
 import data from '../../scripts/data/ornek-veri.json';
 import { seedDemoExtras } from './demo-extra';
+import { seedDemoFinance } from './demo-finance';
+import { finAccounts } from '@/modules/finance/db/schema';
 
 type Seed = { db: Db; companyId: string; cfg: InstallConfig; auth: Auth; tabletPassword: string };
 
@@ -36,10 +38,13 @@ function ok<T>(r: ActionResult<T>, what: string): T {
 
 export async function seedSampleData({ db, companyId, cfg, auth, tabletPassword }: Seed): Promise<{ created: boolean; tablets: { role: string; loginEmail: string }[] }> {
   const existing = await withCompany(companyId, (tx) => tx.select({ id: parties.id }).from(parties).where(like(parties.taxId, '999%')).limit(1), db);
-  if (existing.length) return { created: false, tablets: [] };
-
   const user: CurrentUser = { userId: 'ornek-veri', email: 'ornek-veri@example.com', name: 'Örnek veri', companyId, membershipId: '00000000-0000-0000-0000-000000000000', roles: ['admin', 'tracking', 'sales'], kind: 'person', staffId: null, twoFactorEnabled: true };
   const rt: ActionRuntime = { user, db, cfg, batch: true };
+  if (existing.length) {
+    // Örnek veri önceki bir sürümde yüklendiyse sonradan açılan ön muhasebe modülünün demo verisi eklenir.
+    if (cfg.modules.includes('finance') && !(await withCompany(companyId, (tx) => tx.select({ id: finAccounts.id }).from(finAccounts).limit(1), db)).length) await seedDemoFinance(rt);
+    return { created: false, tablets: [] };
+  }
 
   // Personel
   const salesNames = ['Ayşe Kara', 'Murat Tunç', 'Selin Doğan'];
@@ -165,5 +170,6 @@ export async function seedSampleData({ db, companyId, cfg, auth, tabletPassword 
   await step(production.startStage, { jobId: jobIds[3]!, machine: 'Kesim 2', staffIds: [emre] }, 'kesim başlat');
 
   await seedDemoExtras({ rt, companyId, partyIds, salesIds, orderIds, suppliers: data.tedarikciler });
+  await seedDemoFinance(rt);
   return { created: true, tablets };
 }

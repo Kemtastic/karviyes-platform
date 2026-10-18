@@ -8,6 +8,9 @@ import { CustomerAccount } from '@/modules/orders/ui/customer-account';
 import { partyCalls, salesStaffList } from '@/modules/sales/server/queries';
 import { canUseSales } from '@/modules/sales/ui/guard';
 import { PartyCalls } from '@/modules/sales/ui/party-calls';
+import { canUseFinance } from '@/modules/finance/ui/guard';
+import Link from 'next/link';
+import { BookOpen } from 'lucide-react';
 import { Mail, MapPin, Phone } from 'lucide-react';
 import { Badge } from '@/ui/badge';
 import { PartyForm } from '../party-form';
@@ -25,6 +28,7 @@ export default async function PartyPage({ params }: { params: Promise<{ id: stri
   // Cari hesap sipariş modülünden gelir; modül kapalıysa veya cari yalnızca tedarikçiyse gösterilmez.
   const account = isModuleEnabled('orders', getInstallConfig()) && party.kind !== 'supplier' ? await customerAccount({ partyId: party.id }) : null;
   const sales = party.kind !== 'supplier' && !party.archived && (await canUseSales()) ? await Promise.all([partyCalls({ partyId: party.id }), salesStaffList({})]) : null;
+  const finance = await canUseFinance();
   return (
     <div className="space-y-5">
       <header className="flex flex-wrap items-start gap-4">
@@ -41,6 +45,7 @@ export default async function PartyPage({ params }: { params: Promise<{ id: stri
             {party.contactName && <span>Yetkili: {party.contactName}</span>}
           </p>
         </div>
+        {finance && <Link href={`/muhasebe/cariler/${party.id}`} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 shadow-sm hover:bg-stone-50"><BookOpen aria-hidden className="h-4 w-4" /> Cari ekstresi</Link>}
       </header>
       <div className="grid gap-5 xl:grid-cols-[1fr_420px]">
         <div className="min-w-0 space-y-5">

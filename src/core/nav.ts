@@ -2,7 +2,7 @@ import type { InstallConfig } from '@/core/install-config';
 import { enabledModules } from '@/core/modules/registry';
 import type { NavItem, Role } from '@/core/modules/types';
 
-const OFFICE: Role[] = ['admin', 'sales', 'tracking'];
+const OFFICE: Role[] = ['admin', 'sales', 'accounting', 'tracking'];
 
 const CORE_TOP: NavItem[] = [
   { href: '/', label: 'Ana Sayfa', roles: OFFICE, icon: 'home' },

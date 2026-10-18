@@ -19,6 +19,7 @@ const GROUPS: [prefix: string, label: string][] = [
   ['/siparisler', 'Satış ve sipariş'],
   ['/satis', 'Satış ve sipariş'],
   ['/uretim', 'Üretim'],
+  ['/muhasebe', 'Ön muhasebe'],
   ['/ayarlar', 'Yönetim'],
 ];
 const groupOf = (href: string) => GROUPS.find(([p]) => href === p || href.startsWith(p + '/'))?.[1] ?? 'Genel';

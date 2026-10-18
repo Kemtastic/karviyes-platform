@@ -9,6 +9,8 @@ import { navFor } from '@/core/nav';
 import { ordersSummary } from '@/modules/orders/server/queries';
 import { materialShortages, productionSummary } from '@/modules/production/server/queries';
 import { callList } from '@/modules/sales/server/queries';
+import { financeOverview } from '@/modules/finance/server/queries';
+import { formatMoney as fm, money } from '@/core/money';
 import { ChevronRight } from 'lucide-react';
 import { NavIcon } from '@/ui/icon';
 import { PageHeader } from '@/ui/page-header';
@@ -27,12 +29,13 @@ export default async function HomePage() {
 
   const cfg = getInstallConfig();
   const office = has(user.roles, 'admin', 'sales', 'tracking');
-  const [production, shortages, orders, today, overdue] = await Promise.all([
+  const [production, shortages, orders, today, overdue, finance] = await Promise.all([
     office && isModuleEnabled('production', cfg) ? productionSummary({}) : null,
     has(user.roles, 'admin', 'tracking') && isModuleEnabled('production', cfg) ? materialShortages({}) : null,
     office && isModuleEnabled('orders', cfg) ? ordersSummary({}) : null,
     has(user.roles, 'admin', 'sales') && isModuleEnabled('sales', cfg) ? callList({ view: 'today' }) : null,
     has(user.roles, 'admin', 'sales') && isModuleEnabled('sales', cfg) ? callList({ view: 'overdue' }) : null,
+    has(user.roles, 'admin', 'accounting') && isModuleEnabled('finance', cfg) ? financeOverview({}) : null,
   ]);
 
   const cards: Card[] = [];
@@ -56,6 +59,18 @@ export default async function HomePage() {
   }
   if (today?.ok) cards.push({ label: 'Bugün aranacak', value: String(today.data.length), href: '/satis?gorunum=today', icon: 'phone' });
   if (overdue?.ok && overdue.data.length) cards.push({ label: 'Geciken arama', value: String(overdue.data.length), href: '/satis?gorunum=overdue', icon: 'phone', tone: 'warn' });
+
+  if (finance?.ok) {
+    const t = finance.data.totals;
+    const join = (k: 'receivable' | 'overdueReceivable' | 'payable', only = false) => t.filter((x) => !only || BigInt(x[k]) > 0n).map((x) => fm(money(x[k], x.currency))).join(' · ') || '—';
+    const overdue = t.some((x) => BigInt(x.overdueReceivable) > 0n);
+    cards.push(
+      { label: 'Cari alacak', value: join('receivable'), href: '/muhasebe/cariler', icon: 'banknote' },
+      { label: 'Gecikmiş alacak', value: join('overdueReceivable', true), href: '/muhasebe/cariler', icon: 'banknote', tone: overdue ? 'warn' : undefined },
+      { label: 'Cari borç', value: join('payable'), href: '/muhasebe/cariler?yon=borc', icon: 'receipt' },
+      { label: 'Kasa + banka', value: t.map((x) => fm(money(BigInt(x.cash) + BigInt(x.bank), x.currency))).join(' · ') || '—', href: '/muhasebe/hesaplar', icon: 'landmark' },
+    );
+  }
 
   const links = navFor(user.roles, cfg).filter((n) => n.href !== '/');
   const hour = Number(new Intl.DateTimeFormat('tr-TR', { hour: 'numeric', hour12: false, timeZone: 'Europe/Istanbul' }).format(new Date()));

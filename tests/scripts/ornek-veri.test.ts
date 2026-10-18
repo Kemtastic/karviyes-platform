@@ -7,6 +7,7 @@ import { memberships, parties, staff } from '@/core/db/schema';
 import { validateTaxId } from '@/core/parties/tax-id';
 import { orders } from '@/modules/orders/db/schema';
 import { jobs } from '@/modules/production/db/schema';
+import { finChecks, finInvoices } from '@/modules/finance/db/schema';
 import { seedSampleData } from '@/seed/sample-data';
 
 let t: TestDb;
@@ -26,12 +27,16 @@ describe('örnek veri', () => {
       jobs: await tx.select().from(jobs),
       staff: (await tx.select().from(staff)).length,
       devices: (await tx.select().from(memberships)).filter((m) => m.kind === 'device').length,
+      invoices: (await tx.select().from(finInvoices)).length,
+      checks: (await tx.select().from(finChecks)).length,
     }), t.db);
     // 10 müşteri + 4 tedarikçi; 15 sipariş + 3 çok ürünlü demo siparişi
     expect(counts.parties).toBe(14);
     expect(counts.orders).toBe(18);
     expect(counts.staff).toBeGreaterThanOrEqual(7);
     expect(counts.devices).toBe(5);
+    expect(counts.invoices).toBeGreaterThanOrEqual(10);
+    expect(counts.checks).toBe(5);
     expect(new Set(counts.jobs.map((j) => j.stage))).toEqual(new Set(['shipped', 'completed', 'review', 'cutting', 'waiting']));
   });
 
