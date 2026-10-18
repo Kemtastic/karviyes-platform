@@ -5,7 +5,7 @@ import { defineAction, toFailure, type ActionResult, type ActionRuntime } from '
 import { createUserWithPassword, MIN_PASSWORD_LENGTH, type Auth } from '@/core/auth/auth';
 import { validateMembership } from '@/core/auth/policy';
 import type { Db } from '@/core/db/client';
-import { withCompany } from '@/core/db/scope';
+import { withCompany, writeAudit } from '@/core/db/scope';
 import { invites, memberships, staff } from '@/core/db/schema';
 import { getEnv } from '@/core/env';
 import { AppError } from '@/core/errors';
@@ -67,6 +67,14 @@ export async function acceptInvite(raw: unknown, deps: AcceptDeps): Promise<Acti
 
     const ctx = await deps.auth.$context;
     const existing = await ctx.internalAdapter.findUserByEmail(inv.email);
+    if (existing) {
+      // Var olan hesap: parola değiştirilmez; daveti kabul eden kişi hesabın sahibi olduğunu mevcut parolasıyla kanıtlar.
+      const accounts = await ctx.internalAdapter.findAccounts(existing.user.id);
+      const hash = accounts.find((a) => a.providerId === 'credential')?.password;
+      if (!hash || !(await ctx.password.verify({ hash, password: input.password }))) {
+        throw new AppError('VALIDATION', 'Bu e-postayla zaten bir hesabınız var; mevcut parolanızı girin.', { password: 'Mevcut parolanızı girin.' });
+      }
+    }
     const userId = existing?.user.id ?? (await createUserWithPassword(deps.auth, { email: inv.email, name: inv.name, password: input.password })).id;
 
     await withCompany(
@@ -78,7 +86,9 @@ export async function acceptInvite(raw: unknown, deps: AcceptDeps): Promise<Acti
           .where(and(eq(invites.id, inv.id), sql`${invites.usedAt} is null`))
           .returning({ id: invites.id });
         if (!marked.length) throw new AppError('INVALID_STATE', 'Davet bağlantısı zaten kullanılmış.');
-        const [m] = await tx.select({ id: memberships.id }).from(memberships).where(eq(memberships.userId, userId));
+        const [m] = await tx.select({ id: memberships.id, kind: memberships.kind }).from(memberships).where(eq(memberships.userId, userId));
+        if (m?.kind === 'device') throw new AppError('INVALID_STATE', 'Bu e-posta bir bölüm cihazına ait.');
+        await writeAudit(tx, { companyId: deps.companyId, actorUserId: userId, action: 'users.acceptInvite', entity: 'invite', entityId: inv.id, after: { email: inv.email, roles: inv.roles, existingAccount: Boolean(existing) } });
         if (m) await tx.update(memberships).set({ roles: inv.roles, active: true, version: sql`${memberships.version} + 1` }).where(eq(memberships.id, m.id));
         else await tx.insert(memberships).values({ companyId: deps.companyId, userId, roles: inv.roles, kind: 'person' });
       },

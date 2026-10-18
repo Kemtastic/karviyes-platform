@@ -5,7 +5,7 @@ import { runtime, testUser } from '../helpers/runtime';
 import { createAuth, createUserWithPassword, type Auth } from '@/core/auth/auth';
 import { addMembership } from '@/core/auth/session';
 import { withCompany } from '@/core/db/scope';
-import { invites, memberships } from '@/core/db/schema';
+import { auditLog, invites, memberships } from '@/core/db/schema';
 import {
   acceptInvite,
   createDeviceAccount,
@@ -103,5 +103,17 @@ describe('bölüm cihaz hesabı ve personel', () => {
   it('personel kartı bölümleriyle oluşur', async () => {
     const r = await createStaff({ name: 'Emre Kesim', kind: 'master', departments: ['cutting'] }, admin());
     expect(r).toMatchObject({ ok: true });
+  });
+});
+
+describe('var olan hesapla davet kabulü (v1.1)', () => {
+  it('başka firmadaki kullanıcı daveti ancak kendi parolasıyla kabul eder; kayıt denetime düşer', async () => {
+    const r = await inviteUser({ email: 'b@example.com', name: 'Bora B', roles: ['tracking'] }, admin());
+    if (!r.ok) throw new Error(r.message);
+    const token = new URL(r.data.link).pathname.split('/').pop()!;
+    expect(await acceptInvite({ token, password: 'BaskaParola-2026!' }, deps())).toMatchObject({ ok: false, code: 'VALIDATION' });
+    expect(await acceptInvite({ token, password: 'GucluParola-2026!' }, deps())).toMatchObject({ ok: true });
+    const logs = await withCompany(t.companyA, (tx) => tx.select().from(auditLog).where(eq(auditLog.entity, 'invite')), t.db);
+    expect(logs.map((l) => l.action)).toContain('users.acceptInvite');
   });
 });

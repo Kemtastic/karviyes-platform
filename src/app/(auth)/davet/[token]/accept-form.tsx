@@ -26,6 +26,7 @@ export function AcceptInviteForm({ token }: { token: string }) {
             Parola (en az 12 karakter)
             <input name="password" type="password" minLength={12} autoComplete="new-password" required className={inputClass} />
           </label>
+          <p className="text-sm text-stone-600">Bu e-postayla zaten bir hesabınız varsa mevcut parolanızı girin.</p>
           {accept.error && <p role="alert" className="text-sm text-red-700">{accept.error}</p>}
           <button disabled={accept.pending} className={buttonClass}>Hesabı oluştur</button>
         </form>
