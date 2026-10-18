@@ -16,3 +16,16 @@ describe('veritabanı bağlantısı', () => {
     }
   });
 });
+
+describe('PGlite tek örnek', () => {
+  it('aynı adres için süreç içinde aynı bağlantıyı döndürür (aynı klasörü iki kez açıp bozmaz)', async () => {
+    const base = mkdtempSync(join(tmpdir(), 'pglite-'));
+    try {
+      const url = `pglite://${join(base, 'db')}`;
+      const [a, b] = await Promise.all([connectDb(url), connectDb(url)]);
+      expect(a).toBe(b);
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
+  });
+});

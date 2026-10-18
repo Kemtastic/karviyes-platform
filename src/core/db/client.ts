@@ -8,8 +8,24 @@ export type Tx = PgTransaction<PgQueryResultHKT, Schema, ExtractTablesWithRelati
 
 let instance: Promise<Db> | undefined;
 
+// Next geliştirme sunucusu modülleri birden çok kez yükleyebilir. PGlite tek bağlantılıdır ve aynı klasörü
+// iki örnekle açmak veritabanını bozar; bu yüzden bağlantılar süreç genelinde adres başına tektir.
+const shared = globalThis as unknown as { __dbConnections?: Map<string, Promise<Db>> };
+const connections = (shared.__dbConnections ??= new Map());
+
 // DATABASE_URL "pglite://memory" veya "pglite://<dizin>" ise gömülü PGlite, aksi hâlde Postgres havuzu.
-export async function connectDb(url: string): Promise<Db> {
+// "pglite://memory" her çağrıda yeni, boş bir veritabanıdır (testler için).
+export function connectDb(url: string): Promise<Db> {
+  if (url === 'pglite://memory') return open(url);
+  let connection = connections.get(url);
+  if (!connection) {
+    connection = open(url);
+    connections.set(url, connection);
+  }
+  return connection;
+}
+
+async function open(url: string): Promise<Db> {
   if (url.startsWith('pglite://')) {
     const { PGlite } = await import('@electric-sql/pglite');
     const { drizzle } = await import('drizzle-orm/pglite');
