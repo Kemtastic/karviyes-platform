@@ -5,7 +5,8 @@ set -eu
 [ $# -eq 2 ] || { echo "Kullanım: $0 <yedek.tar.age> <gizli-anahtar-dosyası>"; exit 1; }
 tmp=$(mktemp -d)
 age -d -i "$2" "$1" | tar -C "$tmp" -xf -
-pg_restore --clean --if-exists --no-owner -d "$PGDATABASE" "$tmp/db.dump"
+# Süper kullanıcı yükler (zorunlu RLS veriyi engellemez); nesneler yedekteki sahibine (uretim_app) döner.
+pg_restore --clean --if-exists -d "$PGDATABASE" "$tmp/db.dump"
 tar -C / -xf "$tmp/files.tar"
 rm -rf "$tmp"
 echo "Geri yükleme tamamlandı. Uygulamayı yeniden başlatın ve /api/saglik ile kontrol edin."

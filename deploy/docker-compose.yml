@@ -10,8 +10,11 @@ services:
       POSTGRES_DB: uretim
       POSTGRES_USER: uretim_owner
       POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD gerekli}
+      # Uygulama rolü (süper kullanıcı değil) veritabanı ilk oluşturulurken db-init ile açılır.
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?APP_DB_PASSWORD gerekli}
     volumes:
       - db-data:/var/lib/postgresql/data
+      - ./db-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U uretim_owner -d uretim']
       interval: 10s
@@ -23,7 +26,7 @@ services:
     restart: unless-stopped
     env_file: kurulum.env
     environment:
-      DATABASE_URL: postgres://uretim_owner:${DB_PASSWORD}@db:5432/uretim
+      DATABASE_URL: postgres://uretim_app:${APP_DB_PASSWORD}@db:5432/uretim
       DB_APP_ROLE: app_user
       INSTALL_CONFIG_PATH: /config/kurulum.config.json
       STORAGE_DRIVER: ${STORAGE_DRIVER:-fs}
@@ -90,7 +93,7 @@ services:
     profiles: [tools]
     env_file: kurulum.env
     environment:
-      DATABASE_URL: postgres://uretim_owner:${DB_PASSWORD}@db:5432/uretim
+      DATABASE_URL: postgres://uretim_app:${APP_DB_PASSWORD}@db:5432/uretim
       INSTALL_CONFIG_PATH: /config/kurulum.config.json
     volumes:
       - ./kurulum.config.json:/config/kurulum.config.json:ro

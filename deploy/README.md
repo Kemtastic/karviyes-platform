@@ -28,6 +28,8 @@ curl https://$DOMAIN/api/saglik                 # {"ok":true,"db":true}
 
 İlk yönetici giriş yapınca iki adımlı doğrulamayı kurmak zorundadır.
 
+**Veritabanı rolleri:** `uretim_owner` (DB_PASSWORD) süper kullanıcıdır ve yalnızca yedek/geri yükleme ile bakımda kullanılır. Uygulama ve göçler `uretim_app` (APP_DB_PASSWORD) rolüyle bağlanır: süper kullanıcı değildir, satır güvenliğini atlayamaz; firma verisine yalnızca firma bağlamıyla erişilir. Bu rol veritabanı **ilk** oluşturulurken `db-init/` ile açılır; `db-data` birimi önceden varsa (eski kurulum) rolü elle açın: `docker compose exec db sh /docker-entrypoint-initdb.d/00-roller.sh` (APP_DB_PASSWORD ortamda olmalı), ardından tablo sahipliğini devredin: `REASSIGN OWNED BY uretim_owner TO uretim_app;` (yalnızca uretim veritabanında, yedek aldıktan sonra).
+
 İsteğe bağlı demo verisi (yalnızca deneme kurulumlarında): `docker compose run --rm tools pnpm ornek-veri`
 
 ## Modül eklemek

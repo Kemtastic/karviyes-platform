@@ -36,6 +36,20 @@ describe('VPS paketi', () => {
     expect(sh).toContain('mv "$out.tmp" "$out"');
   });
 
+  it('uygulama ve göç aracı süper kullanıcıyla değil, ayrı uygulama rolüyle bağlanır; rol veritabanı ilk kurulurken oluşur', () => {
+    const env = (name: string) => (compose.services[name] as Service & { environment?: Record<string, string> }).environment ?? {};
+    for (const name of ['app', 'tools']) expect(env(name).DATABASE_URL).toMatch(/^postgres:\/\/uretim_app:/);
+    const db = compose.services.db as Service & { volumes?: string[]; environment?: Record<string, string> };
+    expect(db.volumes).toEqual(expect.arrayContaining(['./db-init:/docker-entrypoint-initdb.d:ro']));
+    expect(db.environment?.APP_DB_PASSWORD).toBeTruthy();
+  });
+
+  it('geri yükleme tablo sahipliğini (uygulama rolü) korur; aksi hâlde sonraki göçler tabloları değiştiremez', () => {
+    const sh = readFileSync('deploy/backup/geri-yukle.sh', 'utf8');
+    expect(sh).toContain('pg_restore');
+    expect(sh).not.toContain('--no-owner');
+  });
+
   it('yalnızca ters vekil (Caddy) 80/443 açar', () => {
     const exposed = Object.entries(compose.services).filter(([, s]) => s.ports?.length).map(([n]) => n);
     expect(exposed).toEqual(['caddy']);
