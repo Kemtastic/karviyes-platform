@@ -11,6 +11,7 @@ import {
   cancelJob,
   finishStage,
   reserveFabric,
+  sendToRepair,
   sendToStage,
   shipJob,
   startProduction,
@@ -146,5 +147,17 @@ describe('rapor için makine ve personel', () => {
     const d = await jobDetail({ id: jobId }, tracking());
     const finished = d.ok && d.data.events.find((e) => e.kind === 'finished');
     expect(finished && [finished.machine, finished.staff]).toEqual(['Kesim 2', ['Emre Kesim']]);
+  });
+});
+
+describe('tamir yetkisi (v1.1)', () => {
+  it('kontroldeki işi yalnızca üretim takip tamire gönderir; kesim bitiş tableti gönderemez', async () => {
+    const { jobId } = await readyAtCutting();
+    await startStage({ jobId, machine: 'Kesim 1', staffIds: [operatorId], version: await version(jobId) }, device('cutting'));
+    await finishStage({ jobId, good: 2200, cutWaste: 5, version: await version(jobId) }, device('cutting'));
+    await startStage({ jobId, machine: 'Masa 1', staffIds: [operatorId], version: await version(jobId) }, device('finishing'));
+    await finishStage({ jobId, good: 2180, cutWaste: 20, sacks: 3, version: await version(jobId) }, device('finishing'));
+    expect(await sendToRepair({ jobId, version: await version(jobId) }, device('finishing'))).toMatchObject({ ok: false, code: 'FORBIDDEN' });
+    expect(await sendToRepair({ jobId, version: await version(jobId) }, tracking())).toMatchObject({ ok: true });
   });
 });

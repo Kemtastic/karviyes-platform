@@ -210,6 +210,8 @@ export const sendToRepair = defineAction({
   input: z.object({ ...jobRef, note: z.string().trim().max(500).default('') }),
   run: async (ctx, i) => {
     const loaded = await load(ctx, i.jobId, i.version);
+    // Kontrol kararı üretim takibindir: kontroldeki işi bölüm tableti tamire gönderemez.
+    if (loaded.job.stage === 'review' && !ctx.user.roles.some((r) => r === 'admin' || r === 'tracking')) throw new AppError('FORBIDDEN', 'Kontroldeki işi yalnızca üretim takip tamire gönderebilir.');
     await apply(ctx, loaded, i.version, { type: 'toRepair' }, { kind: 'to_repair', note: i.note });
     return { id: i.jobId };
   },
