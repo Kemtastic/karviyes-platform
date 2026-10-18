@@ -1,0 +1,8 @@
+# Otomatik TLS (Let's Encrypt). Güvenlik başlıkları uygulama tarafından verilir.
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:3000
+	request_body {
+		max_size 12MB
+	}
+}

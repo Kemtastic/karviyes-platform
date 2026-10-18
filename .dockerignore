@@ -1,0 +1,13 @@
+node_modules
+.next
+.next-e2e
+.data
+.env*
+!.env.example
+.git
+.superpowers
+.ai-reports
+test-results
+playwright-report
+coverage
+kurulum.config.json
