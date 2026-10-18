@@ -39,6 +39,8 @@ export type SectorPackage<P extends Product = Product, C = Record<string, number
   /** Siparişin hedef adedi (hesaplardan). */
   targetQuantity(p: P): number;
   stages: StageDef[];
+  /** Bölüm rollerinin bu sektördeki adları (ör. plastikte dilimleme yuvası "Ekstrüzyon"). */
+  roleLabels?: Partial<Record<Role, string>>;
   /** İşin ilk gönderilebileceği aşamalar. */
   firstStages(p: P): StageId[];
   nextStages(p: P, current: StageId): StageId[];
@@ -50,6 +52,10 @@ export type SectorPackage<P extends Product = Product, C = Record<string, number
   analysisKey?(p: P): string;
   /** Dışa aktarımda bir ürün alanının okunur değeri (varsayılan: değerin kendisi). */
   formatField?(key: string, value: unknown): string | number | null;
+  /** Yeni sipariş satırında ürün alanlarının başlangıç değerleri. */
+  defaults?: Record<string, string>;
+  /** Sipariş formunda hesap özeti (etiket, değer). */
+  summary?(calc: C): { label: string; value: string }[];
   /** Ürünü tek satırda özetler (listeler ve PDF için). */
   describe(p: P): string;
 };

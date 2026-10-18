@@ -6,8 +6,9 @@ import { getDb } from '@/core/db/client';
 import { withCompany } from '@/core/db/scope';
 import { companies } from '@/core/db/schema';
 import { getInstallConfig } from '@/core/install-config';
-import { ROLE_LABELS } from '@/core/modules/types';
 import { navFor } from '@/core/nav';
+import { roleLabelsFor } from '@/sectors';
+import { RoleLabelsProvider } from '@/ui/role-labels';
 import { AppShell } from '@/ui/shell/app-shell';
 
 export const dynamic = 'force-dynamic';
@@ -19,6 +20,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (mustEnrollTwoFactor(user, cfg)) redirect('/iki-adim-kurulum');
 
   const [company] = await withCompany(user.companyId, (tx) => tx.select().from(companies).where(eq(companies.id, user.companyId)), await getDb());
+  const labels = roleLabelsFor(cfg.sector);
   const nav = navFor(user.roles, cfg).map(({ href, label, icon }) => ({ href, label, icon }));
 
   return (
@@ -28,10 +30,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         brandColor: company?.brandColor ?? cfg.company.brandColor ?? null,
         logoUrl: company?.logoFileId ? `/api/files/${company.logoFileId}` : null,
       }}
-      user={{ name: user.name, roleLabel: user.roles.map((r) => ROLE_LABELS[r]).join(', ') }}
+      user={{ name: user.name, roleLabel: user.roles.map((r) => labels[r]).join(', ') }}
       nav={nav}
     >
-      {children}
+      <RoleLabelsProvider labels={labels}>{children}</RoleLabelsProvider>
     </AppShell>
   );
 }

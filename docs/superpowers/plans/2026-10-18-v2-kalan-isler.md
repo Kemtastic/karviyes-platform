@@ -45,4 +45,8 @@ Bağımsız kod incelemesi (alt ajan), güvenlik kontrolü, örnek veriye yeni m
 - **F1b bitti** (08c367a): ön muhasebe tahsilatı isteğe bağlı olarak siparişe de işlenir (sipariş modülünün `server/api.ts` açık arayüzüyle, aynı işlemde); hareket iptalinde sipariş tarafına düzeltme. Göç 0027.
 - **F3 bitti**: siparişe teslim tarihi (göç 0028, üretim sürerken değiştirilebilir), ana sayfada uyarılar (geciken/yaklaşan teslim, 3+ gün hareketsiz iş, 2+ gün kumaş bekleyen iş), bölüm ekranında yeni iş şeridi ve isteğe bağlı sesli uyarı (cihazda saklanır), Üretim İçgörüleri sayfası (bobin durumu, ölçü başına satış ve bobin başı satış, sevk bekleyen mamul ve değeri).
   - Ruling: Uyarı eşikleri (3 gün hareketsiz, 2 gün kumaş, 3 gün teslim) sabit; firmaya göre ayar sonra — maliyet: firma farklı eşik isterse kurulum ayarına taşınır.
+- **Canlı göç düzeltmesi** (cc78362): Vercel derlemesi önce göçleri uygular (`vercel-build`); başarısızsa eski sürüm yayında kalır. Derleme başarılı, sağlık kontrolü `{ok,db,config}` true.
+- **F4 bitti**: `plastic-bags` sektör paketi (pilot öncesi), üretimde kg/fire kg alanları, malzemesiz üründe ayırma adımı yok, sektöre göre rol adları (kabuk bağlamı), sipariş formunda sektörün varsayılanları ve hesap özeti. Altın test + uçtan uca servis testi.
+  - Ruling: Plastikte fiyat adet başına (TL/kg yok) — maliyet: poşetçi kg fiyatı ister; sipariş modülünde fiyat birimi eklenmeli.
+  - Ruling: Granül stoğu yok; `materials()` boş — maliyet: hammadde açığı uyarısı yok, pilotla eklenecek.
 

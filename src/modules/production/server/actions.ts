@@ -82,9 +82,12 @@ export const startProduction = defineAction({
     const lines = await openLinesForProduction(ctx.tx, i.orderId);
     if (!lines.length) throw new AppError('INVALID_STATE', 'Siparişin üretime alınacak satırı yok.');
     const ids: string[] = [];
+    const sector = getSector(ctx.cfg.sector);
     for (const line of lines) {
       const no = `${line.no}/${line.lineNo}`;
-      const [row] = await ctx.tx.insert(jobs).values({ companyId: ctx.companyId, orderId: line.orderId, orderLineId: line.lineId, no }).returning({ id: jobs.id });
+      // Elle ayrılacak ilk malzemesi (kumaş bobini) olmayan üründe ayırma adımı yoktur; iş doğrudan gönderilebilir.
+      const needsReserve = sector.materials(line.product as Record<string, unknown>, line.quantity).some((m) => m.kind === 'fabric' && m.consumeAt === null);
+      const [row] = await ctx.tx.insert(jobs).values({ companyId: ctx.companyId, orderId: line.orderId, orderLineId: line.lineId, no, fabricReserved: !needsReserve }).returning({ id: jobs.id });
       await ctx.tx.insert(jobEvents).values({ companyId: ctx.companyId, jobId: row!.id, stage: 'waiting', kind: 'created', userId: ctx.user.userId });
       await markLineInProduction(ctx.tx, line.lineId);
       await ctx.audit({ entity: 'job', entityId: row!.id, after: { orderId: line.orderId, lineNo: line.lineNo, no } });
@@ -207,6 +210,9 @@ export const finishStage = defineAction({
     sacks: z.coerce.number().int().min(0).default(0),
     boxes: z.coerce.number().int().min(0).default(0),
     metres: z.coerce.number().min(0).optional(),
+    // Kg ile izlenen sektörler (plastik poşet): üretilen ve fire ağırlığı.
+    kg: z.coerce.number().min(0).max(1_000_000).optional(),
+    wasteKg: z.coerce.number().min(0).max(1_000_000).default(0),
     staffIds: z.array(z.string().uuid()).max(20).default([]),
     machine: z.string().trim().max(60).default(''),
     note: z.string().trim().max(500).default(''),
@@ -226,6 +232,8 @@ export const finishStage = defineAction({
     const data: Record<string, number | boolean> = { cutWaste: i.cutWaste, printWaste: i.printWaste, samples: i.samples, sacks: i.sacks, boxes: i.boxes };
     if (i.good !== undefined) data.good = i.good;
     if (i.metres !== undefined) data.metres = i.metres;
+    if (i.kg !== undefined) data.kg = i.kg;
+    if (i.wasteKg) data.wasteKg = i.wasteKg;
     if (i.quantityAcknowledged) data.quantityAcknowledged = true;
     // Bitirirken makine/personel seçilmezse aşamanın başlatma kaydındakiler kullanılır (raporlar bitirme kaydını okur).
     const [started] = await ctx.tx

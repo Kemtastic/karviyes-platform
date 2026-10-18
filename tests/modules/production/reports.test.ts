@@ -46,12 +46,12 @@ describe('makine ve personel raporu', () => {
     const r = await machineStaffReport({ from: '2026-10-18', to: '2026-10-18' }, runtime(t, testUser(t.companyA, ['tracking'])));
     if (!r.ok) throw new Error(r.message);
     expect(r.data.byMachine).toEqual([
-      { key: 'Baskı 1', stage: 'printing', jobs: 1, good: 0, cutWaste: 0, printWaste: 30 },
-      { key: 'Kesim 1', stage: 'cutting', jobs: 1, good: 2200, cutWaste: 10, printWaste: 0 },
+      { key: 'Baskı 1', stage: 'printing', jobs: 1, good: 0, cutWaste: 0, printWaste: 30, wasteKg: 0 },
+      { key: 'Kesim 1', stage: 'cutting', jobs: 1, good: 2200, cutWaste: 10, printWaste: 0, wasteKg: 0 },
     ]);
     expect(r.data.byStaff).toEqual([
-      { key: 'Emre Kesim', stage: 'cutting', jobs: 1, good: 2200, cutWaste: 10, printWaste: 0 },
-      { key: 'Zeynep Baskı', stage: 'printing', jobs: 1, good: 0, cutWaste: 0, printWaste: 30 },
+      { key: 'Emre Kesim', stage: 'cutting', jobs: 1, good: 2200, cutWaste: 10, printWaste: 0, wasteKg: 0 },
+      { key: 'Zeynep Baskı', stage: 'printing', jobs: 1, good: 0, cutWaste: 0, printWaste: 30, wasteKg: 0 },
     ]);
   });
 
@@ -59,7 +59,7 @@ describe('makine ve personel raporu', () => {
     const r = await machineStaffReport({ from: '2026-10-18', to: '2026-10-18' }, runtime(t, testUser(t.companyA, ['tracking'])));
     if (!r.ok) throw new Error(r.message);
     expect(r.data.byJob).toEqual([
-      { jobId, jobNo: expect.stringMatching(/\/1$/), partyName: 'Rapor Müşterisi', target: 2222, good: 2200, cutWaste: 10, printWaste: 30, wasteRate: '0.45' },
+      { jobId, jobNo: expect.stringMatching(/\/1$/), partyName: 'Rapor Müşterisi', target: 2222, good: 2200, cutWaste: 10, printWaste: 30, wasteKg: 0, wasteRate: '0.45' },
     ]);
   });
 

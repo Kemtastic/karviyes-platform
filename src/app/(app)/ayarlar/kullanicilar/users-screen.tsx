@@ -1,10 +1,11 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { DEPARTMENT_ROLES, ROLE_LABELS, ROLES, type Role } from '@/core/modules/types';
+import { DEPARTMENT_ROLES, ROLES, type Role } from '@/core/modules/types';
 import type { MemberRow } from '@/core/users/queries';
 import { Tablet, UserPlus } from 'lucide-react';
 import { Badge } from '@/ui/badge';
+import { useRoleLabels } from '@/ui/role-labels';
 import { Button } from '@/ui/button';
 import { PageHeader } from '@/ui/page-header';
 import { ConfirmDialog } from '@/ui/confirm-dialog';
@@ -15,6 +16,7 @@ import { useAction } from '@/ui/use-action';
 import { createDeviceAction, deactivateMemberAction, inviteUserAction, updateRolesAction } from './actions';
 
 export function UsersScreen({ members, currentMembershipId }: { members: MemberRow[]; currentMembershipId: string }) {
+  const ROLE_LABELS = useRoleLabels();
   const router = useRouter();
   const [mode, setMode] = useState<'invite' | 'device' | null>(null);
   const [editing, setEditing] = useState<MemberRow | null>(null);
@@ -88,6 +90,7 @@ export function UsersScreen({ members, currentMembershipId }: { members: MemberR
 }
 
 function RoleChecks({ value, onChange, allowed }: { value: Role[]; onChange: (r: Role[]) => void; allowed: readonly Role[] }) {
+  const ROLE_LABELS = useRoleLabels();
   return (
     <fieldset className="grid grid-cols-2 gap-2">
       <legend className="mb-1 text-sm font-medium">Roller</legend>
@@ -134,6 +137,7 @@ function InviteModal({ open, onClose, onDone }: { open: boolean; onClose: () => 
 }
 
 function DeviceModal({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: () => void }) {
+  const ROLE_LABELS = useRoleLabels();
   const [created, setCreated] = useState('');
   const device = useAction(createDeviceAction);
   return (

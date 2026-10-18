@@ -12,7 +12,7 @@ const schema = z.object({
     domain: z.string().optional(),
   }),
   modules: z.array(z.string()).min(1),
-  sector: z.literal('bags'),
+  sector: z.enum(['bags', 'plastic-bags']),
   security: z.object({ twoFactorRequiredRoles: z.array(z.enum(ROLES)).default(['admin', 'accounting', 'tracking']) }).default({}),
 });
 

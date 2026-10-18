@@ -1,8 +1,9 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { ROLE_LABELS, ROLES, type Role } from '@/core/modules/types';
+import { ROLES, type Role } from '@/core/modules/types';
 import { Badge } from '@/ui/badge';
+import { useRoleLabels } from '@/ui/role-labels';
 import { Button } from '@/ui/button';
 import { DataTable } from '@/ui/data-table';
 import { FormField, fieldClass } from '@/ui/form-field';
@@ -15,6 +16,7 @@ type StaffRow = { id: string; name: string; kind: string; departments: string[];
 const KIND_LABELS: Record<string, string> = { master: 'Usta', collector: 'Toplayıcı', operator: 'Operatör', sales: 'Satışçı', other: 'Diğer' };
 
 export function StaffScreen({ rows }: { rows: StaffRow[] }) {
+  const ROLE_LABELS = useRoleLabels();
   const router = useRouter();
   const [editing, setEditing] = useState<StaffRow | 'new' | null>(null);
   return (
@@ -42,6 +44,7 @@ export function StaffScreen({ rows }: { rows: StaffRow[] }) {
 }
 
 function StaffModal({ row, onClose, onDone }: { row: StaffRow | null; onClose: () => void; onDone: () => void }) {
+  const ROLE_LABELS = useRoleLabels();
   const [departments, setDepartments] = useState<string[]>(row?.departments ?? []);
   const create = useAction(createStaffAction);
   const update = useAction(updateStaffAction);

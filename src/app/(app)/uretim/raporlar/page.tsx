@@ -21,6 +21,8 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   const totalGood = r.data.byJob.reduce((s, j) => s + j.good, 0);
   const totalCut = r.data.byJob.reduce((s, j) => s + j.cutWaste, 0);
   const totalPrint = r.data.byJob.reduce((s, j) => s + j.printWaste, 0);
+  // Kg ile izlenen sektörde (plastik) fire kg sütunu gösterilir.
+  const showKg = [...r.data.byMachine, ...r.data.byStaff].some((x) => x.wasteKg > 0) || r.data.byJob.some((j) => j.wasteKg > 0);
 
   const table = (title: string, rows: ReportRow[]) => (
     <section className="space-y-2">
@@ -30,7 +32,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
           <thead className="border-b border-stone-200 bg-stone-50/80 text-xs uppercase tracking-wide text-stone-500">
             <tr>
               <th className="px-4 py-3 font-semibold text-left">Ad</th><th className="px-4 py-3 font-semibold text-left">Aşama</th><th className="px-4 py-3 font-semibold text-right">İş</th>
-              <th className="px-4 py-3 font-semibold text-right">Sağlam</th><th className="px-4 py-3 font-semibold text-right">Kesim firesi</th><th className="px-4 py-3 font-semibold text-right">Baskı firesi (m)</th><th className="px-4 py-3 font-semibold text-right">Fire oranı</th>
+              <th className="px-4 py-3 font-semibold text-right">Sağlam</th><th className="px-4 py-3 font-semibold text-right">Kesim firesi</th><th className="px-4 py-3 font-semibold text-right">Baskı firesi (m)</th>{showKg && <th className="px-4 py-3 font-semibold text-right">Fire (kg)</th>}<th className="px-4 py-3 font-semibold text-right">Fire oranı</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-stone-100">
@@ -42,10 +44,11 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                 <td className="px-4 py-3 text-right tabular-nums">{x.good.toLocaleString('tr-TR')}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{x.cutWaste.toLocaleString('tr-TR')}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{x.printWaste.toLocaleString('tr-TR')}</td>
+                {showKg && <td className="px-4 py-3 text-right tabular-nums">{x.wasteKg.toLocaleString('tr-TR')}</td>}
                 <td className="px-4 py-3 text-right tabular-nums">{x.good + x.cutWaste > 0 && x.stage !== 'printing' ? <WasteRate value={(x.cutWaste / (x.good + x.cutWaste)) * 100} /> : <span className="text-stone-400">—</span>}</td>
               </tr>
             ))}
-            {!rows.length && <tr><td colSpan={7} className="px-3 py-10 text-center text-stone-500">Bu aralıkta bitirilen aşama yok.</td></tr>}
+            {!rows.length && <tr><td colSpan={showKg ? 8 : 7} className="px-3 py-10 text-center text-stone-500">Bu aralıkta bitirilen aşama yok.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -78,7 +81,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
             <thead className="border-b border-stone-200 bg-stone-50/80 text-xs uppercase tracking-wide text-stone-500">
               <tr>
                 <th className="px-4 py-3 font-semibold text-left">İş</th><th className="px-4 py-3 font-semibold text-left">Müşteri</th><th className="px-4 py-3 font-semibold text-right">Hedef</th>
-                <th className="px-4 py-3 font-semibold text-right">Sağlam</th><th className="px-4 py-3 font-semibold text-right">Kesim firesi</th><th className="px-4 py-3 font-semibold text-right">Baskı firesi (m)</th><th className="px-4 py-3 font-semibold text-right">Fire oranı</th>
+                <th className="px-4 py-3 font-semibold text-right">Sağlam</th><th className="px-4 py-3 font-semibold text-right">Kesim firesi</th><th className="px-4 py-3 font-semibold text-right">Baskı firesi (m)</th>{showKg && <th className="px-4 py-3 font-semibold text-right">Fire (kg)</th>}<th className="px-4 py-3 font-semibold text-right">Fire oranı</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
@@ -90,10 +93,11 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                   <td className="px-4 py-3 text-right tabular-nums">{j.good.toLocaleString('tr-TR')}</td>
                   <td className="px-4 py-3 text-right tabular-nums">{j.cutWaste.toLocaleString('tr-TR')}</td>
                   <td className="px-4 py-3 text-right tabular-nums">{j.printWaste.toLocaleString('tr-TR')}</td>
+                  {showKg && <td className="px-4 py-3 text-right tabular-nums">{j.wasteKg.toLocaleString('tr-TR')}</td>}
                   <td className="px-4 py-3 text-right tabular-nums"><WasteRate value={Number(j.wasteRate)} /></td>
                 </tr>
               ))}
-              {!r.data.byJob.length && <tr><td colSpan={7} className="px-3 py-10 text-center text-stone-500">Bu aralıkta bitirilen aşama yok.</td></tr>}
+              {!r.data.byJob.length && <tr><td colSpan={showKg ? 8 : 7} className="px-3 py-10 text-center text-stone-500">Bu aralıkta bitirilen aşama yok.</td></tr>}
             </tbody>
           </table>
         </div>

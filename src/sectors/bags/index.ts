@@ -111,6 +111,13 @@ export const bags: SectorPackage<BagProduct, BagCalc> = {
   canSkipTo: (p, target) => target !== 'cutting' || p.noPrint,
   canTurn: (p) => p.shape === '3D',
   materials: bagMaterials,
+  defaults: { shape: 'Körüksüz', handle: 'El Geçme', biyeType: 'Biyeli', gusset: '0', biye: '5', colour: 'Beyaz' },
+  summary: (c) => [
+    { label: 'Kumaş', value: `${c.fabricCm} cm` },
+    { label: 'Kazan', value: `${c.kazan} cm` },
+    { label: 'Bobin başı', value: `${Math.floor(c.perRoll).toLocaleString('tr-TR')} adet` },
+    { label: 'Hedef', value: `${c.target.toLocaleString('tr-TR')} adet` },
+  ],
   analysisKey: (p) => `${p.width}×${p.height}${p.gusset ? `×${p.gusset}` : ''} cm · ${p.shape} · ${p.gsm} gr`,
   formatField: (key, value) => (key === 'biyeType' ? (value === 'without' ? 'Biyesiz' : 'Biyeli') : null),
   describe: (p) =>

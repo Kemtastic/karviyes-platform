@@ -5,7 +5,7 @@ import { parties, staff } from '@/core/db/schema';
 import { orderLines, orders } from '@/modules/orders/db/schema';
 import { jobEvents, jobs } from '../db/schema';
 
-export type ReportRow = { key: string; stage: string; jobs: number; good: number; cutWaste: number; printWaste: number };
+export type ReportRow = { key: string; stage: string; jobs: number; good: number; cutWaste: number; printWaste: number; wasteKg: number };
 
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 
@@ -29,11 +29,12 @@ export const machineStaffReport = defineAction({
     const byStaff = new Map<string, ReportRow & { jobIds: Set<string> }>();
     const add = (map: typeof byMachine, key: string, e: (typeof events)[number]) => {
       const id = `${key}|${e.stage}`;
-      const row = map.get(id) ?? { key, stage: e.stage, jobs: 0, good: 0, cutWaste: 0, printWaste: 0, jobIds: new Set<string>() };
+      const row = map.get(id) ?? { key, stage: e.stage, jobs: 0, good: 0, cutWaste: 0, printWaste: 0, wasteKg: 0, jobIds: new Set<string>() };
       row.jobIds.add(e.jobId);
       row.good += num(e.data.good);
       if (e.stage === 'printing') row.printWaste += num(e.data.printWaste);
       else row.cutWaste += num(e.data.cutWaste);
+      row.wasteKg += num(e.data.wasteKg);
       map.set(id, row);
     };
     for (const e of events) {
@@ -58,8 +59,9 @@ export const machineStaffReport = defineAction({
         const good = goods.length ? num(goods[goods.length - 1]!.data.good) : 0;
         const cutWaste = mine.filter((e) => e.stage !== 'printing').reduce((s, e) => s + num(e.data.cutWaste), 0);
         const printWaste = mine.filter((e) => e.stage === 'printing').reduce((s, e) => s + num(e.data.printWaste), 0);
+        const wasteKg = Math.round(mine.reduce((s, e) => s + num(e.data.wasteKg), 0) * 100) / 100;
         const wasteRate = good + cutWaste > 0 ? ((cutWaste / (good + cutWaste)) * 100).toFixed(2) : '0.00';
-        return { jobId: j.id, jobNo: j.no, partyName: j.partyName, target: j.target, good, cutWaste, printWaste, wasteRate };
+        return { jobId: j.id, jobNo: j.no, partyName: j.partyName, target: j.target, good, cutWaste, printWaste, wasteKg, wasteRate };
       })
       .sort((a, b) => a.jobNo.localeCompare(b.jobNo));
     const finalize = (m: typeof byMachine): ReportRow[] =>

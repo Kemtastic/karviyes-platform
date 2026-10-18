@@ -60,10 +60,10 @@ const productInput = (p: Record<string, string | boolean>) => ({ ...p, biyeType:
 
 let nextKey = 1;
 
-function emptyLine(): LineState {
+function emptyLine(sector: SectorPackage): LineState {
   return {
     key: nextKey++,
-    product: { shape: 'Körüksüz', handle: 'El Geçme', biyeType: 'Biyeli', gusset: '0', biye: '5', colour: 'Beyaz' },
+    product: { ...(sector.defaults ?? {}) },
     qtyOverride: '', unitPrice: '', vatRate: '10', packagingType: 'sack', packagingCapacity: '2000', notes: {}, plateId: '',
   };
 }
@@ -112,7 +112,7 @@ export function OrderForm({ sector: sectorId, salesStaff, initial, initialPlates
     setFxRateDate(r.data.rateDate);
     setFxNote(`${r.data.source}, ${r.data.rateDate.split('-').reverse().join('.')} bülteni`);
   }
-  const [lines, setLines] = useState<LineState[]>(() => (initial ? initial.lines.map((l) => lineFromInitial(l, sector)) : [emptyLine()]));
+  const [lines, setLines] = useState<LineState[]>(() => (initial ? initial.lines.map((l) => lineFromInitial(l, sector)) : [emptyLine(sector)]));
   const create = useAction(createOrderAction);
   const update = useAction(updateOrderAction);
   const action = initial ? update : create;
@@ -232,7 +232,7 @@ export function OrderForm({ sector: sectorId, salesStaff, initial, initialPlates
       {lines.length < MAX_LINES && (
         <button
           type="button"
-          onClick={() => setLines((ls) => [...ls, emptyLine()])}
+          onClick={() => setLines((ls) => [...ls, emptyLine(sector)])}
           className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-stone-300 bg-white/60 px-4 py-4 text-sm font-semibold text-stone-600 transition-colors hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
         >
           <Plus aria-hidden className="h-4 w-4" /> Ürün ekle
@@ -291,10 +291,9 @@ function LineEditor({ index, count, line: l, preview, currency, sector, errors, 
         ))}
       </div>
       <div className="grid gap-3 rounded-lg bg-stone-50 p-3 text-sm sm:grid-cols-4">
-        <span>Kumaş: <strong>{preview.calc.fabricCm} cm</strong></span>
-        <span>Kazan: <strong>{preview.calc.kazan} cm</strong></span>
-        <span>Bobin başı: <strong>{Math.floor(Number(preview.calc.perRoll)).toLocaleString('tr-TR')} adet</strong></span>
-        <span>Hedef: <strong>{Number(preview.calc.target).toLocaleString('tr-TR')} adet</strong></span>
+        {(sector.summary?.(preview.calc) ?? [{ label: 'Hedef', value: `${Number(preview.calc.target).toLocaleString('tr-TR')} adet` }]).map((x) => (
+          <span key={x.label}>{x.label}: <strong>{x.value}</strong></span>
+        ))}
       </div>
       <div className="grid gap-4 sm:grid-cols-4">
         <FormField label="Adet" hint="Boş bırakılırsa hedef adet" error={err('quantity')}><input inputMode="numeric" value={l.qtyOverride} onChange={(e) => onChange({ qtyOverride: e.target.value.replace(/\D/g, '') })} placeholder={String(preview.calc.target)} className={fieldClass} /></FormField>

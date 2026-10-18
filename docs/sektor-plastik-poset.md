@@ -1,6 +1,6 @@
 # Sektör paketi: plastik poşet — ön inceleme ve karar notu
 
-Durum: **karar bekliyor.** Kod yazılmadı. Kaynak: plastik poşet üretiminde deneyimli üretim müdürü rolündeki ajan görüşü (2026-10-18). Sayısal değerler "tipik aralık, firmaya göre değişir"; pilot firmanın gerçek verisiyle (numune tartımı) kalibre edilmeli.
+Durum: **pilot öncesi paket yazıldı** (`src/sectors/plastic-bags`, 2026-10-18). Kurulum ayarında `"sector": "plastic-bags"` ile açılır. Pilot firmanın gerçek ürün tartımlarıyla kalibrasyon ve granül stoğu hâlâ yapılacak (aşağıda "Kalanlar"). Kaynak: plastik poşet üretiminde deneyimli üretim müdürü rolündeki ajan görüşü (2026-10-18). Sayısal değerler "tipik aralık, firmaya göre değişir"; pilot firmanın gerçek verisiyle (numune tartımı) kalibre edilmeli.
 
 ## Neden hemen yapılmadı
 
@@ -41,3 +41,18 @@ Ekstrüzyon (kg, metre, fire kg, makine, vardiya) → baskı (renk sayısı 0 is
 ## Önerilen yol
 
 Bir pilot poşet üreticisi bulunduğunda: (1) arayüzü kg/birim desteğiyle genişlet (bez çanta paketi değişmeden, testleri yeşil kalarak), (2) granül stoğunu malzeme modülüne ekle, (3) `src/sectors/plastic-bags` paketini pilotun 3 gerçek ürününün tartımıyla altın testlere bağla.
+
+## Uygulanan (2026-10-18)
+
+- Ürün alanları: tip (atlet, düz, körüklü, çöp torbası), en, boy, körük (yalnız körüklüde), kalınlık µ, hammadde (HDPE/LDPE/LLDPE), film rengi, baskı renk sayısı ve renkleri, miktar birimi (adet/kg), miktar, tolerans %, koli içi adet.
+- Hesap: gram/adet, kg siparişte adet hedefi, net kg, fireli hammadde kg (ekstrüzyon %3, baskı %5, kesim %3), tolerans adedi. Belgedeki örnek (atlet 30×50, HDPE, 25 µ → 7,125 g; 10.000 adet → 71,25 kg net, ≈ 79,7 kg hammadde) altın testte.
+- Akış: Ekstrüzyon → (baskı renk sayısı > 0 ise) Baskı → Kesim-Kaynak → Paketleme → kontrol → sevk; Ayıklama (tamir yuvası). Aşama sonunda kg, fire kg, metre ve sağlam adet; raporda fire kg sütunu.
+- Rol adları sektöre göre (Dilimleme yuvası "Ekstrüzyon", Kesim "Kesim-Kaynak", Bitiş "Paketleme", Tamir "Ayıklama").
+- Malzeme ayırması olmayan üründe iş doğrudan ilk aşamaya gönderilir.
+
+## Kalanlar
+
+- Granül/masterbatch stoğu (kg, 25 kg çuval) ve sipariş başına hammadde ihtiyacı.
+- TL/kg fiyatlandırma (şu an sipariş satırı birim fiyatı adet başınadır; kg siparişte adede çevrilir).
+- Atlet kulp kesim firesi, co-ex, biyobozunur; mevzuat ve gıda temas kontrolleri.
+- Pilot firmanın 3 ürününün tartımıyla yoğunluk ve fire oranlarının kalibrasyonu.
