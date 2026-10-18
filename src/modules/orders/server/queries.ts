@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { defineAction } from '@/core/action';
+import { defineAction, type ActionCtx } from '@/core/action';
 import { parties, staff } from '@/core/db/schema';
 import { AppError } from '@/core/errors';
 import { CURRENCIES, money, moneyToJSON, type Currency } from '@/core/money';
@@ -9,12 +9,32 @@ import { decimalCell } from '@/core/export/csv';
 import { formatDate } from '@/core/dates';
 import { getSector } from '@/sectors';
 import { ORDER_STATUS_LABELS as STATUS_TEXT } from '../ui/status-labels';
-import { ORDER_STATUSES, orderPayments, orders } from '../db/schema';
+import { ORDER_STATUSES, orderLines, orderPayments, orders } from '../db/schema';
 import { orderBalance, receivableTotal } from '../domain/totals';
 
 const OFFICE: Role[] = ['admin', 'sales', 'tracking'];
 
 export { ORDER_STATUS_LABELS } from '../ui/status-labels';
+
+type LineRow = typeof orderLines.$inferSelect;
+
+// Siparişlerin satırları, satır sırasıyla.
+async function linesOf(ctx: ActionCtx, orderIds: string[]): Promise<Map<string, LineRow[]>> {
+  const map = new Map<string, LineRow[]>();
+  if (!orderIds.length) return map;
+  const rows = await ctx.tx.select().from(orderLines).where(inArray(orderLines.orderId, orderIds)).orderBy(asc(orderLines.lineNo));
+  for (const l of rows) map.set(l.orderId, [...(map.get(l.orderId) ?? []), l]);
+  return map;
+}
+
+// Liste için ürün özeti: ilk iki ürün, fazlası sayıyla.
+function productsText(ctx: ActionCtx, lines: LineRow[]): string {
+  const sector = getSector(ctx.cfg.sector);
+  const texts = lines.map((l) => sector.describe(l.product));
+  return texts.length > 2 ? `${texts.slice(0, 2).join(' + ')} +${texts.length - 2} ürün` : texts.join(' + ');
+}
+
+const sumQty = (lines: LineRow[]) => lines.reduce((s, l) => s + l.quantity, 0);
 
 export const listOrders = defineAction({
   name: 'orders.list',
@@ -32,13 +52,13 @@ export const listOrders = defineAction({
       .limit(500);
     const ids = rows.map((r) => r.o.id);
     const pays = ids.length ? await ctx.tx.select().from(orderPayments).where(inArray(orderPayments.orderId, ids)) : [];
-    const sector = getSector(ctx.cfg.sector);
+    const lines = await linesOf(ctx, ids);
     return rows.map(({ o, partyName }) => {
       const total = money(o.totalMinor, o.currency as Currency);
       const own = pays.filter((p) => p.orderId === o.id).map((p) => ({ kind: p.kind, amountMinor: p.amountMinor, currency: p.currency as Currency }));
       return {
-        id: o.id, no: o.no, orderDate: o.orderDate, partyName, status: o.status, quantity: o.quantity,
-        product: sector.describe(o.product), total: moneyToJSON(total), balance: moneyToJSON(orderBalance(receivableTotal(o.status, total), own)), version: o.version,
+        id: o.id, no: o.no, orderDate: o.orderDate, partyName, status: o.status, quantity: sumQty(lines.get(o.id) ?? []),
+        product: productsText(ctx, lines.get(o.id) ?? []), total: moneyToJSON(total), balance: moneyToJSON(orderBalance(receivableTotal(o.status, total), own)), version: o.version,
       };
     });
   },
@@ -58,13 +78,19 @@ export const orderForOffice = defineAction({
     const [seller] = o.salespersonStaffId ? await ctx.tx.select({ name: staff.name }).from(staff).where(eq(staff.id, o.salespersonStaffId)) : [];
     const total = money(o.totalMinor, o.currency as Currency);
     const balance = orderBalance(receivableTotal(o.status, total), pays.map((p) => ({ kind: p.kind, amountMinor: p.amountMinor, currency: p.currency as Currency })));
+    const sector = getSector(ctx.cfg.sector);
+    const lines = (await linesOf(ctx, [o.id])).get(o.id) ?? [];
     return {
       id: o.id, no: o.no, version: o.version, status: o.status, orderDate: o.orderDate,
       party: { id: party.id, name: party.name, phone: party.phone, city: party.city },
       salesperson: seller?.name ?? null, salespersonStaffId: o.salespersonStaffId,
-      product: o.product, productText: getSector(ctx.cfg.sector).describe(o.product), quantity: o.quantity,
-      unitPrice: o.unitPrice, vatRate: o.vatRate, currency: o.currency, fxRate: o.fxRate, fxRateDate: o.fxRateDate, fxSource: o.fxSource,
-      total: moneyToJSON(total), balance: moneyToJSON(balance), packaging: o.packaging, departmentNotes: o.departmentNotes,
+      quantity: sumQty(lines), currency: o.currency, fxRate: o.fxRate, fxRateDate: o.fxRateDate, fxSource: o.fxSource,
+      total: moneyToJSON(total), balance: moneyToJSON(balance),
+      lines: lines.map((l) => ({
+        id: l.id, lineNo: l.lineNo, status: l.status, product: l.product, productText: sector.describe(l.product), quantity: l.quantity,
+        unitPrice: l.unitPrice, vatRate: l.vatRate, total: moneyToJSON(money(l.totalMinor, o.currency as Currency)),
+        packaging: l.packaging, departmentNotes: l.departmentNotes, producedQty: l.producedQty, shippedQty: l.shippedQty, cancelReason: l.cancelReason,
+      })),
       invoiceMark: o.invoiceMark, producedQty: o.producedQty, shippedQty: o.shippedQty, cancelReason: o.cancelReason,
       payments: pays.map((p) => ({ id: p.id, kind: p.kind, amount: moneyToJSON(money(p.amountMinor, p.currency as Currency)), paidAt: p.paidAt, note: p.note, correctsPaymentId: p.correctsPaymentId })),
     };
@@ -80,12 +106,13 @@ export const orderForWorkshop = defineAction({
   input: z.object({ id: z.string().uuid() }),
   run: async (ctx, i) => {
     const [row] = await ctx.tx
-      .select({ id: orders.id, no: orders.no, orderDate: orders.orderDate, product: orders.product, quantity: orders.quantity, packaging: orders.packaging, departmentNotes: orders.departmentNotes, status: orders.status, partyName: parties.name })
+      .select({ id: orders.id, no: orders.no, orderDate: orders.orderDate, status: orders.status, partyName: parties.name })
       .from(orders)
       .innerJoin(parties, eq(parties.id, orders.partyId))
       .where(eq(orders.id, i.id));
     if (!row) throw new AppError('NOT_FOUND', 'Sipariş bulunamadı.');
-    return row;
+    const lines = (await linesOf(ctx, [row.id])).get(row.id) ?? [];
+    return { ...row, lines: lines.map((l) => ({ lineNo: l.lineNo, status: l.status, product: l.product, quantity: l.quantity, packaging: l.packaging, departmentNotes: l.departmentNotes })) };
   },
 });
 
@@ -118,6 +145,7 @@ export const customerAccount = defineAction({
     const rows = await ctx.tx.select().from(orders).where(eq(orders.partyId, i.partyId)).orderBy(desc(orders.orderDate), desc(orders.no)).limit(1000);
     const ids = rows.map((o) => o.id);
     const pays = ids.length ? await ctx.tx.select().from(orderPayments).where(inArray(orderPayments.orderId, ids)) : [];
+    const lines = await linesOf(ctx, ids);
     const totals = new Map<Currency, AccountTotal>();
     const list = rows.map((o) => {
       const currency = o.currency as Currency;
@@ -128,7 +156,7 @@ export const customerAccount = defineAction({
       acc.paid += paid;
       totals.set(currency, acc);
       return {
-        id: o.id, no: o.no, orderDate: o.orderDate, status: o.status, quantity: o.quantity,
+        id: o.id, no: o.no, orderDate: o.orderDate, status: o.status, quantity: sumQty(lines.get(o.id) ?? []),
         total: moneyToJSON(money(o.totalMinor, currency)), paid: moneyToJSON(money(paid, currency)), balance: moneyToJSON(money(total.minor - paid, currency)),
       };
     });
@@ -187,19 +215,22 @@ export const exportOrders = defineAction({
     const pays = ids.length ? await ctx.tx.select({ orderId: orderPayments.orderId, amount: orderPayments.amountMinor }).from(orderPayments).where(inArray(orderPayments.orderId, ids)) : [];
     const paidOf = new Map<string, bigint>();
     for (const p of pays) paidOf.set(p.orderId, (paidOf.get(p.orderId) ?? 0n) + p.amount);
+    const lines = await linesOf(ctx, ids);
     const fields = sector.productFields;
     const headers = [
-      'Sipariş No', 'Tarih', 'Müşteri', 'Yetkili', 'Telefon', 'Satışçı',
+      'Sipariş No', 'Satır', 'Tarih', 'Müşteri', 'Yetkili', 'Telefon', 'Satışçı',
       ...fields.map((f) => (f.unit ? `${f.label} (${f.unit})` : f.label)),
       'Kumaş eni (cm)', 'Adet', 'Üretilen', 'Sevk edilen', 'Birim fiyat', 'KDV %', 'Para birimi', 'Kur', 'Toplam', 'Tahsilat', 'Kalan', 'Durum', 'Fatura No',
     ];
-    const out = rows.map(({ o, party, seller }) => {
-      const product = o.product as Record<string, unknown>;
+    // Satır başına bir Excel satırı; tahsilat ve kalan siparişe aittir, yalnızca ilk satırda yazılır (toplanınca çift sayılmasın).
+    const out = rows.flatMap(({ o, party, seller }) => (lines.get(o.id) ?? []).map((l) => {
+      const product = l.product;
       const validated = sector.validateProduct(product);
       const paid = paidOf.get(o.id) ?? 0n;
       const receivable = receivableTotal(o.status, money(o.totalMinor, o.currency as Currency)).minor;
+      const first = l.lineNo === 1;
       return [
-        o.no, formatDate(o.orderDate), party.name, party.contactName, party.phone, seller ?? '',
+        o.no, l.lineNo, formatDate(o.orderDate), party.name, party.contactName, party.phone, seller ?? '',
         ...fields.map((f) => {
           const v = product[f.key];
           const custom = sector.formatField?.(f.key, v);
@@ -207,11 +238,11 @@ export const exportOrders = defineAction({
           if (typeof v === 'boolean') return v ? 'Evet' : '';
           return typeof v === 'number' ? v : v === undefined || v === null ? '' : String(v);
         }),
-        sector.materials(validated, o.quantity).find((m) => m.kind === 'fabric')?.widthCm ?? null,
-        o.quantity, o.producedQty, o.shippedQty, decimalText(o.unitPrice), decimalText(o.vatRate), o.currency, decimalText(o.fxRate),
-        decimalCell(o.totalMinor), decimalCell(paid), decimalCell(receivable - paid), STATUS_TEXT[o.status], o.invoiceMark?.no ?? '',
+        sector.materials(validated, l.quantity).find((m) => m.kind === 'fabric')?.widthCm ?? null,
+        l.quantity, l.producedQty, l.shippedQty, decimalText(l.unitPrice), decimalText(l.vatRate), o.currency, decimalText(o.fxRate),
+        decimalCell(l.totalMinor), first ? decimalCell(paid) : '', first ? decimalCell(receivable - paid) : '', STATUS_TEXT[o.status], o.invoiceMark?.no ?? '',
       ];
-    });
+    }));
     await ctx.audit({ entity: 'order', entityId: ctx.companyId, after: { export: 'orders', rows: out.length, status: i.status ?? 'all' } });
     return { headers, rows: out };
   },

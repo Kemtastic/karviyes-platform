@@ -5,7 +5,7 @@ import { istanbulToday } from '@/core/dates';
 import { staff } from '@/core/db/schema';
 import { AppError } from '@/core/errors';
 import type { Role } from '@/core/modules/types';
-import { cancelFromProduction, getOrderForProduction, markInProduction, markReadyToInvoice, onProductionProgress } from '@/modules/orders/server/public';
+import { cancelLine, getLineForProduction, markLineDone, markLineInProduction, onLineProgress, openLinesForProduction } from '@/modules/orders/server/public';
 import { getSector } from '@/sectors';
 import type { SectorPackage } from '@/sectors/types';
 import { fabricRolls, jobEvents, jobs, shipments } from '../db/schema';
@@ -24,7 +24,7 @@ async function load(ctx: ActionCtx, jobId: string, version?: number) {
   const [job] = await ctx.tx.select().from(jobs).where(eq(jobs.id, jobId));
   if (!job) throw new AppError('NOT_FOUND', 'İş bulunamadı.');
   if (version !== undefined && job.version !== version) throw conflict();
-  const order = await getOrderForProduction(ctx.tx, job.orderId);
+  const order = await getLineForProduction(ctx.tx, job.orderLineId);
   const sector = getSector(ctx.cfg.sector);
   return { job, order, sector, product: sector.validateProduct(order.product) };
 }
@@ -78,12 +78,19 @@ export const startProduction = defineAction({
   roles: TRACKING,
   input: z.object({ orderId: z.string().uuid() }),
   run: async (ctx, i) => {
-    const order = await getOrderForProduction(ctx.tx, i.orderId);
-    await markInProduction(ctx.tx, order.id);
-    const [row] = await ctx.tx.insert(jobs).values({ companyId: ctx.companyId, orderId: order.id, no: order.no }).returning({ id: jobs.id });
-    await ctx.tx.insert(jobEvents).values({ companyId: ctx.companyId, jobId: row!.id, stage: 'waiting', kind: 'created', userId: ctx.user.userId });
-    await ctx.audit({ entity: 'job', entityId: row!.id, after: { orderId: order.id, no: order.no } });
-    return { id: row!.id };
+    // Siparişin açık satırlarının her biri için bir iş açılır; iş numarası sipariş no + satır no.
+    const lines = await openLinesForProduction(ctx.tx, i.orderId);
+    if (!lines.length) throw new AppError('INVALID_STATE', 'Siparişin üretime alınacak satırı yok.');
+    const ids: string[] = [];
+    for (const line of lines) {
+      const no = `${line.no}/${line.lineNo}`;
+      const [row] = await ctx.tx.insert(jobs).values({ companyId: ctx.companyId, orderId: line.orderId, orderLineId: line.lineId, no }).returning({ id: jobs.id });
+      await ctx.tx.insert(jobEvents).values({ companyId: ctx.companyId, jobId: row!.id, stage: 'waiting', kind: 'created', userId: ctx.user.userId });
+      await markLineInProduction(ctx.tx, line.lineId);
+      await ctx.audit({ entity: 'job', entityId: row!.id, after: { orderId: line.orderId, lineNo: line.lineNo, no } });
+      ids.push(row!.id);
+    }
+    return { id: ids[0]!, ids };
   },
 });
 
@@ -230,7 +237,7 @@ export const finishStage = defineAction({
     const next = await apply(ctx, loaded, i.version, { type: 'finish', good: i.good }, { kind: 'finished', data, staffIds, machine, note: i.note });
     // Aşamayı bitiren bölüm işe ayrılmış malzemeyi tüketmiştir (ilk aşama kumaşı, kesim sapı).
     await ctx.tx.update(fabricRolls).set({ status: 'used' }).where(and(eq(fabricRolls.reservedJobId, i.jobId), eq(fabricRolls.status, 'reserved')));
-    if (stage === 'finishing') await onProductionProgress(ctx.tx, { orderId: loaded.order.id, producedQty: next.producedQty });
+    if (stage === 'finishing') await onLineProgress(ctx.tx, { lineId: loaded.job.orderLineId, producedQty: next.producedQty });
     return { id: i.jobId, stage: next.stage };
   },
 });
@@ -269,7 +276,7 @@ export const approveReview = defineAction({
   run: async (ctx, i) => {
     const loaded = await load(ctx, i.jobId, i.version);
     await apply(ctx, loaded, i.version, { type: 'approve' }, { kind: 'approved' });
-    await markReadyToInvoice(ctx.tx, loaded.order.id);
+    await markLineDone(ctx.tx, loaded.job.orderLineId);
     return { id: i.jobId };
   },
 });
@@ -295,7 +302,7 @@ export const shipJob = defineAction({
     const loaded = await load(ctx, i.jobId, i.version);
     const next = await apply(ctx, loaded, i.version, { type: 'ship', qty: i.qty }, { kind: 'shipped', data: { qty: i.qty }, note: i.note });
     await ctx.tx.insert(shipments).values({ companyId: ctx.companyId, jobId: i.jobId, qty: i.qty, shippedAt: i.shippedAt ?? istanbulToday(), note: i.note, createdBy: ctx.user.userId });
-    await onProductionProgress(ctx.tx, { orderId: loaded.order.id, shippedQty: next.shippedQty });
+    await onLineProgress(ctx.tx, { lineId: loaded.job.orderLineId, shippedQty: next.shippedQty });
     await ctx.audit({ entity: 'job', entityId: i.jobId, after: { shipped: i.qty, totalShipped: next.shippedQty } });
     return { id: i.jobId, stage: next.stage };
   },
@@ -309,8 +316,8 @@ export const cancelJob = defineAction({
   run: async (ctx, i) => {
     const loaded = await load(ctx, i.jobId, i.version);
     await apply(ctx, loaded, i.version, { type: 'cancel' }, { kind: 'cancelled', note: i.reason }, { cancelReason: i.reason });
-    await cancelFromProduction(ctx.tx, loaded.order.id, i.reason);
-    await ctx.tx.update(fabricRolls).set({ status: 'available', reservedJobId: null }).where(and(eq(fabricRolls.reservedJobId, i.jobId), eq(fabricRolls.status, 'reserved')));
+    await cancelLine(ctx.tx, loaded.job.orderLineId, i.reason);
+    await ctx.tx.update(fabricRolls).set({ status: 'available', reservedJobId: null, reservedFor: null }).where(and(eq(fabricRolls.reservedJobId, i.jobId), eq(fabricRolls.status, 'reserved')));
     await ctx.audit({ entity: 'job', entityId: i.jobId, after: { cancelled: true, reason: i.reason } });
     return { id: i.jobId };
   },

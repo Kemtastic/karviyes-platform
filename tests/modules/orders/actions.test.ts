@@ -5,7 +5,7 @@ import { createParty } from '@/core/parties/service';
 import { createStaff } from '@/core/users/service';
 import { addPayment, cancelOrder, correctPayment, createOrder, markInvoiced, updateOrder } from '@/modules/orders/server/actions';
 import { orderForOffice, orderForWorkshop } from '@/modules/orders/server/queries';
-import { markInProduction, markReadyToInvoice } from '@/modules/orders/server/public';
+import { markLineDone, markLineInProduction } from '@/modules/orders/server/public';
 import { withCompany } from '@/core/db/scope';
 
 let t: TestDb;
@@ -41,7 +41,7 @@ describe('sipariş oluşturma', () => {
     expect(o.data.quantity).toBe(6666);
     expect(o.data.total).toEqual({ minor: '6416025', currency: 'TRY' });
     expect(o.data.balance).toEqual({ minor: '6266025', currency: 'TRY' });
-    expect(o.data.packaging).toMatchObject({ packages: 4 });
+    expect(o.data.lines[0]!.packaging).toMatchObject({ packages: 4 });
   });
 
   it('aynı anda iki sipariş farklı ve ardışık numara alır', async () => {
@@ -98,7 +98,10 @@ describe('sipariş değişiklikleri', () => {
     const r = await createOrder(order(), sales());
     if (!r.ok) throw new Error('x');
     expect(await markInvoiced({ id: r.data.id, invoiceNo: 'ABC2026000000001', invoiceDate: '2026-10-18', version: 1 }, tracking())).toMatchObject({ ok: false, code: 'INVALID_STATE' });
-    await withCompany(t.companyA, async (tx) => { await markInProduction(tx, r.data.id); await markReadyToInvoice(tx, r.data.id); }, t.db);
+    const before = await orderForOffice({ id: r.data.id }, tracking());
+    if (!before.ok) throw new Error('x');
+    const lineId = before.data.lines[0]!.id;
+    await withCompany(t.companyA, async (tx) => { await markLineInProduction(tx, lineId); await markLineDone(tx, lineId); }, t.db);
     const o = await orderForOffice({ id: r.data.id }, tracking());
     if (!o.ok) throw new Error('x');
     expect(await markInvoiced({ id: r.data.id, invoiceNo: 'ABC2026000000001', invoiceDate: '2026-10-18', version: o.data.version }, tracking())).toMatchObject({ ok: true });
@@ -115,7 +118,7 @@ describe('atölye görünümü', () => {
     if (!w.ok) throw new Error(w.message);
     expect(Object.keys(w.data)).not.toEqual(expect.arrayContaining(['unitPrice']));
     expect(JSON.stringify(w.data)).not.toMatch(/unitPrice|total|payments|balance/);
-    expect(w.data.departmentNotes).toEqual({ printing: 'Logo ortalı' });
+    expect(w.data.lines[0]!.departmentNotes).toEqual({ printing: 'Logo ortalı' });
   });
 
   it('başka firmanın siparişi görünmez', async () => {

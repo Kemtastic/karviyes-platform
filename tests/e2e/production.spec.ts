@@ -152,3 +152,31 @@ test('sipariş → üretim → kesim (telefon) → kesim bitiş → kontrol → 
   const orderPdf = await page.request.get(page.url().replace('/siparisler/', '/api/pdf/siparis/'));
   expect(orderPdf.status()).toBe(200);
 });
+
+test('iki ürünlü sipariş: satır başına tutar, toplam ve ürün tablosu', async ({ page }) => {
+  await login(page);
+  await page.goto('/siparisler/yeni');
+  await page.getByRole('combobox', { name: 'Müşteri' }).fill('E2E');
+  await page.getByRole('option').getByText('E2E Gıda Ltd. Şti.').click();
+  await page.getByLabel('Satış yapan').selectOption({ label: 'Ayşe Satış' });
+  const fillLine = async (region: string, w: string, h: string, price: string, qty?: string) => {
+    const r = page.getByRole('region', { name: region });
+    await r.getByLabel('En (cm)').fill(w);
+    await r.getByLabel('Boy (cm)').fill(h);
+    await r.getByLabel('Gramaj (gr/m²)').fill('70');
+    await r.getByLabel('Bobin sayısı').fill('1');
+    await r.getByLabel('Baskısız').check();
+    if (qty) await r.getByLabel('Adet', { exact: true }).fill(qty);
+    await r.getByLabel('Birim fiyat').fill(price);
+  };
+  await fillLine('Ürün', '45', '45', '5');
+  await page.getByRole('button', { name: 'Ürün ekle' }).click();
+  await fillLine('Ürün 2', '30', '40', '3', '500');
+  // 2222 × 5 + %10 = 12.221,00 · 500 × 3 + %10 = 1.650,00
+  await expect(page.getByText('13.871,00 ₺')).toBeVisible();
+  await page.getByRole('button', { name: 'Siparişi kaydet' }).click();
+  await page.waitForURL(/\/siparisler\/[0-9a-f-]{36}$/);
+  const rows = page.getByRole('region', { name: 'Ürünler' }).getByRole('row');
+  await expect(rows).toHaveCount(3);
+  await expect(page.getByText('13.871,00 ₺').first()).toBeVisible();
+});

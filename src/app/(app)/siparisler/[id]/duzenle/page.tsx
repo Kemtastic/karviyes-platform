@@ -28,15 +28,10 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
           party: { id: o.party.id, name: o.party.name },
           salespersonStaffId: o.salespersonStaffId,
           orderDate: o.orderDate,
-          product: o.product as Record<string, unknown>,
-          quantity: o.quantity,
-          unitPrice: o.unitPrice,
-          vatRate: o.vatRate,
           currency: o.currency as Currency,
           fxRate: o.fxRate,
           fxRateDate: o.fxRateDate,
-          packaging: o.packaging,
-          departmentNotes: o.departmentNotes,
+          lines: o.lines.map((l) => ({ product: l.product as Record<string, unknown>, quantity: l.quantity, unitPrice: l.unitPrice, vatRate: l.vatRate, packaging: l.packaging, departmentNotes: l.departmentNotes })),
         }}
       />
     </div>

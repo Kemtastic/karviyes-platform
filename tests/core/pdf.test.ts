@@ -27,8 +27,19 @@ describe('PDF çıktıları', () => {
     expect(text).not.toMatch(/₺|Birim fiyat|Toplam/);
   });
 
-  it('sipariş PDF i tutarı Türkçe biçimde gösterir', async () => {
-    const text = await textOf(await renderOrderPdf({ ...job, salesperson: 'Ayşe', unitPrice: '8.7500', vatRate: '10.00', total: '64.160,25 ₺', paid: '1.500,00 ₺', balance: '62.660,25 ₺' }));
+  it('sipariş PDF i her ürün satırını ve tutarları Türkçe biçimde gösterir; iptal satırı işaretlenir', async () => {
+    const line = { quantity: 6666, unitPrice: '8.7500', vatRate: '10.00', packaging: 'Çuval · 4 × 2000', departmentNotes: { printing: 'Logo ortalı' }, cancelled: false };
+    const text = await textOf(await renderOrderPdf({
+      no: job.no, company: job.company, partyName: job.partyName, orderDate: job.orderDate, salesperson: 'Ayşe',
+      lines: [
+        { ...line, lineNo: 1, productText: '45×45 cm · Körüksüz', total: '64.160,25 ₺' },
+        { ...line, lineNo: 2, productText: '30×40 cm · Kulplu', total: '1.000,00 ₺', cancelled: true, departmentNotes: {} },
+      ],
+      total: '64.160,25 ₺', paid: '1.500,00 ₺', balance: '62.660,25 ₺',
+    }));
+    expect(text).toContain('45×45 cm · Körüksüz');
+    expect(text).toContain('30×40 cm · Kulplu');
+    expect(text).toContain('İPTAL');
     expect(text).toContain('64.160,25');
     expect(text).toContain('Kalan');
   });

@@ -1,44 +1,82 @@
 // Sipariş modülünün diğer modüllere (üretim) açık yüzü. Başka modül sipariş tablolarına doğrudan yazmaz.
-import { and, eq, inArray, sql } from 'drizzle-orm';
+// Üretim satır bazında çalışır: her satırın bir işi vardır; siparişin durumu, tutarı ve adetleri satırlardan türetilir.
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { Tx } from '@/core/db/client';
 import { parties } from '@/core/db/schema';
 import { AppError } from '@/core/errors';
-import { orders } from '../db/schema';
+import { orderLines, orders, type LineStatus } from '../db/schema';
+import { deriveOrderStatus, orderTotalMinor } from '../domain/lines';
 
-export async function getOrderForProduction(tx: Tx, id: string) {
-  const [row] = await tx
-    .select({ id: orders.id, no: orders.no, status: orders.status, product: orders.product, quantity: orders.quantity, packaging: orders.packaging, departmentNotes: orders.departmentNotes, partyName: parties.name, orderDate: orders.orderDate })
-    .from(orders)
-    .innerJoin(parties, eq(parties.id, orders.partyId))
-    .where(eq(orders.id, id));
-  if (!row) throw new AppError('NOT_FOUND', 'Sipariş bulunamadı.');
+const lineView = {
+  lineId: orderLines.id,
+  lineNo: orderLines.lineNo,
+  lineStatus: orderLines.status,
+  product: orderLines.product,
+  quantity: orderLines.quantity,
+  packaging: orderLines.packaging,
+  departmentNotes: orderLines.departmentNotes,
+  orderId: orders.id,
+  no: orders.no,
+  status: orders.status,
+  orderDate: orders.orderDate,
+  partyName: parties.name,
+};
+
+export async function getLineForProduction(tx: Tx, lineId: string) {
+  const [row] = await tx.select(lineView).from(orderLines).innerJoin(orders, eq(orders.id, orderLines.orderId)).innerJoin(parties, eq(parties.id, orders.partyId)).where(eq(orderLines.id, lineId));
+  if (!row) throw new AppError('NOT_FOUND', 'Sipariş satırı bulunamadı.');
   return row;
 }
 
-async function transition(tx: Tx, id: string, from: (typeof orders.$inferSelect)['status'][], to: (typeof orders.$inferSelect)['status'], extra: Partial<typeof orders.$inferInsert> = {}) {
-  const [o] = await tx.select({ status: orders.status }).from(orders).where(eq(orders.id, id));
+// Üretime alınmamış (açık) satırlar.
+export async function openLinesForProduction(tx: Tx, orderId: string) {
+  const [o] = await tx.select({ status: orders.status }).from(orders).where(eq(orders.id, orderId));
   if (!o) throw new AppError('NOT_FOUND', 'Sipariş bulunamadı.');
-  if (!from.includes(o.status)) throw new AppError('INVALID_STATE', 'Sipariş bu işlem için uygun durumda değil.');
-  // Okuma ile yazma arasında durum değişmiş olabilir: güncelleme yalnızca beklenen durumdaysa uygulanır.
-  const updated = await tx
-    .update(orders)
-    .set({ status: to, version: sql`${orders.version} + 1`, ...extra })
-    .where(and(eq(orders.id, id), inArray(orders.status, from)))
-    .returning({ id: orders.id });
-  if (!updated.length) throw new AppError('INVALID_STATE', 'Sipariş bu işlem için uygun durumda değil.');
+  if (o.status !== 'draft' && o.status !== 'in_production') throw new AppError('INVALID_STATE', 'Sipariş bu işlem için uygun durumda değil.');
+  return tx.select(lineView).from(orderLines).innerJoin(orders, eq(orders.id, orderLines.orderId)).innerJoin(parties, eq(parties.id, orders.partyId)).where(and(eq(orderLines.orderId, orderId), eq(orderLines.status, 'open'))).orderBy(asc(orderLines.lineNo));
 }
 
-export const markInProduction = (tx: Tx, id: string) => transition(tx, id, ['draft'], 'in_production');
+// Sipariş satırı kilitlenir; durum, tutar ve adetler satırlardan yeniden hesaplanır.
+async function recomputeOrder(tx: Tx, orderId: string) {
+  const [o] = await tx.select({ status: orders.status }).from(orders).where(eq(orders.id, orderId)).for('update');
+  if (!o) throw new AppError('NOT_FOUND', 'Sipariş bulunamadı.');
+  const lines = await tx.select({ status: orderLines.status, totalMinor: orderLines.totalMinor, producedQty: orderLines.producedQty, shippedQty: orderLines.shippedQty }).from(orderLines).where(eq(orderLines.orderId, orderId));
+  await tx
+    .update(orders)
+    .set({
+      status: deriveOrderStatus(o.status, lines.map((l) => l.status)),
+      totalMinor: orderTotalMinor(lines),
+      producedQty: lines.reduce((s, l) => s + l.producedQty, 0),
+      shippedQty: lines.reduce((s, l) => s + l.shippedQty, 0),
+      version: sql`${orders.version} + 1`,
+    })
+    .where(eq(orders.id, orderId));
+}
 
-export const markReadyToInvoice = (tx: Tx, id: string) => transition(tx, id, ['in_production'], 'ready_to_invoice');
+async function lineTransition(tx: Tx, lineId: string, from: LineStatus[], to: LineStatus, extra: Partial<typeof orderLines.$inferInsert> = {}) {
+  // Okuma ile yazma arasında durum değişmiş olabilir: güncelleme yalnızca beklenen durumdaysa uygulanır.
+  const updated = await tx
+    .update(orderLines)
+    .set({ status: to, ...extra })
+    .where(and(eq(orderLines.id, lineId), inArray(orderLines.status, from)))
+    .returning({ orderId: orderLines.orderId });
+  if (!updated.length) throw new AppError('INVALID_STATE', 'Sipariş satırı bu işlem için uygun durumda değil.');
+  await recomputeOrder(tx, updated[0]!.orderId);
+}
 
-export const cancelFromProduction = (tx: Tx, id: string, reason: string) => transition(tx, id, ['draft', 'in_production'], 'cancelled', { cancelReason: reason });
+export const markLineInProduction = (tx: Tx, lineId: string) => lineTransition(tx, lineId, ['open'], 'in_production');
 
-// Üretilen ve sevk edilen adetler (mutlak değer olarak) siparişe yansıtılır.
-export async function onProductionProgress(tx: Tx, p: { orderId: string; producedQty?: number; shippedQty?: number }) {
-  const set: Partial<typeof orders.$inferInsert> = {};
+export const markLineDone = (tx: Tx, lineId: string) => lineTransition(tx, lineId, ['in_production'], 'done');
+
+export const cancelLine = (tx: Tx, lineId: string, reason: string) => lineTransition(tx, lineId, ['open', 'in_production'], 'cancelled', { cancelReason: reason });
+
+// Üretilen ve sevk edilen adetler (mutlak değer olarak) satıra, toplamları siparişe yansıtılır.
+export async function onLineProgress(tx: Tx, p: { lineId: string; producedQty?: number; shippedQty?: number }) {
+  const set: Partial<typeof orderLines.$inferInsert> = {};
   if (p.producedQty !== undefined) set.producedQty = p.producedQty;
   if (p.shippedQty !== undefined) set.shippedQty = p.shippedQty;
   if (!Object.keys(set).length) return;
-  await tx.update(orders).set({ ...set, version: sql`${orders.version} + 1` }).where(and(eq(orders.id, p.orderId)));
+  const [row] = await tx.update(orderLines).set(set).where(eq(orderLines.id, p.lineId)).returning({ orderId: orderLines.orderId });
+  if (!row) throw new AppError('NOT_FOUND', 'Sipariş satırı bulunamadı.');
+  await recomputeOrder(tx, row.orderId);
 }

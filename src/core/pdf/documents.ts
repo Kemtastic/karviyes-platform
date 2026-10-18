@@ -109,7 +109,8 @@ export async function renderJobPdf(j: JobPdfInput, stageLabels: Record<string, s
   return doc.save();
 }
 
-export type OrderPdfInput = JobPdfInput & { salesperson: string | null; unitPrice: string; vatRate: string; total: string; paid: string; balance: string };
+export type OrderPdfLine = { lineNo: number; productText: string; quantity: number; unitPrice: string; vatRate: string; total: string; packaging: string; departmentNotes: Record<string, string>; cancelled: boolean };
+export type OrderPdfInput = { no: string; company: string; partyName: string; orderDate: string; salesperson: string | null; lines: OrderPdfLine[]; total: string; paid: string; balance: string };
 
 export async function renderOrderPdf(o: OrderPdfInput, stageLabels: Record<string, string> = {}): Promise<Uint8Array> {
   const { doc, w } = await start(`Sipariş ${o.no}`);
@@ -119,16 +120,20 @@ export async function renderOrderPdf(o: OrderPdfInput, stageLabels: Record<strin
   w.row('Müşteri', o.partyName);
   w.row('Sipariş tarihi', formatDate(o.orderDate));
   if (o.salesperson) w.row('Satış yapan', o.salesperson);
-  w.row('Ürün', o.productText);
-  w.row('Adet', n(o.quantity));
-  w.row('Birim fiyat', Number(o.unitPrice).toLocaleString('tr-TR', { maximumFractionDigits: 4 }));
-  w.row('KDV', `%${Number(o.vatRate).toLocaleString('tr-TR')}`);
+  for (const l of o.lines) {
+    w.gap();
+    w.text(`${l.lineNo}. ${l.productText}${l.cancelled ? ' — İPTAL' : ''}`, 12);
+    w.row('Adet', n(l.quantity));
+    w.row('Birim fiyat', Number(l.unitPrice).toLocaleString('tr-TR', { maximumFractionDigits: 4 }));
+    w.row('KDV', `%${Number(l.vatRate).toLocaleString('tr-TR')}`);
+    w.row('Tutar (KDV dahil)', l.total);
+    w.row('Paketleme', l.packaging);
+    for (const [stage, note] of Object.entries(l.departmentNotes)) w.box(`${stageLabels[stage] ?? stage} notu`.toLocaleUpperCase('tr-TR'), note);
+  }
+  w.gap();
   w.row('Toplam (KDV dahil)', o.total);
   w.row('Tahsil edilen', o.paid);
   w.row('Kalan', o.balance);
-  w.row('Paketleme', o.packaging);
-  w.gap();
-  for (const [stage, note] of Object.entries(o.departmentNotes)) w.box(`${stageLabels[stage] ?? stage} notu`.toLocaleUpperCase('tr-TR'), note);
   w.gap(16);
   w.text('Bu belge bilgi amaçlıdır; resmî fatura yerine geçmez.', 8, rgb(0.5, 0.5, 0.5));
   return doc.save();

@@ -6,6 +6,7 @@ export const jobs = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     companyId: uuid('company_id').notNull(),
     orderId: uuid('order_id').notNull(),
+    orderLineId: uuid('order_line_id').notNull(),
     no: text('no').notNull(),
     stage: text('stage').notNull().default('waiting'),
     stageStatus: text('stage_status', { enum: ['waiting', 'in_progress'] }).notNull().default('waiting'),
@@ -18,7 +19,7 @@ export const jobs = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex('jobs_company_order_uq').on(t.companyId, t.orderId), index('jobs_company_stage_idx').on(t.companyId, t.stage)],
+  (t) => [uniqueIndex('jobs_company_line_uq').on(t.companyId, t.orderLineId), index('jobs_company_stage_idx').on(t.companyId, t.stage)],
 );
 
 // Her aşama hareketi ayrı olay: kim, hangi makinede, hangi sonuçla (fire aşama bazında burada).

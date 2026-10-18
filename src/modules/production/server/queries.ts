@@ -4,7 +4,7 @@ import { defineAction } from '@/core/action';
 import { parties, staff } from '@/core/db/schema';
 import { AppError } from '@/core/errors';
 import type { Role } from '@/core/modules/types';
-import { orders } from '@/modules/orders/db/schema';
+import { orderLines, orders } from '@/modules/orders/db/schema';
 import { getSector } from '@/sectors';
 import { fabricRolls, jobEvents, jobs, shipments } from '../db/schema';
 import { findShortages, type Demand } from '../domain/materials';
@@ -27,13 +27,22 @@ export const productionBoard = defineAction({
   run: async (ctx, i) => {
     const sector = getSector(ctx.cfg.sector);
     if (i.tab === 'orders') {
+      // Üretime alınmamış satırı olan siparişler; ürünler tek satırda.
       const rows = await ctx.tx
-        .select({ id: orders.id, no: orders.no, orderDate: orders.orderDate, product: orders.product, quantity: orders.quantity, partyName: parties.name })
-        .from(orders)
+        .select({ id: orders.id, no: orders.no, orderDate: orders.orderDate, product: orderLines.product, quantity: orderLines.quantity, partyName: parties.name })
+        .from(orderLines)
+        .innerJoin(orders, eq(orders.id, orderLines.orderId))
         .innerJoin(parties, eq(parties.id, orders.partyId))
-        .where(eq(orders.status, 'draft'))
-        .orderBy(asc(orders.orderDate));
-      return { kind: 'orders' as const, rows: rows.map((r) => ({ ...r, product: sector.describe(r.product) })) };
+        .where(and(eq(orderLines.status, 'open'), inArray(orders.status, ['draft', 'in_production'])))
+        .orderBy(asc(orders.orderDate), asc(orders.no), asc(orderLines.lineNo));
+      const byOrder = new Map<string, { id: string; no: string; orderDate: string; partyName: string; quantity: number; products: string[] }>();
+      for (const r of rows) {
+        const o = byOrder.get(r.id) ?? { id: r.id, no: r.no, orderDate: r.orderDate, partyName: r.partyName, quantity: 0, products: [] };
+        o.quantity += r.quantity;
+        o.products.push(sector.describe(r.product));
+        byOrder.set(r.id, o);
+      }
+      return { kind: 'orders' as const, rows: [...byOrder.values()].map(({ products, ...o }) => ({ ...o, product: products.join(' + ') })) };
     }
     const stageFilter = {
       fabric: and(eq(jobs.stage, 'waiting'), eq(jobs.fabricReserved, false)),
@@ -44,8 +53,9 @@ export const productionBoard = defineAction({
       all: undefined,
     }[i.tab];
     const rows = await ctx.tx
-      .select({ job: jobs, orderDate: orders.orderDate, product: orders.product, quantity: orders.quantity, partyName: parties.name })
+      .select({ job: jobs, orderDate: orders.orderDate, product: orderLines.product, quantity: orderLines.quantity, partyName: parties.name })
       .from(jobs)
+      .innerJoin(orderLines, eq(orderLines.id, jobs.orderLineId))
       .innerJoin(orders, eq(orders.id, jobs.orderId))
       .innerJoin(parties, eq(parties.id, orders.partyId))
       .where(stageFilter)
@@ -82,8 +92,9 @@ export const departmentQueue = defineAction({
     if (!stagesForRoles(ctx.user.roles).includes(i.stage)) throw new AppError('FORBIDDEN', 'Bu bölümün ekranına erişiminiz yok.');
     const sector = getSector(ctx.cfg.sector);
     const rows = await ctx.tx
-      .select({ job: jobs, product: orders.product, quantity: orders.quantity, departmentNotes: orders.departmentNotes, packaging: orders.packaging, partyName: parties.name, orderDate: orders.orderDate })
+      .select({ job: jobs, product: orderLines.product, quantity: orderLines.quantity, departmentNotes: orderLines.departmentNotes, packaging: orderLines.packaging, partyName: parties.name, orderDate: orders.orderDate })
       .from(jobs)
+      .innerJoin(orderLines, eq(orderLines.id, jobs.orderLineId))
       .innerJoin(orders, eq(orders.id, jobs.orderId))
       .innerJoin(parties, eq(parties.id, orders.partyId))
       .where(eq(jobs.stage, i.stage))
@@ -103,8 +114,9 @@ export const jobDetail = defineAction({
   input: z.object({ id: z.string().uuid() }),
   run: async (ctx, i) => {
     const [row] = await ctx.tx
-      .select({ job: jobs, product: orders.product, quantity: orders.quantity, departmentNotes: orders.departmentNotes, packaging: orders.packaging, partyName: parties.name, orderDate: orders.orderDate })
+      .select({ job: jobs, product: orderLines.product, quantity: orderLines.quantity, departmentNotes: orderLines.departmentNotes, packaging: orderLines.packaging, partyName: parties.name, orderDate: orders.orderDate })
       .from(jobs)
+      .innerJoin(orderLines, eq(orderLines.id, jobs.orderLineId))
       .innerJoin(orders, eq(orders.id, jobs.orderId))
       .innerJoin(parties, eq(parties.id, orders.partyId))
       .where(eq(jobs.id, i.id));
@@ -175,12 +187,16 @@ export const materialShortages = defineAction({
   run: async (ctx) => {
     const sector = getSector(ctx.cfg.sector);
     const demands: Demand[] = [];
-    const drafts = await ctx.tx.select({ no: orders.no, product: orders.product, quantity: orders.quantity }).from(orders).where(eq(orders.status, 'draft'));
-    for (const o of drafts) for (const n of sector.materials(sector.validateProduct(o.product), o.quantity)) demands.push({ ...n, ref: o.no });
+    const open = await ctx.tx
+      .select({ no: orders.no, lineNo: orderLines.lineNo, product: orderLines.product, quantity: orderLines.quantity })
+      .from(orderLines)
+      .innerJoin(orders, eq(orders.id, orderLines.orderId))
+      .where(and(eq(orderLines.status, 'open'), inArray(orders.status, ['draft', 'in_production'])));
+    for (const l of open) for (const n of sector.materials(sector.validateProduct(l.product), l.quantity)) demands.push({ ...n, ref: `${l.no}/${l.lineNo}` });
     const active = await ctx.tx
-      .select({ id: jobs.id, no: jobs.no, product: orders.product, quantity: orders.quantity })
+      .select({ id: jobs.id, no: jobs.no, product: orderLines.product, quantity: orderLines.quantity })
       .from(jobs)
-      .innerJoin(orders, eq(orders.id, jobs.orderId))
+      .innerJoin(orderLines, eq(orderLines.id, jobs.orderLineId))
       .where(notInArray(jobs.stage, ['review', 'completed', 'cancelled']));
     const taken = active.length
       ? await ctx.tx.select({ jobId: fabricRolls.reservedJobId, reservedFor: fabricRolls.reservedFor }).from(fabricRolls).where(inArray(fabricRolls.reservedJobId, active.map((j) => j.id)))

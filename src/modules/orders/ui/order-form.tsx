@@ -2,9 +2,9 @@
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { istanbulToday } from '@/core/dates';
-import { formatMoney, type Currency } from '@/core/money';
+import { formatMoney, money, type Currency } from '@/core/money';
 import { getSector } from '@/sectors';
-import type { SectorField } from '@/sectors/types';
+import type { SectorField, SectorPackage } from '@/sectors/types';
 import { Button } from '@/ui/button';
 import { FormField, fieldClass } from '@/ui/form-field';
 import { MoneyInput } from '@/ui/money-input';
@@ -13,6 +13,10 @@ import { createOrderAction, searchCustomersAction, updateOrderAction } from './a
 import { computeOrderTotal, parseRate, parseUnitPrice } from '../domain/totals';
 import { PACKAGING_LABELS } from '../domain/packaging';
 
+const MAX_LINES = 20;
+
+type InitialLine = { product: Record<string, unknown>; quantity: number; unitPrice: string; vatRate: string; packaging: { type: string; capacity: number }; departmentNotes: Record<string, string> };
+
 // Taslak sipariş düzenlenirken formun başlangıç değerleri (kayıtlı hâliyle).
 export type OrderInitial = {
   id: string;
@@ -20,18 +24,24 @@ export type OrderInitial = {
   party: { id: string; name: string };
   salespersonStaffId: string | null;
   orderDate: string;
-  product: Record<string, unknown>;
-  quantity: number;
-  unitPrice: string;
-  vatRate: string;
   currency: Currency;
   fxRate: string | null;
   fxRateDate: string | null;
-  packaging: { type: string; capacity: number };
-  departmentNotes: Record<string, string>;
+  lines: InitialLine[];
 };
 
 type Props = { sector: string; salesStaff: { id: string; name: string }[]; initial?: OrderInitial };
+
+type LineState = {
+  key: number;
+  product: Record<string, string | boolean>;
+  qtyOverride: string;
+  unitPrice: string;
+  vatRate: string;
+  packagingType: string;
+  packagingCapacity: string;
+  notes: Record<string, string>;
+};
 
 // "8.7500" → "8,75"
 const decimalText = (v: string | null) => (v ? v.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '').replace('.', ',') : '');
@@ -41,52 +51,81 @@ function productState(p: Record<string, unknown>): Record<string, string | boole
   return { ...out, biyeType: p.biyeType === 'without' ? 'Biyesiz' : 'Biyeli' };
 }
 
+const productInput = (p: Record<string, string | boolean>) => ({ ...p, biyeType: p.biyeType === 'Biyesiz' ? 'without' : 'with' });
+
+let nextKey = 1;
+
+function emptyLine(): LineState {
+  return {
+    key: nextKey++,
+    product: { shape: 'Körüksüz', handle: 'El Geçme', biyeType: 'Biyeli', gusset: '0', biye: '5', colour: 'Beyaz' },
+    qtyOverride: '', unitPrice: '', vatRate: '10', packagingType: 'sack', packagingCapacity: '2000', notes: {},
+  };
+}
+
+function lineFromInitial(l: InitialLine, sector: SectorPackage): LineState {
+  return {
+    key: nextKey++,
+    product: productState(l.product),
+    // Kayıtlı adet hesaplanan hedeften farklıysa elle girilmiş sayılır.
+    qtyOverride: l.quantity !== Number(sector.targetQuantity(l.product)) ? String(l.quantity) : '',
+    unitPrice: decimalText(l.unitPrice),
+    vatRate: decimalText(l.vatRate) || '0',
+    packagingType: l.packaging.type,
+    packagingCapacity: String(l.packaging.capacity),
+    notes: l.departmentNotes,
+  };
+}
+
+// Satırın hesap önizlemesi: hedef adet ve KDV dahil tutar (kuruş).
+function linePreview(sector: SectorPackage, l: LineState, currency: Currency) {
+  const calc = sector.calculate(productInput(l.product)) as Record<string, number>;
+  const target = Number(l.qtyOverride) || Number(calc.target) || 0;
+  let totalMinor: bigint | null = null;
+  try {
+    if (l.unitPrice && target) totalMinor = computeOrderTotal(parseUnitPrice(l.unitPrice), target, parseRate(l.vatRate, 'vatRate', 'KDV'), currency).minor;
+  } catch {
+    totalMinor = null;
+  }
+  return { calc, target, totalMinor };
+}
+
 export function OrderForm({ sector: sectorId, salesStaff, initial }: Props) {
   const router = useRouter();
   const sector = getSector(sectorId);
-  const [product, setProduct] = useState<Record<string, string | boolean>>(() => (initial ? productState(initial.product) : { shape: 'Körüksüz', handle: 'El Geçme', biyeType: 'Biyeli', gusset: '0', biye: '5', colour: 'Beyaz' }));
   const [party, setParty] = useState<{ id: string; name: string } | null>(initial?.party ?? null);
-  const [unitPrice, setUnitPrice] = useState(decimalText(initial?.unitPrice ?? null));
-  const [vatRate, setVatRate] = useState(initial ? decimalText(initial.vatRate) || '0' : '10');
   const [currency, setCurrency] = useState<Currency>(initial?.currency ?? 'TRY');
-  // Kayıtlı adet hesaplanan hedeften farklıysa elle girilmiş sayılır.
-  const [qtyOverride, setQtyOverride] = useState(() => (initial && initial.quantity !== Number(sector.targetQuantity(initial.product)) ? String(initial.quantity) : ''));
+  const [lines, setLines] = useState<LineState[]>(() => (initial ? initial.lines.map((l) => lineFromInitial(l, sector)) : [emptyLine()]));
   const create = useAction(createOrderAction);
   const update = useAction(updateOrderAction);
   const action = initial ? update : create;
   const fe = action.fieldErrors;
 
-  const preview = useMemo(() => {
-    const calc = sector.calculate({ ...product, biyeType: product.biyeType === 'Biyesiz' ? 'without' : 'with' });
-    const target = Number(qtyOverride) || Number(calc.target) || 0;
-    let total = '';
-    try {
-      if (unitPrice && target) total = formatMoney(computeOrderTotal(parseUnitPrice(unitPrice), target, parseRate(vatRate, 'vatRate', 'KDV'), currency));
-    } catch {
-      total = '';
-    }
-    return { calc, target, total };
-  }, [product, qtyOverride, unitPrice, vatRate, currency, sector]);
+  const previews = useMemo(() => lines.map((l) => linePreview(sector, l, currency)), [lines, currency, sector]);
+  const grandTotal = previews.every((p) => p.totalMinor !== null) ? formatMoney(money(previews.reduce((s, p) => s + (p.totalMinor ?? 0n), 0n), currency)) : '';
+
+  const patchLine = (key: number, patch: Partial<LineState>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
 
   function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.currentTarget)) as Record<string, string>;
-    const departmentNotes = Object.fromEntries(sector.stages.map((s) => [s.id, f[`note_${s.id}`] ?? '']));
     const input = {
-        partyId: party?.id ?? '',
-        salespersonStaffId: f.salespersonStaffId,
-        orderDate: f.orderDate,
-        product: { ...product, biyeType: product.biyeType === 'Biyesiz' ? 'without' : 'with' },
-        quantity: qtyOverride ? Number(qtyOverride) : undefined,
-        unitPrice,
-        vatRate,
-        currency,
-        fxRate: f.fxRate || undefined,
-        fxRateDate: f.fxRateDate || undefined,
-        deposit: f.deposit,
-        packaging: { type: f.packagingType, capacity: Number(f.packagingCapacity || 0) },
-        departmentNotes,
-      };
+      partyId: party?.id ?? '',
+      salespersonStaffId: f.salespersonStaffId,
+      orderDate: f.orderDate,
+      currency,
+      fxRate: f.fxRate || undefined,
+      fxRateDate: f.fxRateDate || undefined,
+      deposit: f.deposit,
+      lines: lines.map((l) => ({
+        product: productInput(l.product),
+        quantity: l.qtyOverride ? Number(l.qtyOverride) : undefined,
+        unitPrice: l.unitPrice,
+        vatRate: l.vatRate,
+        packaging: { type: l.packagingType, capacity: Number(l.packagingCapacity || 0) },
+        departmentNotes: l.notes,
+      })),
+    };
     const done = (d: { id: string }) => router.push(`/siparisler/${d.id}`);
     if (initial) update.run({ ...input, deposit: undefined, id: initial.id, version: initial.version }, done);
     else create.run(input, done);
@@ -105,31 +144,6 @@ export function OrderForm({ sector: sectorId, salesStaff, initial }: Props) {
               {salesStaff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </FormField>
-        </div>
-        {!salesStaff.length && <p className="text-sm text-amber-800">Satış personeli tanımlı değil. Ayarlar → Personel bölümünden “Satış” bölümüyle personel ekleyin.</p>}
-      </section>
-
-      <section className="space-y-4 rounded-xl border border-stone-200 bg-white p-4 sm:p-6">
-        <h2 className="font-semibold">Ürün</h2>
-        <div className="grid gap-4 sm:grid-cols-3">
-          {sector.productFields.map((field) => (
-            <ProductField key={field.key} field={field} value={product[field.key]} error={fe[`product.${field.key}`]} onChange={(v) => setProduct((p) => ({ ...p, [field.key]: v }))} />
-          ))}
-        </div>
-        <div className="grid gap-3 rounded-lg bg-stone-50 p-3 text-sm sm:grid-cols-4">
-          <span>Kumaş: <strong>{preview.calc.fabricCm} cm</strong></span>
-          <span>Kazan: <strong>{preview.calc.kazan} cm</strong></span>
-          <span>Bobin başı: <strong>{Math.floor(Number(preview.calc.perRoll)).toLocaleString('tr-TR')} adet</strong></span>
-          <span>Hedef: <strong>{Number(preview.calc.target).toLocaleString('tr-TR')} adet</strong></span>
-        </div>
-      </section>
-
-      <section className="space-y-4 rounded-xl border border-stone-200 bg-white p-4 sm:p-6">
-        <h2 className="font-semibold">Fiyat ve ödeme</h2>
-        <div className="grid gap-4 sm:grid-cols-4">
-          <FormField label="Adet" hint="Boş bırakılırsa hedef adet" error={fe.quantity}><input inputMode="numeric" value={qtyOverride} onChange={(e) => setQtyOverride(e.target.value.replace(/\D/g, ''))} placeholder={String(preview.calc.target)} className={fieldClass} /></FormField>
-          <FormField label="Birim fiyat" required error={fe.unitPrice}><input inputMode="decimal" value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} placeholder="8,75" className={`${fieldClass} text-right`} /></FormField>
-          <FormField label="KDV %" required error={fe.vatRate}><input inputMode="decimal" value={vatRate} onChange={(e) => setVatRate(e.target.value)} className={`${fieldClass} text-right`} /></FormField>
           <FormField label="Para birimi">
             <select value={currency} onChange={(e) => setCurrency(e.target.value as Currency)} className={fieldClass}>
               <option value="TRY">TL (₺)</option><option value="USD">Dolar ($)</option><option value="EUR">Euro (€)</option>
@@ -141,26 +155,33 @@ export function OrderForm({ sector: sectorId, salesStaff, initial }: Props) {
               <FormField label="Kur tarihi" required error={fe.fxRateDate}><input name="fxRateDate" type="date" defaultValue={initial?.fxRateDate ?? istanbulToday()} className={fieldClass} /></FormField>
             </>
           )}
-          {!initial && <FormField label="Peşinat" error={fe.deposit}><MoneyInput name="deposit" currency={currency} /></FormField>}
         </div>
-        <p className="text-lg">Toplam (KDV dahil): <strong className="tabular-nums">{preview.total || '—'}</strong></p>
+        {!salesStaff.length && <p className="text-sm text-amber-800">Satış personeli tanımlı değil. Ayarlar → Personel bölümünden “Satış” bölümüyle personel ekleyin.</p>}
       </section>
 
+      {lines.map((l, n) => (
+        <LineEditor
+          key={l.key}
+          index={n}
+          count={lines.length}
+          line={l}
+          preview={previews[n]!}
+          currency={currency}
+          sector={sector}
+          errors={fe}
+          onChange={(patch) => patchLine(l.key, patch)}
+          onRemove={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}
+        />
+      ))}
+      {fe.lines && <p role="alert" className="text-red-700">{fe.lines}</p>}
+      {lines.length < MAX_LINES && (
+        <Button type="button" variant="secondary" onClick={() => setLines((ls) => [...ls, emptyLine()])}>Ürün ekle</Button>
+      )}
+
       <section className="space-y-4 rounded-xl border border-stone-200 bg-white p-4 sm:p-6">
-        <h2 className="font-semibold">Paketleme ve bölüm notları</h2>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <FormField label="Paket türü">
-            <select name="packagingType" defaultValue={initial?.packaging.type ?? 'sack'} className={fieldClass}>
-              {Object.entries(PACKAGING_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </select>
-          </FormField>
-          <FormField label="Paket başına adet" error={fe['packaging.capacity']}><input name="packagingCapacity" inputMode="numeric" defaultValue={String(initial?.packaging.capacity ?? 2000)} className={fieldClass} /></FormField>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {sector.stages.filter((s) => s.id !== 'turning').map((s) => (
-            <FormField key={s.id} label={`${s.label} notu`} hint="Yalnızca bu bölüm görür"><textarea name={`note_${s.id}`} rows={2} defaultValue={initial?.departmentNotes[s.id] ?? ''} className={fieldClass} /></FormField>
-          ))}
-        </div>
+        <h2 className="font-semibold">Toplam ve ödeme</h2>
+        <p className="text-lg">Sipariş toplamı (KDV dahil): <strong className="tabular-nums">{grandTotal || '—'}</strong></p>
+        {!initial && <div className="max-w-xs"><FormField label="Peşinat" error={fe.deposit}><MoneyInput name="deposit" currency={currency} /></FormField></div>}
       </section>
 
       {action.error && <p role="alert" className="text-red-700">{action.error}</p>}
@@ -168,6 +189,67 @@ export function OrderForm({ sector: sectorId, salesStaff, initial }: Props) {
         <Button disabled={action.pending} className="shadow-lg">{action.pending ? 'Kaydediliyor…' : initial ? 'Değişiklikleri kaydet' : 'Siparişi kaydet'}</Button>
       </div>
     </form>
+  );
+}
+
+type LineEditorProps = {
+  index: number;
+  count: number;
+  line: LineState;
+  preview: ReturnType<typeof linePreview>;
+  currency: Currency;
+  sector: SectorPackage;
+  errors: Record<string, string | undefined>;
+  onChange: (patch: Partial<LineState>) => void;
+  onRemove: () => void;
+};
+
+function LineEditor({ index, count, line: l, preview, currency, sector, errors, onChange, onRemove }: LineEditorProps) {
+  const err = (k: string) => errors[`lines.${index}.${k}`];
+  const title = count > 1 ? `Ürün ${index + 1}` : 'Ürün';
+  return (
+    <section aria-label={title} className="space-y-4 rounded-xl border border-stone-200 bg-white p-4 sm:p-6">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="font-semibold">{title}</h2>
+        {count > 1 && <Button type="button" variant="ghost" onClick={onRemove}>Ürünü kaldır</Button>}
+      </div>
+      <div className="grid gap-4 sm:grid-cols-3">
+        {sector.productFields.map((field) => (
+          <ProductField key={field.key} field={field} value={l.product[field.key]} error={err(`product.${field.key}`)} onChange={(v) => onChange({ product: { ...l.product, [field.key]: v } })} />
+        ))}
+      </div>
+      <div className="grid gap-3 rounded-lg bg-stone-50 p-3 text-sm sm:grid-cols-4">
+        <span>Kumaş: <strong>{preview.calc.fabricCm} cm</strong></span>
+        <span>Kazan: <strong>{preview.calc.kazan} cm</strong></span>
+        <span>Bobin başı: <strong>{Math.floor(Number(preview.calc.perRoll)).toLocaleString('tr-TR')} adet</strong></span>
+        <span>Hedef: <strong>{Number(preview.calc.target).toLocaleString('tr-TR')} adet</strong></span>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-4">
+        <FormField label="Adet" hint="Boş bırakılırsa hedef adet" error={err('quantity')}><input inputMode="numeric" value={l.qtyOverride} onChange={(e) => onChange({ qtyOverride: e.target.value.replace(/\D/g, '') })} placeholder={String(preview.calc.target)} className={fieldClass} /></FormField>
+        <FormField label="Birim fiyat" required error={err('unitPrice')}><input inputMode="decimal" value={l.unitPrice} onChange={(e) => onChange({ unitPrice: e.target.value })} placeholder="8,75" className={`${fieldClass} text-right`} /></FormField>
+        <FormField label="KDV %" required error={err('vatRate')}><input inputMode="decimal" value={l.vatRate} onChange={(e) => onChange({ vatRate: e.target.value })} className={`${fieldClass} text-right`} /></FormField>
+        <div className="self-end pb-2.5 text-right">
+          <span className="block text-sm text-stone-500">Tutar (KDV dahil)</span>
+          <strong className="tabular-nums">{preview.totalMinor !== null ? formatMoney(money(preview.totalMinor, currency)) : '—'}</strong>
+        </div>
+        <FormField label="Paket türü">
+          <select value={l.packagingType} onChange={(e) => onChange({ packagingType: e.target.value })} className={fieldClass}>
+            {Object.entries(PACKAGING_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </FormField>
+        <FormField label="Paket başına adet" error={err('packaging.capacity')}><input inputMode="numeric" value={l.packagingCapacity} onChange={(e) => onChange({ packagingCapacity: e.target.value.replace(/\D/g, '') })} className={fieldClass} /></FormField>
+      </div>
+      <details className="rounded-lg border border-stone-200 p-3" open={Object.values(l.notes).some(Boolean)}>
+        <summary className="cursor-pointer text-sm font-medium">Bölüm notları</summary>
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          {sector.stages.filter((s) => s.id !== 'turning').map((s) => (
+            <FormField key={s.id} label={`${s.label} notu`} hint="Yalnızca bu bölüm görür">
+              <textarea rows={2} value={l.notes[s.id] ?? ''} onChange={(e) => onChange({ notes: { ...l.notes, [s.id]: e.target.value } })} className={fieldClass} />
+            </FormField>
+          ))}
+        </div>
+      </details>
+    </section>
   );
 }
 

@@ -1,6 +1,6 @@
 import { companyProfile } from '@/core/company/service';
 import { getInstallConfig } from '@/core/install-config';
-import { formatMoney, money, moneyFromJSON, subMoney, type Currency } from '@/core/money';
+import { formatMoney, money, moneyFromJSON, type Currency } from '@/core/money';
 import { renderOrderPdf } from '@/core/pdf/documents';
 import { pdfResponse } from '@/core/pdf/response';
 import { PACKAGING_LABELS } from '@/modules/orders/domain/packaging';
@@ -14,16 +14,21 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const o = r.data;
   const cfg = getInstallConfig();
   const profile = await companyProfile({});
+  const currency = o.currency as Currency;
   const total = moneyFromJSON(o.total);
   const balance = moneyFromJSON(o.balance);
-  const paid = subMoney(total, balance);
+  // Tahsil edilen: ödemelerin toplamı (iptal edilen siparişte toplam − kalan tahsilatı vermez).
+  const paid = money(o.payments.reduce((s, p) => s + BigInt(p.amount.minor), 0n), currency);
   const labels = Object.fromEntries(getSector(cfg.sector).stages.map((s) => [s.id, s.label]));
   const bytes = await renderOrderPdf(
     {
-      no: o.no, company: profile.ok ? profile.data.name : cfg.company.name, partyName: o.party.name, orderDate: o.orderDate, quantity: o.quantity, productText: o.productText,
-      packaging: `${PACKAGING_LABELS[o.packaging.type as keyof typeof PACKAGING_LABELS]}${o.packaging.packages ? ` · ${o.packaging.packages} × ${o.packaging.capacity}` : ''}`,
-      departmentNotes: o.departmentNotes, salesperson: o.salesperson, unitPrice: o.unitPrice, vatRate: o.vatRate,
-      total: formatMoney(total), paid: formatMoney(paid.minor < 0n ? money(0n, o.currency as Currency) : paid), balance: formatMoney(balance),
+      no: o.no, company: profile.ok ? profile.data.name : cfg.company.name, partyName: o.party.name, orderDate: o.orderDate, salesperson: o.salesperson,
+      lines: o.lines.map((l) => ({
+        lineNo: l.lineNo, productText: l.productText, quantity: l.quantity, unitPrice: l.unitPrice, vatRate: l.vatRate, total: formatMoney(moneyFromJSON(l.total)),
+        packaging: `${PACKAGING_LABELS[l.packaging.type as keyof typeof PACKAGING_LABELS]}${l.packaging.packages ? ` · ${l.packaging.packages} × ${l.packaging.capacity}` : ''}`,
+        departmentNotes: l.departmentNotes, cancelled: l.status === 'cancelled',
+      })),
+      total: formatMoney(total), paid: formatMoney(paid), balance: formatMoney(balance),
     },
     labels,
   );

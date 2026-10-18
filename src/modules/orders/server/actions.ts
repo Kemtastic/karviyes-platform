@@ -1,79 +1,131 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { defineAction, type ActionCtx } from '@/core/action';
 import { istanbulToday } from '@/core/dates';
 import { parties, staff } from '@/core/db/schema';
 import { AppError } from '@/core/errors';
-import { CURRENCIES, moneyToJSON, parseMoney, type Currency } from '@/core/money';
+import { CURRENCIES, money, moneyToJSON, parseMoney, type Currency } from '@/core/money';
 import type { Role } from '@/core/modules/types';
 import { getSector } from '@/sectors';
-import { orderCounters, orderPayments, orders } from '../db/schema';
+import { orderCounters, orderLines, orderPayments, orders } from '../db/schema';
 import { packagingPlan } from '../domain/packaging';
 import { computeOrderTotal, parseRate, parseUnitPrice } from '../domain/totals';
 
 const OFFICE: Role[] = ['admin', 'sales', 'tracking'];
+export const MAX_LINES = 20;
 
-const orderInput = z.object({
-  partyId: z.string().uuid(),
-  salespersonStaffId: z.string().uuid(),
-  orderDate: z.string().date(),
+const lineFields = {
   product: z.record(z.unknown()),
   quantity: z.coerce.number().int().positive().max(10_000_000, 'Adet en çok 10.000.000 olabilir.').optional(),
   unitPrice: z.string().min(1),
   vatRate: z.string().min(1),
+  packaging: z.object({ type: z.enum(['sack', 'box', 'none']), capacity: z.coerce.number().int().min(0) }),
+  departmentNotes: z.record(z.string().max(1000)).default({}),
+};
+const lineInput = z.object(lineFields);
+type LineInput = z.infer<typeof lineInput>;
+
+// Sipariş başlığı ve ürün satırları. Tek ürünlü sipariş için satır alanları doğrudan da verilebilir (lines yerine).
+const orderBase = z.object({
+  partyId: z.string().uuid(),
+  salespersonStaffId: z.string().uuid(),
+  orderDate: z.string().date(),
   currency: z.enum(CURRENCIES),
   fxRate: z.string().optional(),
   fxRateDate: z.string().date().optional(),
   fxSource: z.string().max(80).optional(),
   deposit: z.string().optional(),
-  packaging: z.object({ type: z.enum(['sack', 'box', 'none']), capacity: z.coerce.number().int().min(0) }),
-  departmentNotes: z.record(z.string().max(1000)).default({}),
+  lines: z.array(lineInput).min(1, 'En az bir ürün girin.').max(MAX_LINES, `Bir siparişte en çok ${MAX_LINES} ürün olabilir.`).optional(),
+  product: lineFields.product.optional(),
+  quantity: lineFields.quantity,
+  unitPrice: lineFields.unitPrice.optional(),
+  vatRate: lineFields.vatRate.optional(),
+  packaging: lineFields.packaging.optional(),
+  departmentNotes: lineFields.departmentNotes.optional(),
 });
+type OrderInput = z.infer<typeof orderBase>;
 
-type OrderInput = z.infer<typeof orderInput>;
+const requireLines = (i: OrderInput, ctx: z.RefinementCtx) => {
+  if (!i.lines && !i.product) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['lines'], message: 'En az bir ürün girin.' });
+};
 
-const SECTOR_ID = 'bags';
+// Tek ürünlü biçim tek satırlı siparişe çevrilir; alan hataları eski adlarıyla ("product.width") döner.
+function linesOf(i: OrderInput): { lines: LineInput[]; single: boolean } {
+  if (i.lines) return { lines: i.lines, single: false };
+  return {
+    single: true,
+    lines: [{ product: i.product ?? {}, quantity: i.quantity, unitPrice: i.unitPrice ?? '', vatRate: i.vatRate ?? '', packaging: i.packaging ?? { type: 'none', capacity: 0 }, departmentNotes: i.departmentNotes ?? {} }],
+  };
+}
 
-// Sipariş alanlarını doğrular ve hesaplar; ürün hataları "product.<alan>" adıyla döner.
-async function prepare(ctx: ActionCtx, i: OrderInput) {
-  const sector = getSector(ctx.cfg.sector ?? SECTOR_ID);
+function prefixErrors(e: unknown, prefix: string): never {
+  if (e instanceof AppError && e.fieldErrors && prefix) {
+    throw new AppError(e.code, e.message, Object.fromEntries(Object.entries(e.fieldErrors).map(([k, v]) => [`${prefix}${k}`, v])));
+  }
+  throw e;
+}
+
+function prepareLine(ctx: ActionCtx, l: LineInput, currency: Currency) {
+  const sector = getSector(ctx.cfg.sector);
   let product: Record<string, unknown>;
   try {
-    product = sector.validateProduct(i.product);
+    product = sector.validateProduct(l.product);
   } catch (e) {
-    if (e instanceof AppError && e.fieldErrors) {
-      throw new AppError('VALIDATION', e.message, Object.fromEntries(Object.entries(e.fieldErrors).map(([k, v]) => [`product.${k}`, v])));
-    }
-    throw e;
+    prefixErrors(e, 'product.');
   }
+  const unitPrice = parseUnitPrice(l.unitPrice);
+  const vatRate = parseRate(l.vatRate, 'vatRate', 'KDV oranı');
+  // Veritabanı KDV oranını 2 ondalıkla saklar; tutar da aynı oranla hesaplanmalı.
+  if (/\.\d{3,}$/.test(vatRate)) throw new AppError('VALIDATION', 'KDV oranı en çok 2 ondalık olabilir.', { vatRate: 'KDV oranı en çok 2 ondalık olabilir.' });
+  if (Number(vatRate) > 100) throw new AppError('VALIDATION', 'KDV oranı 0–100 arasında olmalı.', { vatRate: 'KDV oranı 0–100 arasında olmalı.' });
+  const quantity = l.quantity ?? sector.targetQuantity(product);
+  if (!quantity) throw new AppError('VALIDATION', 'Hedef adet hesaplanamadı; ölçüleri kontrol edin.', { quantity: 'Adet hesaplanamadı.' });
+  let packaging;
+  try {
+    packaging = packagingPlan(l.packaging, quantity);
+  } catch (e) {
+    throw new AppError('VALIDATION', (e as Error).message, { 'packaging.capacity': (e as Error).message });
+  }
+  const departmentNotes = Object.fromEntries(Object.entries(l.departmentNotes).filter(([k, v]) => sector.stages.some((s) => s.id === k) && v.trim()));
+  const total = computeOrderTotal(unitPrice, quantity, vatRate, currency);
+  return { product, unitPrice, vatRate, quantity, packaging, departmentNotes, totalMinor: total.minor };
+}
+
+// Sipariş alanlarını doğrular ve hesaplar. Satır hataları çok satırlı biçimde "lines.<n>." önekiyle döner.
+async function prepare(ctx: ActionCtx, i: OrderInput) {
+  const { lines, single } = linesOf(i);
+  const prepared = lines.map((l, n) => {
+    try {
+      return prepareLine(ctx, l, i.currency);
+    } catch (e) {
+      prefixErrors(e, single ? '' : `lines.${n}.`);
+    }
+  });
   const [party] = await ctx.tx.select({ id: parties.id, kind: parties.kind }).from(parties).where(and(eq(parties.id, i.partyId), eq(parties.archived, false)));
   if (!party || party.kind === 'supplier') throw new AppError('VALIDATION', 'Müşteri seçin.', { partyId: 'Listeden bir müşteri seçin.' });
   const [seller] = await ctx.tx.select().from(staff).where(eq(staff.id, i.salespersonStaffId));
   if (!seller?.active || !seller.departments.includes('sales')) {
     throw new AppError('VALIDATION', 'Satış yapan kişiyi satış personelinden seçin.', { salespersonStaffId: 'Satış personelinden seçin.' });
   }
-  const unitPrice = parseUnitPrice(i.unitPrice);
-  const vatRate = parseRate(i.vatRate, 'vatRate', 'KDV oranı');
-  // Veritabanı KDV oranını 2 ondalıkla saklar; tutar da aynı oranla hesaplanmalı.
-  if (/\.\d{3,}$/.test(vatRate)) throw new AppError('VALIDATION', 'KDV oranı en çok 2 ondalık olabilir.', { vatRate: 'KDV oranı en çok 2 ondalık olabilir.' });
-  if (Number(vatRate) > 100) throw new AppError('VALIDATION', 'KDV oranı 0–100 arasında olmalı.', { vatRate: 'KDV oranı 0–100 arasında olmalı.' });
   let fx: { fxRate: string | null; fxRateDate: string | null; fxSource: string | null } = { fxRate: null, fxRateDate: null, fxSource: null };
   if (i.currency !== 'TRY') {
     if (!i.fxRate || !i.fxRateDate) throw new AppError('VALIDATION', 'Dövizli siparişte kur ve kur tarihi zorunlu.', { fxRate: 'Kur zorunlu.', fxRateDate: 'Kur tarihi zorunlu.' });
     if (!(Number(parseRate(i.fxRate, 'fxRate', 'Kur')) > 0)) throw new AppError('VALIDATION', 'Kur sıfırdan büyük olmalı.', { fxRate: 'Kur sıfırdan büyük olmalı.' });
     fx = { fxRate: parseRate(i.fxRate, 'fxRate', 'Kur'), fxRateDate: i.fxRateDate, fxSource: i.fxSource || 'TCMB döviz satış' };
   }
-  const quantity = i.quantity ?? sector.targetQuantity(product);
-  if (!quantity) throw new AppError('VALIDATION', 'Hedef adet hesaplanamadı; ölçüleri kontrol edin.', { quantity: 'Adet hesaplanamadı.' });
-  let packaging;
-  try {
-    packaging = packagingPlan(i.packaging, quantity);
-  } catch (e) {
-    throw new AppError('VALIDATION', (e as Error).message, { 'packaging.capacity': (e as Error).message });
-  }
-  const departmentNotes = Object.fromEntries(Object.entries(i.departmentNotes).filter(([k, v]) => sector.stages.some((s) => s.id === k) && v.trim()));
-  const total = computeOrderTotal(unitPrice, quantity, vatRate, i.currency);
-  return { product, unitPrice, vatRate, quantity, packaging, departmentNotes, total, ...fx };
+  const totalMinor = prepared.reduce((s, l) => s + l.totalMinor, 0n);
+  return { lines: prepared, totalMinor, quantity: prepared.reduce((s, l) => s + l.quantity, 0), ...fx };
+}
+
+type Prepared = Awaited<ReturnType<typeof prepare>>;
+
+async function insertLines(ctx: ActionCtx, orderId: string, p: Prepared) {
+  await ctx.tx.insert(orderLines).values(
+    p.lines.map((l, n) => ({
+      companyId: ctx.companyId, orderId, lineNo: n + 1, product: l.product, quantity: l.quantity, unitPrice: l.unitPrice, vatRate: l.vatRate,
+      totalMinor: l.totalMinor, packaging: l.packaging, departmentNotes: l.departmentNotes,
+    })),
+  );
 }
 
 async function nextOrderNo(ctx: ActionCtx, orderDate: string): Promise<string> {
@@ -98,7 +150,7 @@ export const createOrder = defineAction({
   name: 'orders.create',
   module: 'orders',
   roles: OFFICE,
-  input: orderInput,
+  input: orderBase.superRefine(requireLines),
   run: async (ctx, i) => {
     const p = await prepare(ctx, i);
     const deposit = i.deposit?.trim() ? parseMoney(i.deposit, i.currency) : null;
@@ -107,29 +159,15 @@ export const createOrder = defineAction({
     const [row] = await ctx.tx
       .insert(orders)
       .values({
-        companyId: ctx.companyId,
-        no,
-        partyId: i.partyId,
-        salespersonStaffId: i.salespersonStaffId,
-        orderDate: i.orderDate,
-        product: p.product,
-        quantity: p.quantity,
-        unitPrice: p.unitPrice,
-        vatRate: p.vatRate,
-        currency: i.currency,
-        fxRate: p.fxRate,
-        fxRateDate: p.fxRateDate,
-        fxSource: p.fxSource,
-        totalMinor: p.total.minor,
-        packaging: p.packaging,
-        departmentNotes: p.departmentNotes,
-        createdBy: ctx.user.userId,
+        companyId: ctx.companyId, no, partyId: i.partyId, salespersonStaffId: i.salespersonStaffId, orderDate: i.orderDate,
+        currency: i.currency, fxRate: p.fxRate, fxRateDate: p.fxRateDate, fxSource: p.fxSource, totalMinor: p.totalMinor, createdBy: ctx.user.userId,
       })
       .returning({ id: orders.id });
+    await insertLines(ctx, row!.id, p);
     if (deposit && deposit.minor > 0n) {
       await ctx.tx.insert(orderPayments).values({ companyId: ctx.companyId, orderId: row!.id, kind: 'deposit', amountMinor: deposit.minor, currency: i.currency, paidAt: i.orderDate, note: 'Peşinat', createdBy: ctx.user.userId });
     }
-    await ctx.audit({ entity: 'order', entityId: row!.id, after: { no, quantity: p.quantity, total: moneyToJSON(p.total) } });
+    await ctx.audit({ entity: 'order', entityId: row!.id, after: { no, lines: p.lines.length, quantity: p.quantity, total: moneyToJSON(money(p.totalMinor, i.currency)) } });
     return { id: row!.id, no };
   },
 });
@@ -138,7 +176,7 @@ export const updateOrder = defineAction({
   name: 'orders.update',
   module: 'orders',
   roles: OFFICE,
-  input: orderInput.extend({ id: z.string().uuid(), version: z.number().int() }),
+  input: orderBase.extend({ id: z.string().uuid(), version: z.number().int() }).superRefine(requireLines),
   run: async (ctx, i) => {
     const before = await loadOrder(ctx, i.id);
     if (before.status !== 'draft') throw new AppError('INVALID_STATE', 'Üretime alınmış sipariş değiştirilemez.');
@@ -150,26 +188,22 @@ export const updateOrder = defineAction({
     const updated = await ctx.tx
       .update(orders)
       .set({
-        partyId: i.partyId,
-        salespersonStaffId: i.salespersonStaffId,
-        orderDate: i.orderDate,
-        product: p.product,
-        quantity: p.quantity,
-        unitPrice: p.unitPrice,
-        vatRate: p.vatRate,
-        currency: i.currency,
-        fxRate: p.fxRate,
-        fxRateDate: p.fxRateDate,
-        fxSource: p.fxSource,
-        totalMinor: p.total.minor,
-        packaging: p.packaging,
-        departmentNotes: p.departmentNotes,
-        version: before.version + 1,
+        partyId: i.partyId, salespersonStaffId: i.salespersonStaffId, orderDate: i.orderDate, currency: i.currency,
+        fxRate: p.fxRate, fxRateDate: p.fxRateDate, fxSource: p.fxSource, totalMinor: p.totalMinor, version: before.version + 1,
       })
-      .where(and(eq(orders.id, i.id), eq(orders.version, i.version)))
+      .where(and(eq(orders.id, i.id), eq(orders.version, i.version), eq(orders.status, 'draft')))
       .returning({ id: orders.id });
     if (!updated.length) throw conflict();
-    await ctx.audit({ entity: 'order', entityId: i.id, before: { quantity: before.quantity, unitPrice: before.unitPrice, total: before.totalMinor.toString() }, after: { quantity: p.quantity, unitPrice: p.unitPrice, total: p.total.minor.toString() } });
+    // Taslakta hiçbir satırın işi yoktur: satırlar yeniden yazılır.
+    const beforeLines = await ctx.tx.select().from(orderLines).where(eq(orderLines.orderId, i.id)).orderBy(asc(orderLines.lineNo));
+    if (beforeLines.some((l) => l.status !== 'open')) throw new AppError('INVALID_STATE', 'Üretime alınmış satırı olan sipariş değiştirilemez.');
+    await ctx.tx.delete(orderLines).where(eq(orderLines.orderId, i.id));
+    await insertLines(ctx, i.id, p);
+    await ctx.audit({
+      entity: 'order', entityId: i.id,
+      before: { lines: beforeLines.map((l) => ({ quantity: l.quantity, unitPrice: l.unitPrice })), total: before.totalMinor.toString() },
+      after: { lines: p.lines.map((l) => ({ quantity: l.quantity, unitPrice: l.unitPrice })), total: p.totalMinor.toString() },
+    });
     return { id: i.id };
   },
 });
@@ -188,6 +222,7 @@ export const cancelOrder = defineAction({
       .where(and(eq(orders.id, i.id), eq(orders.version, i.version)))
       .returning({ id: orders.id });
     if (!updated.length) throw conflict();
+    await ctx.tx.update(orderLines).set({ status: 'cancelled', cancelReason: i.reason }).where(eq(orderLines.orderId, i.id));
     await ctx.audit({ entity: 'order', entityId: i.id, before: { status: o.status }, after: { status: 'cancelled', reason: i.reason } });
     return { id: i.id };
   },

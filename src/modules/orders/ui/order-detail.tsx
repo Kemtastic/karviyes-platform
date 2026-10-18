@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { istanbulToday } from '@/core/dates';
@@ -13,14 +14,17 @@ import { MoneyInput } from '@/ui/money-input';
 import { useAction } from '@/ui/use-action';
 import { addPaymentAction, cancelOrderAction, correctPaymentAction, markInvoicedAction } from './actions';
 import { PACKAGING_LABELS } from '../domain/packaging';
-import { ORDER_STATUS_LABELS } from './status-labels';
+import { LINE_STATUS_LABELS, ORDER_STATUS_LABELS } from './status-labels';
 
 type MoneyJson = { minor: string; currency: Currency };
 type Order = {
   id: string; no: string; version: number; status: keyof typeof ORDER_STATUS_LABELS; orderDate: string;
   party: { id: string; name: string; phone: string; city: string }; salesperson: string | null;
-  productText: string; quantity: number; unitPrice: string; vatRate: string; currency: string; fxRate: string | null; fxRateDate: string | null;
-  total: MoneyJson; balance: MoneyJson; packaging: { type: string; capacity: number; packages: number }; departmentNotes: Record<string, string>;
+  quantity: number; currency: string; fxRate: string | null; fxRateDate: string | null; total: MoneyJson; balance: MoneyJson;
+  lines: {
+    id: string; lineNo: number; status: keyof typeof LINE_STATUS_LABELS; productText: string; quantity: number; unitPrice: string; vatRate: string; total: MoneyJson;
+    packaging: { type: string; capacity: number; packages: number }; departmentNotes: Record<string, string>; producedQty: number; shippedQty: number; cancelReason: string | null;
+  }[];
   invoiceMark: { no: string; date: string } | null; producedQty: number; shippedQty: number; cancelReason: string | null;
   payments: { id: string; kind: string; amount: MoneyJson; paidAt: string; note: string; correctsPaymentId: string | null }[];
 };
@@ -50,7 +54,7 @@ export function OrderDetail({ order: o, canMarkInvoice }: { order: Order; canMar
           <a href={`/api/pdf/siparis/${o.id}`} className="inline-flex min-h-11 items-center rounded-lg border border-stone-300 bg-white px-4 text-sm font-semibold">Sipariş PDF</a>
           {o.status !== 'cancelled' && <Button variant="secondary" onClick={() => setPaying(true)}>Tahsilat ekle</Button>}
           {o.status === 'ready_to_invoice' && canMarkInvoice && <Button onClick={() => setInvoicing(true)}>Fatura kesildi olarak işaretle</Button>}
-          {o.status === 'draft' && <a href={`/siparisler/${o.id}/duzenle`} className="inline-flex min-h-11 items-center rounded-lg border border-stone-300 bg-white px-4 text-sm font-semibold">Düzenle</a>}
+          {o.status === 'draft' && <Link href={`/siparisler/${o.id}/duzenle`} className="inline-flex min-h-11 items-center rounded-lg border border-stone-300 bg-white px-4 text-sm font-semibold">Düzenle</Link>}
           {o.status === 'draft' && <Button variant="danger" onClick={() => setCancelling(true)}>Siparişi iptal et</Button>}
         </div>
       </div>
@@ -58,13 +62,33 @@ export function OrderDetail({ order: o, canMarkInvoice }: { order: Order; canMar
       {o.status === 'cancelled' && <p className="rounded-lg bg-red-50 p-3 text-red-800">İptal edildi: {o.cancelReason}</p>}
       {o.invoiceMark && <p className="rounded-lg bg-green-50 p-3 text-green-800">Fatura: {o.invoiceMark.no} · <DateText value={o.invoiceMark.date} /></p>}
 
-      <section className="grid gap-4 rounded-xl border border-stone-200 bg-white p-4 sm:grid-cols-4">
-        <div className="sm:col-span-4"><p className="text-sm text-stone-500">Ürün</p><p className="font-medium">{o.productText}</p></div>
-        <div><p className="text-sm text-stone-500">Adet</p><p className="font-medium tabular-nums">{o.quantity.toLocaleString('tr-TR')}</p></div>
-        <div><p className="text-sm text-stone-500">Üretilen / sevk</p><p className="font-medium tabular-nums">{o.producedQty.toLocaleString('tr-TR')} / {o.shippedQty.toLocaleString('tr-TR')}</p></div>
-        <div><p className="text-sm text-stone-500">Birim fiyat · KDV</p><p className="font-medium">{Number(o.unitPrice).toLocaleString('tr-TR', { maximumFractionDigits: 4 })} · %{Number(o.vatRate).toLocaleString('tr-TR')}</p></div>
-        <div><p className="text-sm text-stone-500">Paketleme</p><p className="font-medium">{PACKAGING_LABELS[o.packaging.type as keyof typeof PACKAGING_LABELS]} {o.packaging.packages ? `· ${o.packaging.packages} × ${o.packaging.capacity}` : ''}</p></div>
-        {o.fxRate && <div className="sm:col-span-4 text-sm text-stone-600">Kur: {o.fxRate} ({o.fxRateDate})</div>}
+      <section aria-label="Ürünler" className="space-y-2">
+        <h2 className="font-semibold">Ürünler</h2>
+        <div className="overflow-x-auto rounded-lg border border-stone-200 bg-white">
+          <table className="w-full text-sm">
+            <thead className="bg-stone-50 text-left text-stone-600">
+              <tr><th className="px-3 py-2">#</th><th className="px-3 py-2">Ürün</th><th className="px-3 py-2 text-right">Adet</th><th className="px-3 py-2 text-right">Birim fiyat</th><th className="px-3 py-2 text-right">KDV</th><th className="px-3 py-2 text-right">Tutar</th><th className="px-3 py-2">Paket</th><th className="px-3 py-2">Durum</th></tr>
+            </thead>
+            <tbody className="divide-y divide-stone-100">
+              {o.lines.map((l) => (
+                <tr key={l.id} className={l.status === 'cancelled' ? 'text-stone-400 line-through' : ''}>
+                  <td className="px-3 py-2 tabular-nums">{l.lineNo}</td>
+                  <td className="px-3 py-2">
+                    {l.productText}
+                    {Object.entries(l.departmentNotes).map(([k, v]) => <span key={k} className="mt-1 block rounded bg-amber-50 px-2 py-1 text-xs text-amber-900 no-underline">{k}: {v}</span>)}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">{l.quantity.toLocaleString('tr-TR')}{l.producedQty ? <span className="block text-xs text-stone-500">üretilen {l.producedQty.toLocaleString('tr-TR')} · sevk {l.shippedQty.toLocaleString('tr-TR')}</span> : null}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{Number(l.unitPrice).toLocaleString('tr-TR', { maximumFractionDigits: 4 })}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">%{Number(l.vatRate).toLocaleString('tr-TR')}</td>
+                  <td className="px-3 py-2"><Money value={moneyFromJSON(l.total)} /></td>
+                  <td className="px-3 py-2">{PACKAGING_LABELS[l.packaging.type as keyof typeof PACKAGING_LABELS]}{l.packaging.packages ? ` · ${l.packaging.packages} × ${l.packaging.capacity}` : ''}</td>
+                  <td className="px-3 py-2">{LINE_STATUS_LABELS[l.status]}{l.cancelReason ? `: ${l.cancelReason}` : ''}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {o.fxRate && <p className="text-sm text-stone-600">Kur: {o.fxRate} ({o.fxRateDate})</p>}
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2">
@@ -92,13 +116,6 @@ export function OrderDetail({ order: o, canMarkInvoice }: { order: Order; canMar
           </table>
         </div>
       </section>
-
-      {Object.keys(o.departmentNotes).length > 0 && (
-        <section className="space-y-2">
-          <h2 className="font-semibold">Bölüm notları</h2>
-          <ul className="grid gap-2 sm:grid-cols-2">{Object.entries(o.departmentNotes).map(([k, v]) => <li key={k} className="rounded-lg bg-amber-50 p-3"><strong className="block text-sm">{k}</strong>{v}</li>)}</ul>
-        </section>
-      )}
 
       {paying && <PaymentModal orderId={o.id} currency={currency} onClose={() => setPaying(false)} onDone={() => { setPaying(false); done(); }} />}
       {correcting && <CorrectionModal payment={correcting} currency={currency} onClose={() => setCorrecting(null)} onDone={() => { setCorrecting(null); done(); }} />}
