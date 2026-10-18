@@ -36,7 +36,7 @@ let cached: InstallConfig | undefined;
 // Kurulum ayarı: INSTALL_CONFIG_PATH dosyası, yoksa INSTALL_CONFIG_JSON, yoksa kurulum.config.json.
 export function getInstallConfig(): InstallConfig {
   if (cached) return cached;
-  const json = process.env.INSTALL_CONFIG_JSON ?? readFileSync(process.env.INSTALL_CONFIG_PATH ?? 'kurulum.config.json', 'utf8');
+  const json = process.env.INSTALL_CONFIG_JSON ?? readFileSync(/* turbopackIgnore: true */ process.env.INSTALL_CONFIG_PATH ?? 'kurulum.config.json', 'utf8');
   cached = parseInstallConfig(JSON.parse(json));
   return cached;
 }

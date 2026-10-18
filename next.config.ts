@@ -2,8 +2,8 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  // VPS/Docker için kendi kendine yeten derleme çıktısı.
-  output: 'standalone',
+  // VPS/Docker için kendi kendine yeten derleme çıktısı. Vercel kendi paketlemesini yapar; orada kapalı.
+  output: process.env.VERCEL ? undefined : 'standalone',
   // Uçtan uca testler ayrı derleme klasörü kullanır; açık geliştirme sunucusuyla çakışmaz.
   distDir: process.env.NEXT_DIST_DIR || '.next',
   reactStrictMode: true,
