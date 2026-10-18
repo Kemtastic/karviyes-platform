@@ -1,4 +1,8 @@
 'use server';
+import { z } from 'zod';
+import { toFailure, type ActionResult } from '@/core/action';
+import { getCurrentUser } from '@/core/auth/session';
+import { cachedTcmbRate } from '@/core/fx/tcmb';
 import { searchParties } from '@/core/parties/service';
 import { lastOrderLines } from '@/modules/orders/server/queries';
 import { addPayment, cancelOrder, correctPayment, createOrder, markInvoiced, updateOrder } from '@/modules/orders/server/actions';
@@ -27,4 +31,17 @@ export async function markInvoicedAction(input: unknown) {
 export async function searchCustomersAction(input: { q: string }) {
   const r = await searchParties({ q: input.q, kind: 'customer', limit: 20 });
   return r.ok ? { ok: true as const, data: r.data.map((p) => ({ id: p.id, name: p.name, city: p.city })) } : r;
+}
+
+// Kur sorgusu veritabanı işlemi dışında yapılır (dış istek bağlantıyı tutmasın); yalnızca ofis rolleri.
+export async function tcmbRateAction(input: { currency: string; date: string }): Promise<ActionResult<{ rate: string; rateDate: string; source: string }>> {
+  const user = await getCurrentUser();
+  if (!user || !user.roles.some((r) => r === 'admin' || r === 'sales' || r === 'tracking')) return { ok: false, code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' };
+  const parsed = z.object({ currency: z.enum(['USD', 'EUR']), date: z.string().date() }).safeParse(input);
+  if (!parsed.success) return { ok: false, code: 'VALIDATION', message: 'Döviz ve tarih seçin.' };
+  try {
+    return { ok: true, data: await cachedTcmbRate(parsed.data.currency, parsed.data.date) };
+  } catch (e) {
+    return toFailure(e, 'orders.tcmbRate');
+  }
 }

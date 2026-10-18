@@ -9,7 +9,7 @@ import { Button } from '@/ui/button';
 import { FormField, fieldClass } from '@/ui/form-field';
 import { MoneyInput } from '@/ui/money-input';
 import { useAction } from '@/ui/use-action';
-import { createOrderAction, lastOrderLinesAction, searchCustomersAction, updateOrderAction } from './actions';
+import { createOrderAction, lastOrderLinesAction, searchCustomersAction, tcmbRateAction, updateOrderAction } from './actions';
 import { computeOrderTotal, parseRate, parseUnitPrice } from '../domain/totals';
 import { PACKAGING_LABELS } from '../domain/packaging';
 
@@ -95,6 +95,17 @@ export function OrderForm({ sector: sectorId, salesStaff, initial }: Props) {
   const sector = getSector(sectorId);
   const [party, setParty] = useState<{ id: string; name: string } | null>(initial?.party ?? null);
   const [currency, setCurrency] = useState<Currency>(initial?.currency ?? 'TRY');
+  const [fxRate, setFxRate] = useState(decimalText(initial?.fxRate ?? null));
+  const [fxRateDate, setFxRateDate] = useState(initial?.fxRateDate ?? istanbulToday());
+  const [fxNote, setFxNote] = useState('');
+  async function fetchRate() {
+    setFxNote('TCMB kuru alınıyor…');
+    const r = await tcmbRateAction({ currency, date: fxRateDate });
+    if (!r.ok) return setFxNote(r.message);
+    setFxRate(r.data.rate.replace('.', ','));
+    setFxRateDate(r.data.rateDate);
+    setFxNote(`${r.data.source}, ${r.data.rateDate.split('-').reverse().join('.')} bülteni`);
+  }
   const [lines, setLines] = useState<LineState[]>(() => (initial ? initial.lines.map((l) => lineFromInitial(l, sector)) : [emptyLine()]));
   const create = useAction(createOrderAction);
   const update = useAction(updateOrderAction);
@@ -125,8 +136,8 @@ export function OrderForm({ sector: sectorId, salesStaff, initial }: Props) {
       salespersonStaffId: f.salespersonStaffId,
       orderDate: f.orderDate,
       currency,
-      fxRate: f.fxRate || undefined,
-      fxRateDate: f.fxRateDate || undefined,
+      fxRate: currency !== 'TRY' ? fxRate || undefined : undefined,
+      fxRateDate: currency !== 'TRY' ? fxRateDate || undefined : undefined,
       deposit: f.deposit,
       lines: lines.map((l) => ({
         product: productInput(l.product),
@@ -162,8 +173,12 @@ export function OrderForm({ sector: sectorId, salesStaff, initial }: Props) {
           </FormField>
           {currency !== 'TRY' && (
             <>
-              <FormField label="Kur" required error={fe.fxRate}><input name="fxRate" inputMode="decimal" placeholder="41,2350" defaultValue={decimalText(initial?.fxRate ?? null)} className={fieldClass} /></FormField>
-              <FormField label="Kur tarihi" required error={fe.fxRateDate}><input name="fxRateDate" type="date" defaultValue={initial?.fxRateDate ?? istanbulToday()} className={fieldClass} /></FormField>
+              <FormField label="Kur" required error={fe.fxRate}><input inputMode="decimal" placeholder="41,2350" value={fxRate} onChange={(e) => setFxRate(e.target.value)} className={fieldClass} /></FormField>
+              <FormField label="Kur tarihi" required error={fe.fxRateDate}><input type="date" value={fxRateDate} onChange={(e) => setFxRateDate(e.target.value)} className={fieldClass} /></FormField>
+              <div className="flex flex-col justify-end gap-1">
+                <Button type="button" variant="secondary" onClick={() => void fetchRate()}>TCMB&apos;den getir</Button>
+                {fxNote && <span role="status" className="text-xs text-stone-600">{fxNote}</span>}
+              </div>
             </>
           )}
         </div>
