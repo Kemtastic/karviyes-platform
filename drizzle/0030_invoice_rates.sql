@@ -1,0 +1,1 @@
+ALTER TABLE "fin_invoices" ADD COLUMN "rates" jsonb DEFAULT '[]'::jsonb NOT NULL;

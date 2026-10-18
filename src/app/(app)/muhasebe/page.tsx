@@ -75,6 +75,28 @@ export default async function FinanceHomePage({ searchParams }: { searchParams: 
                   <Vat label={BigInt(v.difference) >= 0n ? 'Ödenecek (fark)' : 'Devreden (fark)'} value={m(v.difference.replace('-', ''), v.currency)} strong />
                   {v.responsible !== '0' && <Vat label="Sorumlu sıfatıyla (2 No'lu)" value={m(v.responsible, v.currency)} sub="tevkifatlı alışlar" />}
                   {v.salesWithholding !== '0' && <Vat label="Satışta tevkif edilen" value={m(v.salesWithholding, v.currency)} sub="alıcı beyan eder" />}
+                  {v.byRate.length > 0 && (
+                    <div className="col-span-full overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead className="text-stone-500"><tr><th className="py-1 text-left font-medium">Oran</th><th className="py-1 text-right font-medium">Satış matrahı</th><th className="py-1 text-right font-medium">Hesaplanan</th><th className="py-1 text-right font-medium">Alış matrahı</th><th className="py-1 text-right font-medium">İndirilecek</th></tr></thead>
+                        <tbody className="divide-y divide-stone-100">
+                          {[...new Set(v.byRate.map((x) => x.rate))].sort((a, b) => Number(b) - Number(a)).map((rate) => {
+                            const s = v.byRate.find((x) => x.side === 'sales' && x.rate === rate);
+                            const p = v.byRate.find((x) => x.side === 'purchase' && x.rate === rate);
+                            return (
+                              <tr key={rate}>
+                                <td className="py-1">%{rate}</td>
+                                <td className="py-1 text-right tabular-nums">{s ? m(s.base, v.currency) : '—'}</td>
+                                <td className="py-1 text-right tabular-nums">{s ? m(s.vat, v.currency) : '—'}</td>
+                                <td className="py-1 text-right tabular-nums">{p ? m(p.base, v.currency) : '—'}</td>
+                                <td className="py-1 text-right tabular-nums">{p ? m(p.vat, v.currency) : '—'}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </dl>
               ))}
             </div>

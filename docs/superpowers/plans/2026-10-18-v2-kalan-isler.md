@@ -62,4 +62,5 @@ Bağımsız kod incelemesi (alt ajan), güvenlik kontrolü, örnek veriye yeni m
   - Ertelenen (mali müşavir): çok oranlı/satır bazlı fatura, tevkifat kodları, Ba-Bs raporu, hesap planı/yevmiye aktarımı, Excel dışa aktarım, fatura-tahsilat eşleştirme, kur farkı, senet.
 - **F8 bitti**: muhasebeci için Excel (CSV) dışa aktarımları (fatura kayıtları, tahsilat/ödemeler, cari bakiyeler, cari ekstre, hesap ekstresi, Ba-Bs) ve Ba-Bs hazırlık listesi (ay, eşik ayarlanabilir, VKN eksik uyarısı, dövizliler ayrı).
   - Ruling: Ba-Bs varsayılan eşiği 5.000 TL (ekranda değiştirilebilir); iade ve dövizli faturalar otomatik girmez — maliyet: güncel eşik/kural farklıysa mali müşavir düzeltir (ekranda uyarı var).
+- **F9 bitti**: karışık KDV oranlı fatura kaydı (6 orana kadar satır, her oranın KDV'si ayrı yuvarlanır, e-Faturadaki KDV satır başına ±1 TL farkla elle girilebilir), sipariş faturasında oran kırılımı, KDV özetinde oran bazlı tablo. Göç 0030 (`fin_invoices.rates`).
 

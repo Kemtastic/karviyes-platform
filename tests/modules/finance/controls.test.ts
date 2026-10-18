@@ -5,7 +5,7 @@ import { createParty } from '@/core/parties/service';
 import {
   cancelInvoice, createAccount, endorseCheck, receiveCheck, recordExpense, recordInvoice, recordPayment, returnCheck, setPeriodLock, transfer,
 } from '@/modules/finance/server/actions';
-import { partyBalances, partyLedger, vatSummary } from '@/modules/finance/server/queries';
+import { invoicesList, partyBalances, partyLedger, vatSummary } from '@/modules/finance/server/queries';
 
 let t: TestDb;
 const acc = () => runtime(t, testUser(t.companyA, ['accounting']));
@@ -87,5 +87,26 @@ describe('karşılıksız çek', () => {
     ok(await returnCheck({ id: c.id, version: 2, reason: 'Ciro edilen çek karşılıksız' }, acc()));
     expect(BigInt((await balance(ids.musteri!))!)).toBe(m0);
     expect(BigInt((await balance(ids.tedarikci!))!)).toBe(t0);
+  });
+});
+
+describe('karışık oranlı fatura', () => {
+  it('oran satırları ayrı hesaplanır, tevkifat toplam KDV üzerinden; KDV özeti oran kırılımı verir', async () => {
+    const r = ok(await recordInvoice({
+      kind: 'sales', partyId: ids.musteri, docNo: 'KO-1', date: '2026-10-12', currency: 'TRY',
+      lines: [{ base: '1.000', vatRate: 20 }, { base: '500', vatRate: 10 }, { base: '200', vatRate: 1 }],
+    }, acc()));
+    // KDV: 200 + 50 + 2 = 252; toplam 1.952
+    expect(r.total).toBe('195200');
+    const inv = ok(await invoicesList({ kind: 'sales', from: '2026-10-12' }, acc())).find((f) => f.docNo === 'KO-1')!;
+    expect(inv).toMatchObject({ base: '170000', vat: '25200', rates: [{ rate: '20', base: '100000', vat: '20000' }, { rate: '10', base: '50000', vat: '5000' }, { rate: '1', base: '20000', vat: '200' }] });
+    const v = ok(await vatSummary({ month: '2026-10' }, acc())).rows[0]!;
+    expect(v.byRate).toEqual(expect.arrayContaining([{ side: 'sales', rate: '10', base: '50000', vat: '5000' }]));
+  });
+
+  it("e-Faturadaki KDV 1 TL'ye kadar farkla elle girilebilir; daha fazlası reddedilir", async () => {
+    ok(await recordInvoice({ kind: 'purchase', partyId: ids.tedarikci, docNo: 'KO-2', date: '2026-10-13', currency: 'TRY', lines: [{ base: '333,33', vatRate: 20, vat: '66,67' }] }, acc()));
+    expect(await recordInvoice({ kind: 'purchase', partyId: ids.tedarikci, docNo: 'KO-3', date: '2026-10-13', currency: 'TRY', lines: [{ base: '333,33', vatRate: 20, vat: '70' }] }, acc())).toMatchObject({ ok: false, code: 'VALIDATION' });
+    expect(await recordInvoice({ kind: 'purchase', partyId: ids.tedarikci, docNo: 'KO-4', date: '2026-10-13', currency: 'TRY' }, acc())).toMatchObject({ ok: false, code: 'VALIDATION' });
   });
 });

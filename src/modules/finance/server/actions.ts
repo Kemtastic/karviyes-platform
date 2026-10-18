@@ -5,7 +5,7 @@ import { defineAction, type ActionCtx } from '@/core/action';
 import { istanbulToday } from '@/core/dates';
 import { parties } from '@/core/db/schema';
 import { AppError } from '@/core/errors';
-import { CURRENCIES, parseMoney, type Currency } from '@/core/money';
+import { CURRENCIES, formatMoney, parseMoney, type Currency } from '@/core/money';
 import { requireModule } from '@/core/modules/registry';
 import type { Role } from '@/core/modules/types';
 import { invoiceBreakdown, markOrderInvoiced, recordOrderPayment, revertOrderInvoiced, reverseOrderPayment } from '@/modules/orders/server/api';
@@ -128,6 +128,42 @@ export const archiveAccount = defineAction({
 // ── Fatura kayıtları ───────────────────────────────────────────────────────
 
 export const VAT_RATES = [0, 1, 10, 20] as const;
+/** e-Faturadaki KDV, hesaplanandan satır başına en çok bu kadar farklı girilebilir (kuruş yuvarlama farkları). */
+const VAT_TOLERANCE = 100n;
+
+/** Oran satırlarından fatura toplamı: her oranın KDV'si ayrı yuvarlanır; tevkifat toplam KDV üzerinden. */
+function invoiceFromLines(lines: { base: string; vatRate: number; vat?: string }[], cur: Currency, withholdingTenths: number) {
+  if (!lines.length) throw new AppError('VALIDATION', 'Matrahı yazın.', { base: 'Matrahı yazın.' });
+  let base = 0n;
+  let vat = 0n;
+  const rates: { rate: string; base: string; vat: string }[] = [];
+  lines.forEach((l, idx) => {
+    const field = lines.length > 1 ? `lines.${idx}.base` : 'base';
+    const b = positive(l.base, cur, field);
+    let v = invoiceTotals(b, l.vatRate).vat;
+    if (l.vat) {
+      let given: bigint;
+      try {
+        given = parseMoney(l.vat, cur).minor;
+      } catch (e) {
+        throw new AppError('VALIDATION', (e as Error).message, { [`lines.${idx}.vat`]: 'Örnek: 1.234,56' });
+      }
+      const diff = given > v ? given - v : v - given;
+      if (given < 0n || diff > VAT_TOLERANCE) throw new AppError('VALIDATION', `KDV hesaplanandan çok farklı (hesaplanan ${formatMoney({ minor: v, currency: cur })}).`, { [`lines.${idx}.vat`]: 'Matrah ve oranı kontrol edin.' });
+      v = given;
+    }
+    base += b;
+    vat += v;
+    const rate = String(l.vatRate);
+    const same = rates.find((r) => r.rate === rate);
+    if (same) {
+      same.base = (BigInt(same.base) + b).toString();
+      same.vat = (BigInt(same.vat) + v).toString();
+    } else rates.push({ rate, base: b.toString(), vat: v.toString() });
+  });
+  const withholding = (vat * BigInt(withholdingTenths) + 5n) / 10n;
+  return { base, vat, withholding, total: base + vat - withholding, rates };
+}
 
 export const recordInvoice = defineAction({
   name: 'finance.recordInvoice',
@@ -140,8 +176,10 @@ export const recordInvoice = defineAction({
     date: isoDate,
     due: isoDate.nullable().default(null),
     currency,
-    base: z.string().trim().min(1, 'Matrahı yazın.').max(30),
-    vatRate: z.coerce.number().min(0).max(100),
+    // Tek oranlı fatura için base + vatRate; karışık oranlı için lines (her oran ayrı satır).
+    base: z.string().trim().max(30).optional(),
+    vatRate: z.coerce.number().min(0).max(100).optional(),
+    lines: z.array(z.object({ base: z.string().trim().min(1, 'Matrahı yazın.').max(30), vatRate: z.coerce.number().min(0).max(100), vat: z.string().trim().max(30).optional() })).min(1).max(6).optional(),
     withholding: z.coerce.number().int().min(0).max(10).default(0),
     note,
   }),
@@ -150,8 +188,7 @@ export const recordInvoice = defineAction({
     notFuture('date')(i.date);
     await assertOpen(ctx, i.date);
     if (i.due && i.due < i.date) throw new AppError('VALIDATION', 'Vade fatura tarihinden önce olamaz.', { due: 'Fatura tarihi veya sonrası.' });
-    const base = positive(i.base, i.currency, 'base');
-    const t = invoiceTotals(base, i.vatRate, i.withholding);
+    const t = invoiceFromLines(i.lines ?? (i.base ? [{ base: i.base, vatRate: i.vatRate ?? 0 }] : []), i.currency, i.withholding);
     const [dup] = await ctx.tx
       .select({ id: finInvoices.id })
       .from(finInvoices)
@@ -161,7 +198,7 @@ export const recordInvoice = defineAction({
       .insert(finInvoices)
       .values({
         companyId: ctx.companyId, kind: i.kind, partyId: i.partyId, docNo: i.docNo, date: i.date, due: i.due, currency: i.currency,
-        baseMinor: base, vatMinor: t.vat, withholdingMinor: t.withholding, totalMinor: t.total, note: i.note, createdBy: ctx.user.userId,
+        baseMinor: t.base, vatMinor: t.vat, withholdingMinor: t.withholding, totalMinor: t.total, rates: t.rates, note: i.note, createdBy: ctx.user.userId,
       })
       .returning({ id: finInvoices.id });
     await ctx.audit({ entity: 'fin_invoice', entityId: row!.id, after: { kind: i.kind, partyId: i.partyId, docNo: i.docNo, total: t.total.toString(), currency: i.currency } });
@@ -513,7 +550,7 @@ export const recordOrderInvoice = defineAction({
       .insert(finInvoices)
       .values({
         companyId: ctx.companyId, kind: 'sales', partyId: b.order.partyId, docNo: i.docNo, date: i.date, due: i.due, currency: b.currency,
-        baseMinor: b.base, vatMinor: b.vat, totalMinor: b.base + b.vat, note: `Sipariş ${b.order.no}`, orderId: i.orderId, createdBy: ctx.user.userId,
+        baseMinor: b.base, vatMinor: b.vat, totalMinor: b.base + b.vat, rates: b.rates, note: `Sipariş ${b.order.no}`, orderId: i.orderId, createdBy: ctx.user.userId,
       })
       .returning({ id: finInvoices.id });
     await ctx.audit({ entity: 'fin_invoice', entityId: row!.id, after: { kind: 'sales', orderId: i.orderId, docNo: i.docNo, total: (b.base + b.vat).toString() } });

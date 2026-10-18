@@ -113,17 +113,20 @@ export function InvoiceDialog({ kind, party: fixed, onClose, onDone }: Done & { 
   const customerSide = kind === 'sales' || kind === 'sales_return';
   const save = useAction(recordInvoiceAction);
   const [party, setParty] = useState<PartyRef | null>(fixed ?? null);
-  const [base, setBase] = useState('');
-  const [rate, setRate] = useState('20');
+  // Her oran ayrı satır (karışık oranlı fatura); KDV e-Faturadaki tutarla küçük farkla elle düzeltilebilir.
+  const [lines, setLines] = useState([{ base: '', rate: '20', vat: '' }]);
   const [withholding, setWithholding] = useState('0');
   const f = save.fieldErrors;
-  const baseNum = Number(base.replace(/\./g, '').replace(',', '.')) || 0;
-  const vat = Math.round(baseNum * Number(rate)) / 100;
+  const num = (v: string) => Number(v.replace(/\./g, '').replace(',', '.')) || 0;
+  const calc = lines.map((l) => ({ base: num(l.base), vat: l.vat ? num(l.vat) : Math.round(num(l.base) * Number(l.rate)) / 100 }));
+  const baseNum = calc.reduce((s, x) => s + x.base, 0);
+  const vat = calc.reduce((s, x) => s + x.vat, 0);
   const wh = Math.round(vat * Number(withholding) * 10) / 100;
+  const patch = (idx: number, p: Partial<(typeof lines)[number]>) => setLines((ls) => ls.map((l, i) => (i === idx ? { ...l, ...p } : l)));
   const fmt = (n: number) => n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return (
-    <Modal open title={INVOICE_TITLES[kind]} onClose={onClose} dirty={Boolean(base)}>
-      <form className="space-y-4" onSubmit={(e) => save.run({ ...formData(e), kind, partyId: party?.id ?? '', due: (e.currentTarget.elements.namedItem('due') as HTMLInputElement).value || null }, onDone)}>
+    <Modal open title={INVOICE_TITLES[kind]} onClose={onClose} dirty={lines.some((l) => l.base)}>
+      <form className="space-y-4" onSubmit={(e) => { const d = formData(e); save.run({ docNo: d.docNo, currency: d.currency, date: d.date, note: d.note, withholding: d.withholding, kind, partyId: party?.id ?? '', due: d.due || null, lines: lines.map((l) => ({ base: l.base, vatRate: l.rate, ...(l.vat ? { vat: l.vat } : {}) })) }, onDone); }}>
         <p className="rounded-xl bg-stone-100 px-3 py-2 text-xs text-stone-600">Bu ekran fatura <strong>kesmez</strong>; e-Fatura, e-Arşiv ya da kâğıt olarak kesilmiş faturayı cariye işler.</p>
         {kind.endsWith('_return') && <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900">İade faturası cariyi ters yönde etkiler ve KDV özetinde düşülür.</p>}
         {!fixed && <PartyPicker value={party} onChange={setParty} kind={customerSide ? 'customer' : 'supplier'} error={f.partyId} label={customerSide ? 'Müşteri' : 'Tedarikçi'} />}
@@ -132,10 +135,6 @@ export function InvoiceDialog({ kind, party: fixed, onClose, onDone }: Done & { 
           <FormField label="Para birimi" required error={f.currency}><select name="currency" className={fieldClass}>{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</select></FormField>
           <FormField label="Fatura tarihi" required error={f.date}><input type="date" name="date" defaultValue={today()} max={today()} className={fieldClass} /></FormField>
           <FormField label="Vade" error={f.due} hint="Boşsa vadesiz"><input type="date" name="due" className={fieldClass} /></FormField>
-          <FormField label="Matrah (KDV hariç)" required error={f.base}><input name="base" inputMode="decimal" value={base} onChange={(e) => setBase(e.target.value)} className={fieldClass} placeholder="0,00" /></FormField>
-          <FormField label="KDV oranı" error={f.vatRate}>
-            <select name="vatRate" value={rate} onChange={(e) => setRate(e.target.value)} className={fieldClass}>{['0', '1', '10', '20'].map((r) => <option key={r} value={r}>%{r}</option>)}</select>
-          </FormField>
           <FormField label="Tevkifat" error={f.withholding} hint="KDV'nin onda kaçı">
             <select name="withholding" value={withholding} onChange={(e) => setWithholding(e.target.value)} className={fieldClass}>
               <option value="0">Yok</option>
@@ -144,6 +143,31 @@ export function InvoiceDialog({ kind, party: fixed, onClose, onDone }: Done & { 
           </FormField>
           <FormField label="Not" error={f.note}><input name="note" className={fieldClass} /></FormField>
         </div>
+        <fieldset className="space-y-2">
+          <legend className="mb-1 text-sm font-medium text-stone-700">Matrah ve KDV</legend>
+          {lines.map((l, idx) => {
+            const err = (k: string) => (lines.length > 1 ? f[`lines.${idx}.${k}`] : f[k] ?? f[`lines.0.${k}`]);
+            return (
+              <div key={idx} className="grid grid-cols-[1fr_88px_1fr_auto] items-end gap-2">
+                <FormField label={idx === 0 ? 'Matrah (KDV hariç)' : `Matrah ${idx + 1}`} required error={err('base')}>
+                  <input inputMode="decimal" value={l.base} onChange={(e) => patch(idx, { base: e.target.value })} className={fieldClass} placeholder="0,00" />
+                </FormField>
+                <FormField label={idx === 0 ? 'KDV oranı' : `Oran ${idx + 1}`}>
+                  <select value={l.rate} onChange={(e) => patch(idx, { rate: e.target.value, vat: '' })} className={fieldClass}>{['0', '1', '10', '20'].map((r) => <option key={r} value={r}>%{r}</option>)}</select>
+                </FormField>
+                <FormField label={idx === 0 ? 'KDV (faturadaki)' : `KDV ${idx + 1}`} error={err('vat')} hint={idx === lines.length - 1 ? 'Boşsa hesaplanır' : undefined}>
+                  <input inputMode="decimal" value={l.vat} onChange={(e) => patch(idx, { vat: e.target.value })} className={fieldClass} placeholder={(Math.round(num(l.base) * Number(l.rate)) / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} />
+                </FormField>
+                {lines.length > 1 ? (
+                  <button type="button" aria-label={`Satır ${idx + 1}'i kaldır`} onClick={() => setLines((ls) => ls.filter((_, i) => i !== idx))} className="mb-2 h-9 rounded-lg px-2 text-sm text-stone-500 hover:bg-stone-100">✕</button>
+                ) : <span />}
+              </div>
+            );
+          })}
+          {lines.length < 6 && (
+            <button type="button" onClick={() => setLines((ls) => [...ls, { base: '', rate: '10', vat: '' }])} className="text-sm font-medium text-[var(--brand-strong)] hover:underline">+ Başka KDV oranı ekle</button>
+          )}
+        </fieldset>
         <dl className="grid grid-cols-3 gap-2 rounded-xl border border-stone-200 bg-stone-50 p-3 text-sm">
           <div><dt className="text-xs text-stone-500">KDV</dt><dd className="font-medium tabular-nums">{fmt(vat)}</dd></div>
           <div><dt className="text-xs text-stone-500">Tevkifat</dt><dd className="font-medium tabular-nums">{fmt(wh)}</dd></div>

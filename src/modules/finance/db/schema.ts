@@ -42,6 +42,8 @@ export const finInvoices = pgTable(
     baseMinor: bigint('base_minor', { mode: 'bigint' }).notNull(),
     vatMinor: bigint('vat_minor', { mode: 'bigint' }).notNull(),
     withholdingMinor: bigint('withholding_minor', { mode: 'bigint' }).notNull().default(sql`0`),
+    /** KDV oranı kırılımı: [{ rate: '20', base: kuruş, vat: kuruş }] (karışık oranlı fatura). */
+    rates: jsonb('rates').$type<{ rate: string; base: string; vat: string }[]>().notNull().default([]),
     totalMinor: bigint('total_minor', { mode: 'bigint' }).notNull(),
     note: text('note').notNull().default(''),
     status: text('status', { enum: ['recorded', 'cancelled'] }).notNull().default('recorded'),

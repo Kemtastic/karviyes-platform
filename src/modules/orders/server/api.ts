@@ -57,12 +57,18 @@ export async function invoiceBreakdown(ctx: ActionCtx, orderId: string) {
   const lines = await ctx.tx.select().from(orderLines).where(and(eq(orderLines.orderId, orderId), ne(orderLines.status, 'cancelled')));
   let base = 0n;
   let vat = 0n;
+  const byRate = new Map<string, { base: bigint; vat: bigint }>();
   for (const l of lines) {
     const net = mulPrice(l.unitPrice, l.quantity);
+    const v = applyRate(net, l.vatRate);
     base += net;
-    vat += applyRate(net, l.vatRate);
+    vat += v;
+    const key = String(Number(l.vatRate));
+    const r = byRate.get(key) ?? { base: 0n, vat: 0n };
+    byRate.set(key, { base: r.base + net, vat: r.vat + v });
   }
-  return { order: o, currency: o.currency as Currency, base, vat };
+  const rates = [...byRate].map(([rate, r]) => ({ rate, base: r.base.toString(), vat: r.vat.toString() }));
+  return { order: o, currency: o.currency as Currency, base, vat, rates };
 }
 
 /** Siparişi "fatura kesildi" yapar (yalnızca faturaya hazır sipariş). */

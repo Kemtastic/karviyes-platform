@@ -185,7 +185,7 @@ export const invoicesList = defineAction({
       .limit(1000);
     return rows.map(({ f, partyName }) => ({
       id: f.id, kind: f.kind, partyId: f.partyId, partyName, docNo: f.docNo, date: f.date, due: f.due, currency: f.currency as Currency,
-      base: s(f.baseMinor), vat: s(f.vatMinor), withholding: s(f.withholdingMinor), total: s(f.totalMinor), note: f.note, status: f.status, cancelNote: f.cancelNote,
+      base: s(f.baseMinor), vat: s(f.vatMinor), withholding: s(f.withholdingMinor), total: s(f.totalMinor), rates: f.rates, note: f.note, status: f.status, cancelNote: f.cancelNote,
     }));
   },
 });
@@ -327,7 +327,7 @@ export const vatSummary = defineAction({
     const end = new Date(`${from}T12:00:00Z`);
     end.setUTCMonth(end.getUTCMonth() + 1, 0);
     const to = end.toISOString().slice(0, 10);
-    const [inv, exp] = await Promise.all([
+    const [inv, exp, rateRows] = await Promise.all([
       ctx.tx
         .select({ kind: finInvoices.kind, currency: finInvoices.currency, base: sql<string>`sum(${finInvoices.baseMinor})`, vat: sql<string>`sum(${finInvoices.vatMinor})`, wh: sql<string>`sum(${finInvoices.withholdingMinor})`, n: sql<number>`count(*)` })
         .from(finInvoices)
@@ -338,7 +338,25 @@ export const vatSummary = defineAction({
         .from(finMovements)
         .where(and(eq(finMovements.kind, 'expense'), isNull(finMovements.reversedAt), gte(finMovements.date, from), lte(finMovements.date, to)))
         .groupBy(finMovements.currency),
+      ctx.tx
+        .select({ kind: finInvoices.kind, currency: finInvoices.currency, rates: finInvoices.rates, base: finInvoices.baseMinor, vat: finInvoices.vatMinor })
+        .from(finInvoices)
+        .where(and(eq(finInvoices.status, 'recorded'), gte(finInvoices.date, from), lte(finInvoices.date, to))),
     ]);
+    // Oran kırılımı (eski kayıtlarda kırılım yoksa oran KDV/matrahtan çıkarılır).
+    const byRate = new Map<string, { side: 'sales' | 'purchase'; currency: Currency; rate: string; base: bigint; vat: bigint }>();
+    for (const r of rateRows) {
+      const side = r.kind.startsWith('sales') ? 'sales' : 'purchase';
+      const sign = r.kind.endsWith('_return') ? -1n : 1n;
+      const parts = r.rates.length ? r.rates : [{ rate: r.base > 0n ? String(Math.round(Number((r.vat * 10000n) / r.base)) / 100) : '0', base: r.base.toString(), vat: r.vat.toString() }];
+      for (const p of parts) {
+        const key = `${r.currency}|${side}|${p.rate}`;
+        const g = byRate.get(key) ?? { side, currency: r.currency as Currency, rate: p.rate, base: 0n, vat: 0n };
+        g.base += sign * BigInt(p.base);
+        g.vat += sign * BigInt(p.vat);
+        byRate.set(key, g);
+      }
+    }
     const z0 = () => ({ salesBase: 0n, salesVat: 0n, salesWithholding: 0n, purchaseBase: 0n, purchaseVat: 0n, purchaseWithholding: 0n, expenseVat: 0n, invoices: 0 });
     const per = new Map<Currency, ReturnType<typeof z0>>();
     const get = (c: Currency) => per.get(c) ?? (per.set(c, z0()), per.get(c)!);
@@ -360,6 +378,10 @@ export const vatSummary = defineAction({
           salesBase: s(t.salesBase), output: s(t.salesVat), salesWithholding: s(t.salesWithholding),
           purchaseBase: s(t.purchaseBase), purchaseVat: s(t.purchaseVat), expenseVat: s(t.expenseVat), deductible: s(deductible), responsible: s(t.purchaseWithholding),
           difference: s(t.salesVat - deductible),
+          byRate: [...byRate.values()]
+            .filter((g) => g.currency === c)
+            .sort((a, b) => a.side.localeCompare(b.side) || Number(b.rate) - Number(a.rate))
+            .map((g) => ({ side: g.side, rate: g.rate, base: s(g.base), vat: s(g.vat) })),
         };
       }),
     };
