@@ -2,6 +2,7 @@ import { defineConfig } from 'drizzle-kit';
 
 export default defineConfig({
   dialect: 'postgresql',
-  schema: './src/core/db/schema/index.ts',
+  // Çekirdek ve modül tabloları tek göç zincirinde.
+  schema: ['./src/core/db/schema/index.ts', './src/modules/*/db/schema.ts'],
   out: './drizzle',
 });
