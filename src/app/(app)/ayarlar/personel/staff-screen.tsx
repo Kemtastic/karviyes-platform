@@ -2,6 +2,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ROLE_LABELS, ROLES, type Role } from '@/core/modules/types';
+import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { DataTable } from '@/ui/data-table';
 import { FormField, fieldClass } from '@/ui/form-field';
@@ -29,10 +30,10 @@ export function StaffScreen({ rows }: { rows: StaffRow[] }) {
         empty="Henüz personel yok."
         onRowClick={(r) => setEditing(r)}
         columns={[
-          { key: 'name', header: 'Ad', render: (r) => r.name, sortValue: (r) => r.name },
+          { key: 'name', header: 'Ad', render: (r) => <span className="font-medium text-stone-900">{r.name}</span>, sortValue: (r) => r.name },
           { key: 'kind', header: 'Görev', render: (r) => KIND_LABELS[r.kind] ?? r.kind },
-          { key: 'dep', header: 'Bölümler', render: (r) => r.departments.map((d) => ROLE_LABELS[d as Role] ?? d).join(', ') || '—' },
-          { key: 'active', header: 'Durum', render: (r) => (r.active ? 'Aktif' : 'Pasif') },
+          { key: 'dep', header: 'Bölümler', render: (r) => (r.departments.length ? <span className="flex flex-wrap gap-1">{r.departments.map((d) => <Badge key={d} tone={d === 'sales' ? 'brand' : 'neutral'} dot={false}>{ROLE_LABELS[d as Role] ?? d}</Badge>)}</span> : '—') },
+          { key: 'active', header: 'Durum', render: (r) => <Badge tone={r.active ? 'success' : 'muted'}>{r.active ? 'Aktif' : 'Pasif'}</Badge> },
         ]}
       />
       {editing && <StaffModal row={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onDone={() => { setEditing(null); router.refresh(); }} />}

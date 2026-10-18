@@ -3,7 +3,10 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { DEPARTMENT_ROLES, ROLE_LABELS, ROLES, type Role } from '@/core/modules/types';
 import type { MemberRow } from '@/core/users/queries';
+import { Tablet, UserPlus } from 'lucide-react';
+import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
+import { PageHeader } from '@/ui/page-header';
 import { ConfirmDialog } from '@/ui/confirm-dialog';
 import { DataTable } from '@/ui/data-table';
 import { FormField, fieldClass } from '@/ui/form-field';
@@ -19,33 +22,48 @@ export function UsersScreen({ members, currentMembershipId }: { members: MemberR
   const deactivate = useAction(deactivateMemberAction);
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-[26px]">Kullanıcılar</h1>
-        <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => setMode('device')}>Bölüm tableti ekle</Button>
-          <Button onClick={() => setMode('invite')}>Kullanıcı davet et</Button>
-        </div>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="Kullanıcılar"
+        description="Ofis çalışanları davetle, bölüm tabletleri cihaz hesabıyla girer. Roller ekranları ve yetkileri belirler."
+        actions={
+          <>
+            <Button variant="secondary" onClick={() => setMode('device')}><Tablet aria-hidden className="h-4 w-4" /> Bölüm tableti ekle</Button>
+            <Button onClick={() => setMode('invite')}><UserPlus aria-hidden className="h-4 w-4" /> Kullanıcı davet et</Button>
+          </>
+        }
+      />
       {deactivate.error && <p role="alert" className="text-red-700">{deactivate.error}</p>}
       <DataTable
         rows={members}
         rowKey={(m) => m.id}
         columns={[
-          { key: 'name', header: 'Ad', render: (m) => m.name, sortValue: (m) => m.name },
-          { key: 'email', header: 'Giriş', render: (m) => <span className="font-mono text-xs">{m.email}</span> },
-          { key: 'roles', header: 'Roller', render: (m) => m.roles.map((r) => ROLE_LABELS[r]).join(', ') },
-          { key: 'kind', header: 'Tür', render: (m) => (m.kind === 'device' ? 'Bölüm tableti' : 'Kişi') },
-          { key: '2fa', header: '2FA', render: (m) => (m.kind === 'device' ? '—' : m.twoFactorEnabled ? 'Açık' : 'Kapalı') },
-          { key: 'status', header: 'Durum', render: (m) => (m.active ? 'Aktif' : <span className="text-stone-500">Pasif</span>) },
+          {
+            key: 'name', header: 'Ad', sortValue: (m) => m.name,
+            render: (m) => (
+              <span className="flex items-center gap-3">
+                <span aria-hidden className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-semibold ${m.kind === 'device' ? 'bg-stone-100 text-stone-500' : 'bg-[var(--brand-soft)] text-[var(--brand-strong)]'}`}>
+                  {m.kind === 'device' ? <Tablet className="h-4 w-4" /> : m.name.slice(0, 1).toLocaleUpperCase('tr')}
+                </span>
+                <span className="block">
+                  <span className="block font-medium text-stone-900">{m.name}</span>
+                  <span className="block font-mono text-xs text-stone-500">{m.email}</span>
+                </span>
+              </span>
+            ),
+          },
+          { key: 'roles', header: 'Roller', render: (m) => <span className="flex flex-wrap gap-1">{m.roles.map((r) => <Badge key={r} tone={r === 'admin' ? 'brand' : 'neutral'} dot={false}>{ROLE_LABELS[r]}</Badge>)}</span> },
+          { key: 'kind', header: 'Tür', render: (m) => <span className="text-stone-600">{m.kind === 'device' ? 'Bölüm tableti' : 'Kişi'}</span> },
+          { key: '2fa', header: '2FA', render: (m) => (m.kind === 'device' ? <span className="text-stone-400">—</span> : <Badge tone={m.twoFactorEnabled ? 'success' : 'warning'}>{m.twoFactorEnabled ? 'Açık' : 'Kapalı'}</Badge>) },
+          { key: 'status', header: 'Durum', render: (m) => <Badge tone={m.active ? 'success' : 'muted'}>{m.active ? 'Aktif' : 'Pasif'}</Badge> },
           {
             key: 'actions',
             header: '',
             render: (m) =>
               m.active && (
                 <span className="flex justify-end gap-2">
-                  <Button variant="secondary" onClick={() => setEditing(m)}>Rolleri düzenle</Button>
-                  {m.id !== currentMembershipId && <Button variant="danger" onClick={() => setRemoving(m)}>Pasifleştir</Button>}
+                  <Button variant="secondary" className="min-h-9 whitespace-nowrap" onClick={() => setEditing(m)}>Rolleri düzenle</Button>
+                  {m.id !== currentMembershipId && <Button variant="ghost" className="min-h-9 text-red-700 hover:bg-red-50 hover:text-red-800" onClick={() => setRemoving(m)}>Pasifleştir</Button>}
                 </span>
               ),
           },

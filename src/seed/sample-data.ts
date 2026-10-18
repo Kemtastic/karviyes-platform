@@ -14,6 +14,7 @@ import { createOrder } from '@/modules/orders/server/actions';
 import * as production from '@/modules/production/server/actions';
 import { jobDetail } from '@/modules/production/server/queries';
 import data from '../../scripts/data/ornek-veri.json';
+import { seedDemoExtras } from './demo-extra';
 
 type Seed = { db: Db; companyId: string; cfg: InstallConfig; auth: Auth; tabletPassword: string };
 
@@ -38,7 +39,7 @@ export async function seedSampleData({ db, companyId, cfg, auth, tabletPassword 
   if (existing.length) return { created: false, tablets: [] };
 
   const user: CurrentUser = { userId: 'ornek-veri', email: 'ornek-veri@example.com', name: 'Örnek veri', companyId, membershipId: '00000000-0000-0000-0000-000000000000', roles: ['admin', 'tracking', 'sales'], kind: 'person', staffId: null, twoFactorEnabled: true };
-  const rt: ActionRuntime = { user, db, cfg };
+  const rt: ActionRuntime = { user, db, cfg, batch: true };
 
   // Personel
   const salesNames = ['Ayşe Kara', 'Murat Tunç', 'Selin Doğan'];
@@ -144,5 +145,6 @@ export async function seedSampleData({ db, companyId, cfg, auth, tabletPassword 
   }
   await step(production.startStage, { jobId: jobIds[3]!, machine: 'Kesim 2', staffIds: [emre] }, 'kesim başlat');
 
+  await seedDemoExtras({ rt, companyId, partyIds, salesIds, orderIds, suppliers: data.tedarikciler });
   return { created: true, tablets };
 }

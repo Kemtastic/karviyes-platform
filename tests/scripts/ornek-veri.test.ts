@@ -27,8 +27,9 @@ describe('örnek veri', () => {
       staff: (await tx.select().from(staff)).length,
       devices: (await tx.select().from(memberships)).filter((m) => m.kind === 'device').length,
     }), t.db);
-    expect(counts.parties).toBe(10);
-    expect(counts.orders).toBe(15);
+    // 10 müşteri + 4 tedarikçi; 15 sipariş + 3 çok ürünlü demo siparişi
+    expect(counts.parties).toBe(14);
+    expect(counts.orders).toBe(18);
     expect(counts.staff).toBeGreaterThanOrEqual(7);
     expect(counts.devices).toBe(5);
     expect(new Set(counts.jobs.map((j) => j.stage))).toEqual(new Set(['shipped', 'completed', 'review', 'cutting', 'waiting']));
@@ -36,14 +37,16 @@ describe('örnek veri', () => {
 
   it('ikinci çalıştırma çoğaltmaz', async () => {
     expect((await run()).created).toBe(false);
-    expect((await withCompany(t.companyA, (tx) => tx.select().from(parties), t.db)).length).toBe(10);
+    expect((await withCompany(t.companyA, (tx) => tx.select().from(parties), t.db)).length).toBe(14);
   });
 
   it('vergi numaraları test aralığında ve geçerli', async () => {
     const rows = await withCompany(t.companyA, (tx) => tx.select().from(parties), t.db);
     for (const p of rows) {
-      expect(p.taxId.startsWith('999')).toBe(true);
-      expect(validateTaxId(p.taxId, 'company')).toBe(true);
+      if (p.taxId) {
+        expect(p.taxId.startsWith('999')).toBe(true);
+        expect(validateTaxId(p.taxId, 'company')).toBe(true);
+      }
       expect(p.email.endsWith('@example.com')).toBe(true);
     }
   });

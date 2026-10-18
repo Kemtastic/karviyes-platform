@@ -5,6 +5,7 @@ import { istanbulToday } from '@/core/dates';
 import { formatMoney, money, type Currency } from '@/core/money';
 import { getSector } from '@/sectors';
 import type { SectorField, SectorPackage } from '@/sectors/types';
+import { Plus } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { FormField, fieldClass } from '@/ui/form-field';
 import { MoneyInput } from '@/ui/money-input';
@@ -226,18 +227,34 @@ export function OrderForm({ sector: sectorId, salesStaff, initial, initialPlates
       {fe.lines && <p role="alert" className="text-red-700">{fe.lines}</p>}
       <UnplacedLineErrors errors={fe} lineCount={lines.length} />
       {lines.length < MAX_LINES && (
-        <Button type="button" variant="secondary" onClick={() => setLines((ls) => [...ls, emptyLine()])}>Ürün ekle</Button>
+        <button
+          type="button"
+          onClick={() => setLines((ls) => [...ls, emptyLine()])}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-stone-300 bg-white/60 px-4 py-4 text-sm font-semibold text-stone-600 transition-colors hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
+        >
+          <Plus aria-hidden className="h-4 w-4" /> Ürün ekle
+        </button>
       )}
 
       <section className="space-y-4 rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)] p-5 sm:p-6">
-        <h2 className="text-[15px] font-semibold text-stone-900">Toplam ve ödeme</h2>
-        <p className="text-lg">Sipariş toplamı (KDV dahil): <strong className="tabular-nums">{grandTotal || '—'}</strong></p>
-        {!initial && <div className="max-w-xs"><FormField label="Peşinat" error={fe.deposit}><MoneyInput name="deposit" currency={currency} /></FormField></div>}
+        <h2 className="text-[15px] font-semibold text-stone-900">Ödeme</h2>
+        {initial ? (
+          <p className="text-sm text-stone-600">Tahsilatlar sipariş kartından eklenir.</p>
+        ) : (
+          <div className="max-w-xs"><FormField label="Peşinat" hint="Sipariş tarihinde tahsilat olarak yazılır" error={fe.deposit}><MoneyInput name="deposit" currency={currency} /></FormField></div>
+        )}
       </section>
 
-      {action.error && <p role="alert" className="text-red-700">{action.error}</p>}
-      <div className="sticky bottom-20 flex justify-end lg:bottom-4">
-        <Button disabled={action.pending} className="shadow-lg">{action.pending ? 'Kaydediliyor…' : initial ? 'Değişiklikleri kaydet' : 'Siparişi kaydet'}</Button>
+      {action.error && <p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-red-800">{action.error}</p>}
+      <div className="sticky bottom-20 z-20 lg:bottom-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-stone-200 bg-white/95 px-4 py-3 shadow-[var(--shadow-pop)] backdrop-blur">
+          <p className="text-sm text-stone-600">
+            Sipariş toplamı (KDV dahil)
+            <strong className="ml-2 text-lg tabular-nums text-stone-900">{grandTotal || '—'}</strong>
+            <span className="ml-2 text-xs text-stone-500">{lines.length} ürün</span>
+          </p>
+          <Button disabled={action.pending}>{action.pending ? 'Kaydediliyor…' : initial ? 'Değişiklikleri kaydet' : 'Siparişi kaydet'}</Button>
+        </div>
       </div>
     </form>
   );

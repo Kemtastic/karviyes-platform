@@ -1,9 +1,12 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { istanbulToday } from '@/core/dates';
 import { REPORT_GROUPS, salesReport } from '@/modules/orders/server/reports';
 import { requireOrdersPage } from '@/modules/orders/ui/guard';
 import { SalesReportTable } from '@/modules/orders/ui/sales-report-table';
+import { formatMoney, money } from '@/core/money';
+import { FilterBar, FilterField, filterButtonClass, filterInputClass } from '@/ui/filter-bar';
+import { LinkTabs } from '@/ui/link-tabs';
+import { PageHeader } from '@/ui/page-header';
 
 const GROUP_LABELS: Record<(typeof REPORT_GROUPS)[number], string> = { salesperson: 'Satışçı', customer: 'Müşteri', month: 'Ay', product: 'Ürün' };
 const isDate = (v: string | undefined) => Boolean(v && /^\d{4}-\d{2}-\d{2}$/.test(v));
@@ -18,26 +21,37 @@ export default async function SalesReportsPage({ searchParams }: { searchParams:
   const r = await salesReport({ from, to, groupBy });
   if (!r.ok) notFound();
   const href = (g: string) => `/siparisler/raporlar?kirilim=${g}&bas=${from}&bit=${to}`;
+  const tryRows = r.data.rows.filter((x) => x.currency === 'TRY');
+  const sum = (f: (x: (typeof tryRows)[number]) => bigint) => tryRows.reduce((acc, x) => acc + f(x), 0n);
+  const orderCount = groupBy === 'customer' || groupBy === 'salesperson' || groupBy === 'month' ? tryRows.reduce((acc, x) => acc + x.orders, 0) : null;
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-[26px]">Satış raporları</h1>
-        <p className="text-stone-600">Sipariş tarihine göre; iptal edilen siparişler ve satırlar hariç. Fatura bazlı değildir.</p>
-      </div>
-      <form className="flex flex-wrap items-end gap-2">
+    <div className="space-y-5">
+      <PageHeader title="Satış raporları" description="Sipariş tarihine göre; iptal edilen siparişler ve satırlar hariç. Fatura bazlı değildir." />
+      <FilterBar>
         <input type="hidden" name="kirilim" value={groupBy} />
-        <label className="flex flex-col text-sm">Başlangıç<input type="date" name="bas" defaultValue={from} className="mt-1 min-h-10 rounded-xl border border-stone-300 bg-white px-3 text-sm shadow-sm focus:border-[var(--brand)] focus:outline-none focus:ring-4 focus:ring-[var(--brand-soft)]" /></label>
-        <label className="flex flex-col text-sm">Bitiş<input type="date" name="bit" defaultValue={to} className="mt-1 min-h-10 rounded-xl border border-stone-300 bg-white px-3 text-sm shadow-sm focus:border-[var(--brand)] focus:outline-none focus:ring-4 focus:ring-[var(--brand-soft)]" /></label>
-        <button className="min-h-10 rounded-xl bg-stone-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-stone-800">Göster</button>
-      </form>
-      <nav aria-label="Kırılım" className="flex flex-wrap gap-2">
-        {REPORT_GROUPS.map((g) => (
-          <Link key={g} href={href(g)} aria-current={groupBy === g ? 'page' : undefined} className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-stone-200 bg-white px-3.5 py-1.5 text-sm font-medium text-stone-600 shadow-sm transition-colors hover:border-stone-300 hover:text-stone-900 aria-[current=page]:border-stone-900 aria-[current=page]:bg-stone-900 aria-[current=page]:text-white">
-            {GROUP_LABELS[g]}
-          </Link>
-        ))}
-      </nav>
+        <FilterField label="Başlangıç"><input type="date" name="bas" defaultValue={from} className={filterInputClass} /></FilterField>
+        <FilterField label="Bitiş"><input type="date" name="bit" defaultValue={to} className={filterInputClass} /></FilterField>
+        <button className={filterButtonClass}>Göster</button>
+      </FilterBar>
+      {tryRows.length > 0 && (
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Tile label="Toplam (KDV dahil, TL)" value={formatMoney(money(sum((x) => BigInt(x.total.minor)), 'TRY'))} />
+          <Tile label="KDV hariç (TL)" value={formatMoney(money(sum((x) => BigInt(x.net.minor)), 'TRY'))} />
+          <Tile label="Adet" value={tryRows.reduce((acc, x) => acc + x.quantity, 0).toLocaleString('tr-TR')} />
+          <Tile label="Sipariş" value={orderCount === null ? '—' : orderCount.toLocaleString('tr-TR')} />
+        </section>
+      )}
+      <LinkTabs label="Kırılım" items={REPORT_GROUPS.map((g) => ({ href: href(g), label: GROUP_LABELS[g], active: groupBy === g }))} />
       <SalesReportTable rows={r.data.rows} groupLabel={GROUP_LABELS[groupBy]} showPrices={groupBy === 'product'} />
+    </div>
+  );
+}
+
+function Tile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-stone-200/80 bg-white p-4 shadow-[var(--shadow-card)]">
+      <p className="text-xs font-medium uppercase tracking-wide text-stone-500">{label}</p>
+      <p className="mt-1 text-xl font-semibold tabular-nums tracking-tight">{value}</p>
     </div>
   );
 }

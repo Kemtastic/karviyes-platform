@@ -4,7 +4,10 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { istanbulToday } from '@/core/dates';
 import { moneyFromJSON, type Currency } from '@/core/money';
-import { Button } from '@/ui/button';
+import { CalendarDays, Pencil, Printer, UserRound, Wallet } from 'lucide-react';
+import { Badge } from '@/ui/badge';
+import { Button, buttonClasses } from '@/ui/button';
+import { Card } from '@/ui/card';
 import { ConfirmDialog } from '@/ui/confirm-dialog';
 import { DateText } from '@/ui/date-text';
 import { FormField, fieldClass } from '@/ui/form-field';
@@ -14,7 +17,7 @@ import { MoneyInput } from '@/ui/money-input';
 import { useAction } from '@/ui/use-action';
 import { addPaymentAction, cancelOrderAction, correctPaymentAction, markInvoicedAction } from './actions';
 import { PACKAGING_LABELS } from '../domain/packaging';
-import { LINE_STATUS_LABELS, ORDER_STATUS_LABELS } from './status-labels';
+import { LINE_STATUS_LABELS, LINE_STATUS_TONES, ORDER_STATUS_LABELS, ORDER_STATUS_TONES } from './status-labels';
 
 type MoneyJson = { minor: string; currency: Currency };
 type Order = {
@@ -31,7 +34,7 @@ type Order = {
 
 const KIND: Record<string, string> = { deposit: 'Peşinat', payment: 'Tahsilat', correction: 'Düzeltme' };
 
-export function OrderDetail({ order: o, canMarkInvoice }: { order: Order; canMarkInvoice: boolean }) {
+export function OrderDetail({ order: o, canMarkInvoice, stageLabels = {} }: { order: Order; canMarkInvoice: boolean; stageLabels?: Record<string, string> }) {
   const router = useRouter();
   const [paying, setPaying] = useState(false);
   const [correcting, setCorrecting] = useState<Order['payments'][number] | null>(null);
@@ -42,81 +45,87 @@ export function OrderDetail({ order: o, canMarkInvoice }: { order: Order; canMar
   const currency = o.currency as Currency;
   const done = () => router.refresh();
 
+  const paid = o.payments.reduce((sum, p) => sum + BigInt(p.amount.minor), 0n);
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="font-mono text-sm text-stone-500">{o.no}</p>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-[26px]">{o.party.name}</h1>
-          <p className="text-stone-600"><DateText value={o.orderDate} /> · {ORDER_STATUS_LABELS[o.status]}{o.salesperson ? ` · Satış: ${o.salesperson}` : ''}</p>
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="font-mono text-xs font-medium uppercase tracking-wider text-stone-500">{o.no}</p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-[26px]">{o.party.name}</h1>
+          <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-stone-600">
+            <Badge tone={ORDER_STATUS_TONES[o.status]}>{ORDER_STATUS_LABELS[o.status]}</Badge>
+            <span className="inline-flex items-center gap-1.5"><CalendarDays aria-hidden className="h-4 w-4 text-stone-400" /><DateText value={o.orderDate} /></span>
+            {o.salesperson && <span className="inline-flex items-center gap-1.5"><UserRound aria-hidden className="h-4 w-4 text-stone-400" />Satış: {o.salesperson}</span>}
+            <Link href={`/cariler/${o.party.id}`} className="font-medium text-stone-700 underline-offset-2 hover:underline">Cari kartı</Link>
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <a href={`/api/pdf/siparis/${o.id}`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 shadow-sm transition-colors hover:border-stone-400 hover:bg-stone-50">Sipariş PDF</a>
-          {o.status !== 'cancelled' && <Button variant="secondary" onClick={() => setPaying(true)}>Tahsilat ekle</Button>}
+          <a href={`/api/pdf/siparis/${o.id}`} className={buttonClasses('secondary')}><Printer aria-hidden className="h-4 w-4" /> Sipariş PDF</a>
+          {o.status === 'draft' && <Link href={`/siparisler/${o.id}/duzenle`} className={buttonClasses('secondary')}><Pencil aria-hidden className="h-4 w-4" /> Düzenle</Link>}
+          {o.status !== 'cancelled' && <Button variant="secondary" onClick={() => setPaying(true)}><Wallet aria-hidden className="h-4 w-4" /> Tahsilat ekle</Button>}
           {o.status === 'ready_to_invoice' && canMarkInvoice && <Button onClick={() => setInvoicing(true)}>Fatura kesildi olarak işaretle</Button>}
-          {o.status === 'draft' && <Link href={`/siparisler/${o.id}/duzenle`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 shadow-sm transition-colors hover:border-stone-400 hover:bg-stone-50">Düzenle</Link>}
           {o.status === 'draft' && <Button variant="danger" onClick={() => setCancelling(true)}>Siparişi iptal et</Button>}
         </div>
-      </div>
+      </header>
 
-      {o.status === 'cancelled' && <p className="rounded-lg bg-red-50 p-3 text-red-800">İptal edildi: {o.cancelReason}</p>}
-      {o.invoiceMark && <p className="rounded-lg bg-green-50 p-3 text-green-800">Fatura: {o.invoiceMark.no} · <DateText value={o.invoiceMark.date} /></p>}
+      {o.status === 'cancelled' && <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-800">İptal edildi: {o.cancelReason}</p>}
+      {o.invoiceMark && <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800">Fatura: {o.invoiceMark.no} · <DateText value={o.invoiceMark.date} /></p>}
 
-      <section aria-label="Ürünler" className="space-y-2">
-        <h2 className="text-[15px] font-semibold text-stone-900">Ürünler</h2>
-        <div className="overflow-x-auto rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)]">
-          <table className="w-full text-sm">
-            <thead className="border-b border-stone-200 bg-stone-50/80 text-left text-xs uppercase tracking-wide text-stone-500">
-              <tr><th className="px-4 py-3 font-semibold">#</th><th className="px-4 py-3 font-semibold">Ürün</th><th className="px-4 py-3 font-semibold text-right">Adet</th><th className="px-4 py-3 font-semibold text-right">Birim fiyat</th><th className="px-4 py-3 font-semibold text-right">KDV</th><th className="px-4 py-3 font-semibold text-right">Tutar</th><th className="px-4 py-3 font-semibold">Paket</th><th className="px-4 py-3 font-semibold">Durum</th></tr>
-            </thead>
-            <tbody className="divide-y divide-stone-100">
-              {o.lines.map((l) => (
-                <tr key={l.id} className={l.status === 'cancelled' ? 'text-stone-400 line-through' : ''}>
-                  <td className="px-4 py-3 tabular-nums">{l.lineNo}</td>
-                  <td className="px-4 py-3">
-                    {l.productText}
-                    {l.plateName && <span className="block text-xs text-stone-600">Klişe: {l.plateName}</span>}
-                    {Object.entries(l.departmentNotes).map(([k, v]) => <span key={k} className="mt-1 block rounded bg-amber-50 px-2 py-1 text-xs text-amber-900 no-underline">{k}: {v}</span>)}
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums">{l.quantity.toLocaleString('tr-TR')}{l.producedQty ? <span className="block text-xs text-stone-500">üretilen {l.producedQty.toLocaleString('tr-TR')} · sevk {l.shippedQty.toLocaleString('tr-TR')}</span> : null}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{Number(l.unitPrice).toLocaleString('tr-TR', { maximumFractionDigits: 4 })}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">%{Number(l.vatRate).toLocaleString('tr-TR')}</td>
-                  <td className="px-4 py-3"><Money value={moneyFromJSON(l.total)} /></td>
-                  <td className="px-4 py-3">{PACKAGING_LABELS[l.packaging.type as keyof typeof PACKAGING_LABELS]}{l.packaging.packages ? ` · ${l.packaging.packages} × ${l.packaging.capacity}` : ''}</td>
-                  <td className="px-4 py-3">{LINE_STATUS_LABELS[l.status]}{l.cancelReason ? `: ${l.cancelReason}` : ''}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {o.fxRate && <p className="text-sm text-stone-600">Kur: {o.fxRate} ({o.fxRateDate})</p>}
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Tile label="Toplam (KDV dahil)"><Money value={moneyFromJSON(o.total)} className="text-left text-xl font-semibold sm:text-2xl" /></Tile>
+        <Tile label="Tahsil edilen"><Money value={moneyFromJSON({ minor: String(paid), currency })} className="text-left text-xl font-semibold sm:text-2xl" /></Tile>
+        <Tile label="Kalan" highlight><Money value={moneyFromJSON(o.balance)} className="text-left text-xl font-semibold sm:text-2xl" /></Tile>
+        <Tile label="Adet"><span className="text-xl font-semibold tabular-nums sm:text-2xl">{o.quantity.toLocaleString('tr-TR')}</span>{o.producedQty > 0 && <span className="block text-xs text-stone-500">üretilen {o.producedQty.toLocaleString('tr-TR')} · sevk {o.shippedQty.toLocaleString('tr-TR')}</span>}</Tile>
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)] p-5"><p className="text-sm text-stone-500">Toplam (KDV dahil)</p><Money value={moneyFromJSON(o.total)} className="text-left text-2xl font-semibold" /></div>
-        <div className="rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)] p-5"><p className="text-sm text-stone-500">Kalan</p><Money value={moneyFromJSON(o.balance)} className="text-left text-2xl font-semibold" /></div>
-      </section>
+      <div className="grid gap-5 2xl:grid-cols-[1fr_380px]">
+        <Card label="Ürünler" title="Ürünler" description={o.fxRate ? `Kur: ${o.fxRate} (${o.fxRateDate})` : undefined} padded={false}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-stone-200 bg-stone-50/80 text-left text-xs uppercase tracking-wide text-stone-500">
+                <tr><th className="px-4 py-3 font-semibold">#</th><th className="px-4 py-3 font-semibold">Ürün</th><th className="px-4 py-3 text-right font-semibold">Adet</th><th className="px-4 py-3 text-right font-semibold">Birim fiyat</th><th className="px-4 py-3 text-right font-semibold">KDV</th><th className="px-4 py-3 text-right font-semibold">Tutar</th><th className="px-4 py-3 font-semibold">Paket</th><th className="px-4 py-3 font-semibold">Durum</th></tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {o.lines.map((l) => (
+                  <tr key={l.id} className={`align-top ${l.status === 'cancelled' ? 'text-stone-400 [&_td:not(:last-child)]:line-through' : ''}`}>
+                    <td className="px-4 py-3 tabular-nums text-stone-500">{l.lineNo}</td>
+                    <td className="max-w-sm px-4 py-3">
+                      <span className="font-medium text-stone-800">{l.productText}</span>
+                      {l.plateName && <span className="mt-1 block text-xs text-stone-600">Klişe: {l.plateName}</span>}
+                      {Object.entries(l.departmentNotes).map(([k, v]) => <span key={k} className="mt-1.5 block rounded-lg bg-amber-50 px-2 py-1 text-xs text-amber-900 no-underline">{stageLabels[k] ?? k}: {v}</span>)}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums">{l.quantity.toLocaleString('tr-TR')}{l.producedQty ? <span className="block text-xs text-stone-500">üretilen {l.producedQty.toLocaleString('tr-TR')} · sevk {l.shippedQty.toLocaleString('tr-TR')}</span> : null}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">{Number(l.unitPrice).toLocaleString('tr-TR', { maximumFractionDigits: 4 })}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">%{Number(l.vatRate).toLocaleString('tr-TR')}</td>
+                    <td className="px-4 py-3"><Money value={moneyFromJSON(l.total)} /></td>
+                    <td className="px-4 py-3 text-stone-600">{PACKAGING_LABELS[l.packaging.type as keyof typeof PACKAGING_LABELS]}{l.packaging.packages ? ` · ${l.packaging.packages} × ${l.packaging.capacity}` : ''}</td>
+                    <td className="px-4 py-3"><Badge tone={LINE_STATUS_TONES[l.status]}>{LINE_STATUS_LABELS[l.status]}</Badge>{l.cancelReason && <span className="mt-1 block text-xs text-stone-500">{l.cancelReason}</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
 
-      <section className="space-y-2">
-        <h2 className="text-[15px] font-semibold text-stone-900">Tahsilatlar</h2>
-        <div className="overflow-x-auto rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)]">
-          <table className="w-full text-sm">
-            <thead className="border-b border-stone-200 bg-stone-50/80 text-left text-xs uppercase tracking-wide text-stone-500"><tr><th className="px-4 py-3 font-semibold">Tarih</th><th className="px-4 py-3 font-semibold">Tür</th><th className="px-4 py-3 font-semibold">Not</th><th className="px-4 py-3 font-semibold text-right">Tutar</th><th /></tr></thead>
-            <tbody className="divide-y divide-stone-100">
+        <Card title="Tahsilatlar" padded={false} actions={o.status !== 'cancelled' ? <Button variant="ghost" className="min-h-9" onClick={() => setPaying(true)}>Ekle</Button> : undefined}>
+          {o.payments.length ? (
+            <ul className="divide-y divide-stone-100">
               {o.payments.map((p) => (
-                <tr key={p.id}>
-                  <td className="px-4 py-3"><DateText value={p.paidAt} /></td>
-                  <td className="px-4 py-3">{KIND[p.kind] ?? p.kind}</td>
-                  <td className="px-4 py-3 text-stone-600">{p.note}</td>
-                  <td className="px-4 py-3"><Money value={moneyFromJSON(p.amount)} /></td>
-                  <td className="px-4 py-3 text-right">{p.kind !== 'correction' && o.status !== 'cancelled' && <Button variant="ghost" onClick={() => setCorrecting(p)}>Düzelt</Button>}</td>
-                </tr>
+                <li key={p.id} className="flex items-center gap-3 px-5 py-3 text-sm">
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-2 font-medium text-stone-800">{KIND[p.kind] ?? p.kind} <span className="text-xs font-normal text-stone-500"><DateText value={p.paidAt} /></span></span>
+                    {p.note && <span className="block truncate text-xs text-stone-500">{p.note}</span>}
+                  </span>
+                  <Money value={moneyFromJSON(p.amount)} className="font-semibold" />
+                  {p.kind !== 'correction' && o.status !== 'cancelled' && <Button variant="ghost" className="min-h-9 px-2" onClick={() => setCorrecting(p)}>Düzelt</Button>}
+                </li>
               ))}
-              {!o.payments.length && <tr><td colSpan={5} className="px-3 py-4 text-center text-stone-500">Henüz tahsilat yok.</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      </section>
+            </ul>
+          ) : (
+            <p className="px-5 py-6 text-center text-sm text-stone-500">Henüz tahsilat yok.</p>
+          )}
+        </Card>
+      </div>
 
       {paying && <PaymentModal orderId={o.id} currency={currency} onClose={() => setPaying(false)} onDone={() => { setPaying(false); done(); }} />}
       {correcting && <CorrectionModal payment={correcting} currency={currency} onClose={() => setCorrecting(null)} onDone={() => { setCorrecting(null); done(); }} />}
@@ -186,5 +195,14 @@ function InvoiceModal({ order, onClose, onDone }: { order: Order; onClose: () =>
         <Button disabled={mark.pending}>Kaydet</Button>
       </form>
     </Modal>
+  );
+}
+
+function Tile({ label, children, highlight = false }: { label: string; children: React.ReactNode; highlight?: boolean }) {
+  return (
+    <div className={`rounded-2xl border p-4 shadow-[var(--shadow-card)] ${highlight ? 'border-[color-mix(in_srgb,var(--brand)_30%,white)] bg-[var(--brand-softer)]' : 'border-stone-200/80 bg-white'}`}>
+      <p className="mb-1 text-xs font-medium uppercase tracking-wide text-stone-500">{label}</p>
+      {children}
+    </div>
   );
 }

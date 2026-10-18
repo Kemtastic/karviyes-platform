@@ -13,7 +13,8 @@ import { trErrorMap } from '@/core/zod-tr';
 
 export const WRITE_LIMIT_PER_MINUTE = 120;
 
-export type ActionRuntime = { user: CurrentUser | null; db: Db; cfg: InstallConfig };
+// batch: sunucu içi toplu iş (örnek veri komutu) hız sınırına takılmaz; isteklerin varsayılan ortamında hiç kurulmaz.
+export type ActionRuntime = { user: CurrentUser | null; db: Db; cfg: InstallConfig; batch?: boolean };
 
 export type AuditRecord = { entity: string; entityId: string; before?: unknown; after?: unknown };
 
@@ -98,7 +99,7 @@ export function defineAction<I, O>(spec: ActionSpec<I, O>): Action<O> {
       if (mustEnrollTwoFactor(user, rt.cfg)) throw new AppError('FORBIDDEN', 'Önce iki adımlı doğrulamayı kurmanız gerekiyor.');
       if (spec.module) requireModule(spec.module, rt.cfg);
       assertRoles(user.roles, spec.roles);
-      if (spec.rateLimit !== false) await checkRateLimit(rt.db, user.userId);
+      if (spec.rateLimit !== false && !rt.batch) await checkRateLimit(rt.db, user.userId);
       const input = spec.input.parse(raw, { errorMap: trErrorMap });
       const data = await withCompany(
         user.companyId,
