@@ -64,10 +64,20 @@ test('sipariş → üretim → kesim (telefon) → kesim bitiş → kontrol → 
   await page.getByLabel('Gramaj (gr/m²)').fill('70');
   await page.getByLabel('Bobin sayısı').fill('1');
   await page.getByLabel('Baskısız').check();
-  await page.getByLabel('Birim fiyat').fill('5');
+  await page.getByLabel('Birim fiyat').fill('4');
   await expect(page.getByText('Hedef: 2.222 adet')).toBeVisible();
   await page.getByRole('button', { name: 'Siparişi kaydet' }).click();
   await page.waitForURL(/\/siparisler\/[0-9a-f-]{36}$/);
+  await expect(page.getByText('9.776,80 ₺').first()).toBeVisible();
+
+  // Taslak sipariş düzenlenir: fiyat 4 → 5
+  const orderUrl = page.url();
+  await page.getByRole('link', { name: 'Düzenle' }).click();
+  await expect(page.getByLabel('Birim fiyat')).toHaveValue('4');
+  await expect(page.getByLabel('En (cm)')).toHaveValue('45');
+  await page.getByLabel('Birim fiyat').fill('5');
+  await page.getByRole('button', { name: 'Değişiklikleri kaydet' }).click();
+  await page.waitForURL(orderUrl);
   await expect(page.getByText('12.221,00 ₺').first()).toBeVisible(); // toplam ve kalan (peşinat yok)
 
   // Kumaş stoğu

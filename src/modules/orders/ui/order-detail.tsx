@@ -50,6 +50,7 @@ export function OrderDetail({ order: o, canMarkInvoice }: { order: Order; canMar
           <a href={`/api/pdf/siparis/${o.id}`} className="inline-flex min-h-11 items-center rounded-lg border border-stone-300 bg-white px-4 text-sm font-semibold">Sipariş PDF</a>
           {o.status !== 'cancelled' && <Button variant="secondary" onClick={() => setPaying(true)}>Tahsilat ekle</Button>}
           {o.status === 'ready_to_invoice' && canMarkInvoice && <Button onClick={() => setInvoicing(true)}>Fatura kesildi olarak işaretle</Button>}
+          {o.status === 'draft' && <a href={`/siparisler/${o.id}/duzenle`} className="inline-flex min-h-11 items-center rounded-lg border border-stone-300 bg-white px-4 text-sm font-semibold">Düzenle</a>}
           {o.status === 'draft' && <Button variant="danger" onClick={() => setCancelling(true)}>Siparişi iptal et</Button>}
         </div>
       </div>
