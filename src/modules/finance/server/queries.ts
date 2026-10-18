@@ -6,6 +6,7 @@ import { parties } from '@/core/db/schema';
 import { CURRENCIES, type Currency } from '@/core/money';
 import { finAccounts, finChecks, finInvoices, finMovements, finOpenings } from '../db/schema';
 import { aging, openItems, statement, type Aging, type LedgerEntry, type OpenItem } from '../domain/ledger';
+import { openOrdersOf } from '@/modules/orders/server/api';
 import { FIN } from './actions';
 
 const s = (v: bigint) => v.toString();
@@ -303,4 +304,14 @@ export const accountOptions = defineAction({
   rateLimit: false,
   input: z.object({}),
   run: async (ctx) => ctx.tx.select({ id: finAccounts.id, name: finAccounts.name, kind: finAccounts.kind, currency: finAccounts.currency }).from(finAccounts).where(eq(finAccounts.archived, false)).orderBy(asc(finAccounts.name)),
+});
+
+/** Tahsilat penceresi için carinin bakiyesi kalan siparişleri (sipariş modülü açıksa). */
+export const partyOpenOrders = defineAction({
+  name: 'finance.partyOpenOrders',
+  module: 'finance',
+  roles: FIN,
+  rateLimit: false,
+  input: z.object({ partyId: z.string().uuid() }),
+  run: async (ctx, i) => (ctx.cfg.modules.includes('orders') ? openOrdersOf(ctx, i.partyId) : []),
 });

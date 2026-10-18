@@ -6,7 +6,9 @@ import { istanbulToday } from '@/core/dates';
 import { parties } from '@/core/db/schema';
 import { AppError } from '@/core/errors';
 import { CURRENCIES, parseMoney, type Currency } from '@/core/money';
+import { requireModule } from '@/core/modules/registry';
 import type { Role } from '@/core/modules/types';
+import { recordOrderPayment, reverseOrderPayment } from '@/modules/orders/server/api';
 import { finAccounts, finChecks, finInvoices, finMovements, finOpenings } from '../db/schema';
 import { invoiceTotals } from '../domain/ledger';
 
@@ -165,7 +167,7 @@ export const recordPayment = defineAction({
   name: 'finance.recordPayment',
   module: 'finance',
   roles: FIN,
-  input: z.object({ kind: z.enum(['collection', 'payment']), partyId: z.string().uuid('Cari seçin.'), accountId: z.string().uuid('Hesap seçin.'), amount: z.string().trim().min(1, 'Tutarı yazın.').max(30), date: isoDate, note }),
+  input: z.object({ kind: z.enum(['collection', 'payment']), partyId: z.string().uuid('Cari seçin.'), accountId: z.string().uuid('Hesap seçin.'), amount: z.string().trim().min(1, 'Tutarı yazın.').max(30), date: isoDate, note, orderId: z.string().uuid().nullable().default(null) }),
   run: async (ctx, i) => {
     await party(ctx, i.partyId);
     const a = await account(ctx, i.accountId);
@@ -175,8 +177,17 @@ export const recordPayment = defineAction({
       .insert(finMovements)
       .values({ companyId: ctx.companyId, kind: i.kind, direction: i.kind === 'collection' ? 'in' : 'out', partyId: i.partyId, accountId: a.id, amountMinor: amount, currency: a.currency, date: i.date, note: i.note, createdBy: ctx.user.userId })
       .returning({ id: finMovements.id });
-    await ctx.audit({ entity: 'fin_movement', entityId: row!.id, after: { kind: i.kind, partyId: i.partyId, accountId: a.id, amount: amount.toString(), currency: a.currency } });
-    return { id: row!.id };
+    // Tahsilat bir siparişe aitse sipariş bakiyesine de işlenir (aynı işlem içinde; biri olmazsa ikisi de olmaz).
+    let order: string | null = null;
+    if (i.orderId) {
+      if (i.kind !== 'collection') throw new AppError('VALIDATION', 'Yalnızca tahsilat siparişe bağlanır.', { orderId: 'Tahsilatta kullanılır.' });
+      requireModule('orders', ctx.cfg);
+      const op = await recordOrderPayment(ctx, { orderId: i.orderId, partyId: i.partyId, amountMinor: amount, currency: a.currency, paidAt: i.date, note: i.note || 'Ön muhasebe tahsilatı' });
+      await ctx.tx.update(finMovements).set({ orderPaymentId: op.id }).where(eq(finMovements.id, row!.id));
+      order = op.no;
+    }
+    await ctx.audit({ entity: 'fin_movement', entityId: row!.id, after: { kind: i.kind, partyId: i.partyId, accountId: a.id, amount: amount.toString(), currency: a.currency, order } });
+    return { id: row!.id, order };
   },
 });
 
@@ -248,6 +259,7 @@ export const reverseMovement = defineAction({
     if (m.checkId) throw new AppError('INVALID_STATE', 'Çek hareketleri Çekler ekranından iade veya iptal edilir.');
     const where = m.transferGroup ? eq(finMovements.transferGroup, m.transferGroup) : eq(finMovements.id, m.id);
     await ctx.tx.update(finMovements).set({ reversedAt: new Date(), reverseReason: i.reason }).where(and(where, isNull(finMovements.reversedAt)));
+    if (m.orderPaymentId) await reverseOrderPayment(ctx, m.orderPaymentId, i.reason);
     await ctx.audit({ entity: 'fin_movement', entityId: m.id, after: { reversed: true, reason: i.reason, transferGroup: m.transferGroup } });
     return { id: m.id };
   },

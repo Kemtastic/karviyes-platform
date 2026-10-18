@@ -70,6 +70,8 @@ export const finMovements = pgTable(
     note: text('note').notNull().default(''),
     checkId: uuid('check_id'),
     transferGroup: uuid('transfer_group'),
+    /** Sipariş modülüne de işlenen tahsilatın sipariş ödeme kaydı. */
+    orderPaymentId: uuid('order_payment_id'),
     reversedAt: timestamp('reversed_at', { withTimezone: true }),
     reverseReason: text('reverse_reason'),
     createdBy: text('created_by').notNull(),

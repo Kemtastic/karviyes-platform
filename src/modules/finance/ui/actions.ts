@@ -28,3 +28,7 @@ export async function createReconciliationAction(input: unknown) { return rec.cr
 export async function issueReconciliationLinkAction(input: unknown) { return rec.issueReconciliationLink(input); }
 export async function cancelReconciliationAction(input: unknown) { return rec.cancelReconciliation(input); }
 export async function recordReconciliationAnswerAction(input: unknown) { return rec.recordReconciliationAnswer(input); }
+export async function partyOpenOrdersAction(input: { partyId: string }) {
+  const r = await (await import('@/modules/finance/server/queries')).partyOpenOrders(input);
+  return r.ok ? r.data : [];
+}

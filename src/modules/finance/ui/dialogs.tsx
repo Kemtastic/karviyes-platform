@@ -1,13 +1,13 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { istanbulToday } from '@/core/dates';
-import { CURRENCIES } from '@/core/money';
+import { CURRENCIES, formatMoney, moneyFromJSON, type Currency } from '@/core/money';
 import { Button } from '@/ui/button';
 import { FormField, fieldClass } from '@/ui/form-field';
 import { Modal } from '@/ui/modal';
 import { useAction } from '@/ui/use-action';
 import {
-  createAccountAction, endorseCheckAction, findPartiesAction, issueCheckAction, receiveCheckAction, recordExpenseAction, recordInvoiceAction,
+  createAccountAction, endorseCheckAction, findPartiesAction, partyOpenOrdersAction, issueCheckAction, receiveCheckAction, recordExpenseAction, recordInvoiceAction,
   recordPaymentAction, setOpeningAction, settleCheckAction, transferAction,
 } from './actions';
 
@@ -150,13 +150,24 @@ export function InvoiceDialog({ kind, party: fixed, onClose, onDone }: Done & { 
   );
 }
 
+type OpenOrder = { id: string; no: string; orderDate: string; balance: { minor: string; currency: string } };
+
 export function PaymentDialog({ kind, accounts, party: fixed, onClose, onDone }: Done & { kind: 'collection' | 'payment'; accounts: AccountOption[]; party?: PartyRef }) {
   const save = useAction(recordPaymentAction);
-  const [party, setParty] = useState<PartyRef | null>(fixed ?? null);
+  const [party, setPartyState] = useState<PartyRef | null>(fixed ?? null);
+  const [orders, setOrders] = useState<OpenOrder[]>([]);
   const f = save.fieldErrors;
+  const loadOrders = (p: PartyRef | null) => {
+    setOrders([]);
+    if (p && kind === 'collection') void partyOpenOrdersAction({ partyId: p.id }).then(setOrders);
+  };
+  const setParty = (p: PartyRef | null) => { setPartyState(p); loadOrders(p); };
+  useEffect(() => {
+    if (fixed && kind === 'collection') void partyOpenOrdersAction({ partyId: fixed.id }).then(setOrders);
+  }, [fixed, kind]);
   return (
     <Modal open title={kind === 'collection' ? 'Tahsilat al' : 'Ödeme yap'} onClose={onClose}>
-      <form className="space-y-4" onSubmit={(e) => save.run({ ...formData(e), kind, partyId: party?.id ?? '' }, onDone)}>
+      <form className="space-y-4" onSubmit={(e) => { const d = formData(e); save.run({ ...d, kind, partyId: party?.id ?? '', orderId: d.orderId || null }, onDone); }}>
         {!fixed && <PartyPicker value={party} onChange={setParty} kind={kind === 'collection' ? 'customer' : undefined} error={f.partyId} />}
         <AccountSelect accounts={accounts} error={f.accountId} label={kind === 'collection' ? 'Giren hesap' : 'Çıkan hesap'} />
         <div className="grid gap-4 sm:grid-cols-2">
@@ -164,6 +175,14 @@ export function PaymentDialog({ kind, accounts, party: fixed, onClose, onDone }:
           <FormField label="Tarih" required error={f.date}><input type="date" name="date" defaultValue={today()} max={today()} className={fieldClass} /></FormField>
         </div>
         <FormField label="Açıklama" error={f.note}><input name="note" className={fieldClass} placeholder={kind === 'collection' ? 'örn. Havale, S-2026-000004' : 'örn. Kumaş ödemesi'} /></FormField>
+        {orders.length > 0 && (
+          <FormField label="Siparişe de işle" error={f.orderId} hint="Seçilirse tahsilat sipariş bakiyesinden de düşer; iki ekrana ayrı ayrı girmeyin.">
+            <select name="orderId" className={fieldClass} defaultValue="">
+              <option value="">Siparişe bağlama</option>
+              {orders.map((o) => <option key={o.id} value={o.id}>{o.no} · kalan {formatMoney(moneyFromJSON(o.balance as { minor: string; currency: Currency }))}</option>)}
+            </select>
+          </FormField>
+        )}
         <Footer onClose={onClose} pending={save.pending} label={kind === 'collection' ? 'Tahsilatı kaydet' : 'Ödemeyi kaydet'} error={save.error} />
       </form>
     </Modal>
