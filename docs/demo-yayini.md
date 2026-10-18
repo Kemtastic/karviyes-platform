@@ -31,7 +31,7 @@ npx tsx --env-file=.env.kurulum scripts/ornek-veri.ts     # hayali demo verisi +
 
 ## 3. Vercel
 
-1. Depoyu Vercel'e bağlayın (Framework: Next.js).
+1. Depoyu Vercel'e bağlayın (Framework: Next.js; Node.js 22). Ortam değişkenlerini **ilk deploy'dan önce** girin; yoksa derleme geçer ama uygulama açılışta veritabanı bulamaz.
 2. Ortam değişkenleri (Production):
 
 | Değişken | Değer |
@@ -40,11 +40,13 @@ npx tsx --env-file=.env.kurulum scripts/ornek-veri.ts     # hayali demo verisi +
 | `DB_APP_ROLE` | `app_user` |
 | `BETTER_AUTH_SECRET` | kurulumdakiyle aynı |
 | `BETTER_AUTH_URL` | `https://<demo-adresi>.vercel.app` |
-| `INSTALL_CONFIG_JSON` | `kurulum.config.json` içeriği (tek satır JSON) |
+| `INSTALL_CONFIG_JSON` | `kurulum.config.json` içeriği, tek satır: `{"company":{"name":"Karviyes Ambalaj","slug":"karviyes","brandColor":"#c2410c"},"modules":["orders","production","sales"],"sector":"bags","security":{"twoFactorRequiredRoles":["admin","tracking"]}}` |
 | `STORAGE_DRIVER` | `s3` |
 | `S3_ENDPOINT` | `https://<ref>.supabase.co/storage/v1/s3` |
 | `S3_BUCKET` | `uretim-dosyalar` |
 | `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | Supabase S3 anahtarı |
+| `S3_REGION` | Supabase projesinin bölgesi (Storage → S3 sayfasında yazar, örn. `eu-central-1`) |
+| `ENABLE_EXPERIMENTAL_COREPACK` | `1` (Vercel'in `package.json`'daki pnpm 11 sürümünü kullanması için) |
 | `SMTP_URL`, `SMTP_FROM` | davet/parola sıfırlama e-postası için (yoksa üretimde e-posta hatası verir) |
 
 3. Deploy. Kontrol: `https://<demo-adresi>.vercel.app/api/saglik` → `{"ok":true,"db":true}`.
