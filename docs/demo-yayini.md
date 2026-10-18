@@ -49,7 +49,7 @@ npx tsx --env-file=.env.kurulum scripts/ornek-veri.ts     # hayali demo verisi +
 | `ENABLE_EXPERIMENTAL_COREPACK` | `1` (Vercel'in `package.json`'daki pnpm 11 sürümünü kullanması için) |
 | `SMTP_URL`, `SMTP_FROM` | davet/parola sıfırlama e-postası için (yoksa üretimde e-posta hatası verir) |
 
-3. Deploy. Kontrol: `https://<demo-adresi>.vercel.app/api/saglik` → `{"ok":true,"db":true,"config":true}`.
+3. Deploy. Vercel derlemesi önce `vercel-build` betiğiyle **göçleri uygular** (`scripts/derleme-goc.ts`); göç başarısız olursa derleme durur ve önceki sürüm yayında kalır. Derleme günlüğünde `[göç] Göçler uygulandı` satırını görürsünüz. Kontrol: `https://<demo-adresi>.vercel.app/api/saglik` → `{"ok":true,"db":true,"config":true}`.
 4. Demo adresini herkese açık paylaşmayın; giriş zaten zorunlu, yönetici 2FA zorunlu.
 
 ## Yedek
