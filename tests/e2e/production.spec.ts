@@ -252,3 +252,26 @@ test('carileri CSV dosyasından içe aktarma', async ({ page }) => {
   await dialog.getByRole('button', { name: 'Tamam' }).click();
   await expect(page.getByRole('cell', { name: 'İçe Aktarılan Ltd.' })).toBeVisible();
 });
+
+test('klişe/poze sipariş satırına bağlanır', async ({ page }) => {
+  await login(page);
+  await page.goto('/uretim/klise');
+  await page.getByRole('button', { name: 'Klişe ekle' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Müşteri').fill('E2E');
+  await dialog.getByRole('button', { name: 'E2E Gıda Ltd. Şti.' }).click();
+  await dialog.getByLabel('Klişe adı').fill('E2E Logo');
+  await dialog.getByRole('button', { name: 'Kaydet' }).click();
+  await expect(dialog).toBeHidden();
+
+  await page.goto('/siparisler/yeni');
+  await page.getByRole('combobox', { name: 'Müşteri' }).fill('E2E');
+  await page.getByRole('option').getByText('E2E Gıda Ltd. Şti.').click();
+  await page.getByRole('button', { name: 'Son siparişten ürünleri getir' }).click();
+  await expect(page.getByRole('status')).toContainText('ürünleri getirildi');
+  await page.getByLabel('Satış yapan').selectOption({ label: 'Ayşe Satış' });
+  await page.getByRole('region', { name: 'Ürün 1' }).getByLabel('Klişe / poze').selectOption({ label: 'E2E Logo' });
+  await page.getByRole('button', { name: 'Siparişi kaydet' }).click();
+  await page.waitForURL(/\/siparisler\/[0-9a-f-]{36}$/);
+  await expect(page.getByText('Klişe: E2E Logo')).toBeVisible();
+});

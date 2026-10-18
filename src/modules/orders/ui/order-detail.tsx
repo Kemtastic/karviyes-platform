@@ -23,7 +23,7 @@ type Order = {
   quantity: number; currency: string; fxRate: string | null; fxRateDate: string | null; total: MoneyJson; balance: MoneyJson;
   lines: {
     id: string; lineNo: number; status: keyof typeof LINE_STATUS_LABELS; productText: string; quantity: number; unitPrice: string; vatRate: string; total: MoneyJson;
-    packaging: { type: string; capacity: number; packages: number }; departmentNotes: Record<string, string>; producedQty: number; shippedQty: number; cancelReason: string | null;
+    packaging: { type: string; capacity: number; packages: number }; departmentNotes: Record<string, string>; producedQty: number; shippedQty: number; cancelReason: string | null; plateName: string | null;
   }[];
   invoiceMark: { no: string; date: string } | null; producedQty: number; shippedQty: number; cancelReason: string | null;
   payments: { id: string; kind: string; amount: MoneyJson; paidAt: string; note: string; correctsPaymentId: string | null }[];
@@ -75,6 +75,7 @@ export function OrderDetail({ order: o, canMarkInvoice }: { order: Order; canMar
                   <td className="px-3 py-2 tabular-nums">{l.lineNo}</td>
                   <td className="px-3 py-2">
                     {l.productText}
+                    {l.plateName && <span className="block text-xs text-stone-600">Klişe: {l.plateName}</span>}
                     {Object.entries(l.departmentNotes).map(([k, v]) => <span key={k} className="mt-1 block rounded bg-amber-50 px-2 py-1 text-xs text-amber-900 no-underline">{k}: {v}</span>)}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">{l.quantity.toLocaleString('tr-TR')}{l.producedQty ? <span className="block text-xs text-stone-500">üretilen {l.producedQty.toLocaleString('tr-TR')} · sevk {l.shippedQty.toLocaleString('tr-TR')}</span> : null}</td>

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { toFailure, type ActionResult } from '@/core/action';
 import { getCurrentUser } from '@/core/auth/session';
 import { cachedTcmbRate } from '@/core/fx/tcmb';
+import { listPlates } from '@/modules/production/server/plates';
 import { searchParties } from '@/core/parties/service';
 import { lastOrderLines } from '@/modules/orders/server/queries';
 import { addPayment, cancelOrder, correctPayment, createOrder, markInvoiced, updateOrder } from '@/modules/orders/server/actions';
@@ -44,4 +45,10 @@ export async function tcmbRateAction(input: { currency: string; date: string }):
   } catch (e) {
     return toFailure(e, 'orders.tcmbRate');
   }
+}
+
+// Satırda seçilecek klişe/poze listesi; üretim modülü kapalıysa boş.
+export async function customerPlatesAction(input: { partyId: string }) {
+  const r = await listPlates({ partyId: input.partyId });
+  return r.ok ? r.data.map((p) => ({ id: p.id, name: p.name, colours: p.colours })) : [];
 }

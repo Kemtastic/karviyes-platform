@@ -7,6 +7,7 @@ import { addPayment, createOrder, updateOrder } from '@/modules/orders/server/ac
 import { exportOrders, orderForOffice } from '@/modules/orders/server/queries';
 import { addFabricRolls, approveReview, cancelJob, finishStage, reserveFabric, sendToStage, startProduction, startStage } from '@/modules/production/server/actions';
 import { jobDetail } from '@/modules/production/server/queries';
+import { createPlate } from '@/modules/production/server/plates';
 
 let t: TestDb;
 let partyId: string;
@@ -137,5 +138,29 @@ describe('inceleme düzeltmeleri (çok satır)', () => {
     if (!ex.ok) throw new Error(ex.message);
     const mine = ex.data.rows.filter((row) => row[0] === r.data.no).map((row) => Object.fromEntries(ex.data.headers.map((h, i) => [h, row[i]])));
     expect(mine.map((m) => [m.Satır, m['Satır durumu'], m.Toplam])).toEqual([[1, 'Üretimde', '11000,00'], [2, 'İptal', '0,00']]);
+  });
+});
+
+describe('satırda klişe/poze', () => {
+  it('satır müşterinin klişesine bağlanır; iş ekranı klişeyi gösterir; başka müşterinin klişesi reddedilir', async () => {
+    const admin = runtime(t, testUser(t.companyA, ['admin']));
+    const own = await createPlate({ partyId, name: 'Logo ön yüz', colours: 'siyah', notes: '' }, admin);
+    const otherParty = await createParty({ kind: 'customer', name: 'Başka Müşteri', legalType: 'company' }, admin);
+    if (!own.ok || !otherParty.ok) throw new Error('kurulum');
+    const foreign = await createPlate({ partyId: otherParty.data.id, name: 'Başkasının logosu', colours: '', notes: '' }, admin);
+    if (!foreign.ok) throw new Error('kurulum');
+
+    const bad = await createOrder({ ...header(), lines: [{ ...twoLines()[0]!, plateId: foreign.data.id }] }, sales());
+    expect(bad).toMatchObject({ ok: false, code: 'VALIDATION' });
+    if (!bad.ok) expect(Object.keys(bad.fieldErrors ?? {})).toContain('lines.0.plateId');
+
+    const r = await createOrder({ ...header(), lines: [{ ...twoLines()[0]!, plateId: own.data.id }, twoLines()[1]!] }, sales());
+    if (!r.ok) throw new Error(JSON.stringify(r));
+    const o = await orderForOffice({ id: r.data.id }, sales());
+    expect(o.ok && o.data.lines.map((l) => [l.plateId, l.plateName])).toEqual([[own.data.id, 'Logo ön yüz'], [null, null]]);
+    const started = await startProduction({ orderId: r.data.id }, tracking());
+    if (!started.ok) throw new Error(started.message);
+    const d = await jobDetail({ id: started.data.ids[0]! }, tracking());
+    expect(d.ok && d.data.plate).toMatchObject({ name: 'Logo ön yüz', colours: 'siyah' });
   });
 });

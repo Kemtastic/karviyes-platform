@@ -55,6 +55,8 @@ export const orderLines = pgTable(
     totalMinor: bigint('total_minor', { mode: 'bigint' }).notNull(),
     packaging: jsonb('packaging').notNull().$type<{ type: string; capacity: number; packages: number }>(),
     departmentNotes: jsonb('department_notes').notNull().$type<Record<string, string>>().default({}),
+    /** Baskıda kullanılacak klişe/poze (üretim modülünün plates kaydı). */
+    plateId: uuid('plate_id'),
     status: text('status', { enum: LINE_STATUSES }).notNull().default('open'),
     producedQty: integer('produced_qty').notNull().default(0),
     shippedQty: integer('shipped_qty').notNull().default(0),

@@ -9,13 +9,13 @@ import { Button } from '@/ui/button';
 import { FormField, fieldClass } from '@/ui/form-field';
 import { MoneyInput } from '@/ui/money-input';
 import { useAction } from '@/ui/use-action';
-import { createOrderAction, lastOrderLinesAction, searchCustomersAction, tcmbRateAction, updateOrderAction } from './actions';
+import { createOrderAction, customerPlatesAction, lastOrderLinesAction, searchCustomersAction, tcmbRateAction, updateOrderAction } from './actions';
 import { computeOrderTotal, parseRate, parseUnitPrice } from '../domain/totals';
 import { PACKAGING_LABELS } from '../domain/packaging';
 
 const MAX_LINES = 20;
 
-type InitialLine = { product: Record<string, unknown>; quantity: number; unitPrice: string; vatRate: string; packaging: { type: string; capacity: number }; departmentNotes: Record<string, string> };
+type InitialLine = { product: Record<string, unknown>; quantity: number; unitPrice: string; vatRate: string; packaging: { type: string; capacity: number }; departmentNotes: Record<string, string>; plateId?: string | null };
 
 // Taslak sipariş düzenlenirken formun başlangıç değerleri (kayıtlı hâliyle).
 export type OrderInitial = {
@@ -30,7 +30,7 @@ export type OrderInitial = {
   lines: InitialLine[];
 };
 
-type Props = { sector: string; salesStaff: { id: string; name: string }[]; initial?: OrderInitial };
+type Props = { sector: string; salesStaff: { id: string; name: string }[]; initial?: OrderInitial; initialPlates?: PlateOption[] };
 
 type LineState = {
   key: number;
@@ -41,7 +41,10 @@ type LineState = {
   packagingType: string;
   packagingCapacity: string;
   notes: Record<string, string>;
+  plateId: string;
 };
+
+type PlateOption = { id: string; name: string; colours: string };
 
 // "8.7500" → "8,75"
 const decimalText = (v: string | null) => (v ? v.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '').replace('.', ',') : '');
@@ -59,7 +62,7 @@ function emptyLine(): LineState {
   return {
     key: nextKey++,
     product: { shape: 'Körüksüz', handle: 'El Geçme', biyeType: 'Biyeli', gusset: '0', biye: '5', colour: 'Beyaz' },
-    qtyOverride: '', unitPrice: '', vatRate: '10', packagingType: 'sack', packagingCapacity: '2000', notes: {},
+    qtyOverride: '', unitPrice: '', vatRate: '10', packagingType: 'sack', packagingCapacity: '2000', notes: {}, plateId: '',
   };
 }
 
@@ -74,6 +77,7 @@ function lineFromInitial(l: InitialLine, sector: SectorPackage): LineState {
     packagingType: l.packaging.type,
     packagingCapacity: String(l.packaging.capacity),
     notes: l.departmentNotes,
+    plateId: l.plateId ?? '',
   };
 }
 
@@ -90,7 +94,7 @@ function linePreview(sector: SectorPackage, l: LineState, currency: Currency) {
   return { calc, target, totalMinor };
 }
 
-export function OrderForm({ sector: sectorId, salesStaff, initial }: Props) {
+export function OrderForm({ sector: sectorId, salesStaff, initial, initialPlates }: Props) {
   const router = useRouter();
   const sector = getSector(sectorId);
   const [party, setParty] = useState<{ id: string; name: string } | null>(initial?.party ?? null);
@@ -111,6 +115,15 @@ export function OrderForm({ sector: sectorId, salesStaff, initial }: Props) {
   const update = useAction(updateOrderAction);
   const action = initial ? update : create;
   const fe = action.fieldErrors;
+
+  // Müşteri seçilince klişeleri yüklenir; müşteri değişirse başka müşterinin klişesi satırlardan düşer.
+  const [plates, setPlates] = useState<PlateOption[]>(initialPlates ?? []);
+  function choose(p: { id: string; name: string } | null) {
+    setParty(p);
+    setPlates([]);
+    setLines((ls) => ls.map((l) => ({ ...l, plateId: '' })));
+    if (p) void customerPlatesAction({ partyId: p.id }).then(setPlates);
+  }
 
   const previews = useMemo(() => lines.map((l) => linePreview(sector, l, currency)), [lines, currency, sector]);
   const grandTotal = previews.every((p) => p.totalMinor !== null) ? formatMoney(money(previews.reduce((s, p) => s + (p.totalMinor ?? 0n), 0n), currency)) : '';
@@ -146,6 +159,7 @@ export function OrderForm({ sector: sectorId, salesStaff, initial }: Props) {
         vatRate: l.vatRate,
         packaging: { type: l.packagingType, capacity: Number(l.packagingCapacity || 0) },
         departmentNotes: l.notes,
+        plateId: l.plateId || null,
       })),
     };
     const done = (d: { id: string }) => router.push(`/siparisler/${d.id}`);
@@ -158,7 +172,7 @@ export function OrderForm({ sector: sectorId, salesStaff, initial }: Props) {
       <section className="space-y-4 rounded-xl border border-stone-200 bg-white p-4 sm:p-6">
         <h2 className="font-semibold">Müşteri</h2>
         <div className="grid gap-4 sm:grid-cols-3">
-          <div className="sm:col-span-2"><CustomerPicker value={party} onChange={setParty} error={fe.partyId} /></div>
+          <div className="sm:col-span-2"><CustomerPicker value={party} onChange={choose} error={fe.partyId} /></div>
           <FormField label="Sipariş tarihi" required error={fe.orderDate}><input type="date" name="orderDate" defaultValue={initial?.orderDate ?? istanbulToday()} className={fieldClass} /></FormField>
           <FormField label="Satış yapan" required error={fe.salespersonStaffId}>
             <select name="salespersonStaffId" className={fieldClass} defaultValue={initial?.salespersonStaffId ?? ''}>
@@ -201,6 +215,7 @@ export function OrderForm({ sector: sectorId, salesStaff, initial }: Props) {
           currency={currency}
           sector={sector}
           errors={fe}
+          plates={plates}
           onChange={(patch) => patchLine(l.key, patch)}
           onRemove={() => {
             action.clearErrors();
@@ -236,11 +251,12 @@ type LineEditorProps = {
   currency: Currency;
   sector: SectorPackage;
   errors: Record<string, string | undefined>;
+  plates: PlateOption[];
   onChange: (patch: Partial<LineState>) => void;
   onRemove: () => void;
 };
 
-function LineEditor({ index, count, line: l, preview, currency, sector, errors, onChange, onRemove }: LineEditorProps) {
+function LineEditor({ index, count, line: l, preview, currency, sector, errors, plates, onChange, onRemove }: LineEditorProps) {
   const err = (k: string) => errors[`lines.${index}.${k}`];
   const title = count > 1 ? `Ürün ${index + 1}` : 'Ürün';
   return (
@@ -273,6 +289,14 @@ function LineEditor({ index, count, line: l, preview, currency, sector, errors, 
             {Object.entries(PACKAGING_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </FormField>
+        {plates.length > 0 && (
+          <FormField label="Klişe / poze" error={err('plateId')}>
+            <select value={l.plateId} onChange={(e) => onChange({ plateId: e.target.value })} className={fieldClass}>
+              <option value="">Seçilmedi</option>
+              {plates.map((p) => <option key={p.id} value={p.id}>{p.name}{p.colours ? ` (${p.colours})` : ''}</option>)}
+            </select>
+          </FormField>
+        )}
         <FormField label="Paket başına adet" error={err('packaging.capacity')}><input inputMode="numeric" value={l.packagingCapacity} onChange={(e) => onChange({ packagingCapacity: e.target.value.replace(/\D/g, '') })} className={fieldClass} /></FormField>
       </div>
       <details className="rounded-lg border border-stone-200 p-3" open={Object.values(l.notes).some(Boolean)}>

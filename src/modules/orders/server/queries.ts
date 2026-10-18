@@ -8,6 +8,7 @@ import { DEPARTMENT_ROLES, type Role } from '@/core/modules/types';
 import { decimalCell } from '@/core/export/csv';
 import { normalizeSearch } from '@/core/parties/search';
 import { formatDate } from '@/core/dates';
+import { plates } from '@/modules/production/db/schema';
 import { getSector } from '@/sectors';
 import { LINE_STATUS_LABELS as LINE_TEXT, ORDER_STATUS_LABELS as STATUS_TEXT } from '../ui/status-labels';
 import { ORDER_STATUSES, orderLines, orderPayments, orders } from '../db/schema';
@@ -101,6 +102,8 @@ export const orderForOffice = defineAction({
     const balance = orderBalance(receivableTotal(o.status, total), pays.map((p) => ({ kind: p.kind, amountMinor: p.amountMinor, currency: p.currency as Currency })));
     const sector = getSector(ctx.cfg.sector);
     const lines = (await linesOf(ctx, [o.id])).get(o.id) ?? [];
+    const plateIds = lines.map((l) => l.plateId).filter((x): x is string => Boolean(x));
+    const plateNames = new Map(plateIds.length ? (await ctx.tx.select({ id: plates.id, name: plates.name }).from(plates).where(inArray(plates.id, plateIds))).map((p) => [p.id, p.name]) : []);
     return {
       id: o.id, no: o.no, version: o.version, status: o.status, orderDate: o.orderDate,
       party: { id: party.id, name: party.name, phone: party.phone, city: party.city },
@@ -111,6 +114,7 @@ export const orderForOffice = defineAction({
         id: l.id, lineNo: l.lineNo, status: l.status, product: l.product, productText: sector.describe(l.product), quantity: l.quantity,
         unitPrice: l.unitPrice, vatRate: l.vatRate, total: moneyToJSON(money(l.totalMinor, o.currency as Currency)),
         packaging: l.packaging, departmentNotes: l.departmentNotes, producedQty: l.producedQty, shippedQty: l.shippedQty, cancelReason: l.cancelReason,
+        plateId: l.plateId, plateName: l.plateId ? (plateNames.get(l.plateId) ?? null) : null,
       })),
       invoiceMark: o.invoiceMark, producedQty: o.producedQty, shippedQty: o.shippedQty, cancelReason: o.cancelReason,
       payments: pays.map((p) => ({ id: p.id, kind: p.kind, amount: moneyToJSON(money(p.amountMinor, p.currency as Currency)), paidAt: p.paidAt, note: p.note, correctsPaymentId: p.correctsPaymentId })),

@@ -6,7 +6,7 @@ import { AppError } from '@/core/errors';
 import type { Role } from '@/core/modules/types';
 import { orderLines, orders } from '@/modules/orders/db/schema';
 import { getSector } from '@/sectors';
-import { fabricRolls, jobEvents, jobs, shipments } from '../db/schema';
+import { fabricRolls, jobEvents, jobs, plates, shipments } from '../db/schema';
 import { findShortages, type Demand } from '../domain/materials';
 
 const ALL: Role[] = ['admin', 'tracking', 'sales', 'slitting', 'printing', 'cutting', 'finishing', 'repair'];
@@ -114,7 +114,7 @@ export const jobDetail = defineAction({
   input: z.object({ id: z.string().uuid() }),
   run: async (ctx, i) => {
     const [row] = await ctx.tx
-      .select({ job: jobs, product: orderLines.product, quantity: orderLines.quantity, departmentNotes: orderLines.departmentNotes, packaging: orderLines.packaging, partyName: parties.name, orderDate: orders.orderDate })
+      .select({ job: jobs, product: orderLines.product, quantity: orderLines.quantity, departmentNotes: orderLines.departmentNotes, packaging: orderLines.packaging, plateId: orderLines.plateId, partyName: parties.name, orderDate: orders.orderDate })
       .from(jobs)
       .innerJoin(orderLines, eq(orderLines.id, jobs.orderLineId))
       .innerJoin(orders, eq(orders.id, jobs.orderId))
@@ -128,6 +128,7 @@ export const jobDetail = defineAction({
     const people = staffIds.length ? await ctx.tx.select({ id: staff.id, name: staff.name }).from(staff).where(inArray(staff.id, staffIds)) : [];
     const ships = await ctx.tx.select().from(shipments).where(eq(shipments.jobId, i.id)).orderBy(desc(shipments.shippedAt));
     const sector = getSector(ctx.cfg.sector);
+    const [plate] = row.plateId ? await ctx.tx.select({ id: plates.id, name: plates.name, colours: plates.colours, notes: plates.notes, fileIds: plates.fileIds }).from(plates).where(eq(plates.id, row.plateId)) : [];
     const validated = sector.validateProduct(row.product);
     const rolls = await ctx.tx.select({ reservedFor: fabricRolls.reservedFor, status: fabricRolls.status }).from(fabricRolls).where(eq(fabricRolls.reservedJobId, i.id));
     const materials = sector.materials(validated, row.quantity).map((n) => {
@@ -144,6 +145,7 @@ export const jobDetail = defineAction({
       events: events.map((e) => ({ id: e.id, stage: e.stage, kind: e.kind, at: e.at.toISOString(), machine: e.machine, data: e.data, note: e.note, staff: e.staffIds.map((id) => people.find((p) => p.id === id)?.name ?? '?') })),
       shipments: ships.map((s) => ({ id: s.id, qty: s.qty, shippedAt: s.shippedAt, note: s.note })),
       materials,
+      plate: plate ?? null,
     };
   },
 });

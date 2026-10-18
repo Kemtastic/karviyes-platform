@@ -20,6 +20,7 @@ type Job = {
   events: { id: string; stage: string; kind: string; at: string; machine: string; data: Record<string, unknown>; note: string; staff: string[] }[];
   shipments: { id: string; qty: number; shippedAt: string; note: string }[];
   materials: { kind: string; label: string; widthCm: number; colour: string; gsm: number | null; rolls: number; reserved: number; used: number }[];
+  plate: { id: string; name: string; colours: string; notes: string; fileIds: string[] } | null;
 };
 
 type Props = { job: Job; sector: string; canManage: boolean; fabric: { id: string; label: string }[]; staff: { id: string; name: string }[]; userRoles: Role[] };
@@ -67,6 +68,23 @@ export function JobScreen({ job, sector, canManage, fabric, staff, userRoles }: 
       ))}
       {job.reviewNote && job.stage !== 'review' && <p className="rounded-xl bg-orange-100 p-4">Kontrol notu: {job.reviewNote}</p>}
       {job.cancelReason && <p className="rounded-xl bg-red-50 p-4 text-red-800">İptal nedeni: {job.cancelReason}</p>}
+
+      {job.plate && (
+        <section aria-label="Klişe / poze" className="rounded-xl border border-stone-200 bg-white p-4">
+          <h2 className="font-semibold">Klişe / poze: {job.plate.name}</h2>
+          {(job.plate.colours || job.plate.notes) && <p className="text-stone-700">{[job.plate.colours, job.plate.notes].filter(Boolean).join(' · ')}</p>}
+          {job.plate.fileIds.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-3">
+              {job.plate.fileIds.map((id) => (
+                <a key={id} href={`/api/files/${id}`} target="_blank" rel="noreferrer" className="block">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- yetkili dosya ucu; optimizasyon sunucusundan geçmemeli */}
+                  <img src={`/api/files/${id}`} alt={`${job.plate!.name} görseli`} className="max-h-48 rounded-lg border border-stone-200 object-contain" />
+                </a>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {job.materials.length > 0 && (
         <section aria-label="Malzeme" className="rounded-xl border border-stone-200 bg-white p-4">

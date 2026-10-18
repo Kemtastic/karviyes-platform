@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { defineAction, type ActionCtx } from '@/core/action';
 import { istanbulToday } from '@/core/dates';
@@ -6,6 +6,7 @@ import { parties, staff } from '@/core/db/schema';
 import { AppError } from '@/core/errors';
 import { CURRENCIES, money, moneyToJSON, parseMoney, type Currency } from '@/core/money';
 import type { Role } from '@/core/modules/types';
+import { plates } from '@/modules/production/db/schema';
 import { getSector } from '@/sectors';
 import { orderCounters, orderLines, orderPayments, orders } from '../db/schema';
 import { packagingPlan } from '../domain/packaging';
@@ -21,6 +22,7 @@ const lineFields = {
   vatRate: z.string().min(1),
   packaging: z.object({ type: z.enum(['sack', 'box', 'none']), capacity: z.coerce.number().int().min(0) }),
   departmentNotes: z.record(z.string().max(1000)).default({}),
+  plateId: z.string().uuid().nullable().optional(),
 };
 const lineInput = z.object(lineFields);
 type LineInput = z.infer<typeof lineInput>;
@@ -42,6 +44,7 @@ const orderBase = z.object({
   vatRate: lineFields.vatRate.optional(),
   packaging: lineFields.packaging.optional(),
   departmentNotes: lineFields.departmentNotes.optional(),
+  plateId: lineFields.plateId,
 });
 type OrderInput = z.infer<typeof orderBase>;
 
@@ -54,7 +57,7 @@ function linesOf(i: OrderInput): { lines: LineInput[]; single: boolean } {
   if (i.lines) return { lines: i.lines, single: false };
   return {
     single: true,
-    lines: [{ product: i.product ?? {}, quantity: i.quantity, unitPrice: i.unitPrice ?? '', vatRate: i.vatRate ?? '', packaging: i.packaging ?? { type: 'none', capacity: 0 }, departmentNotes: i.departmentNotes ?? {} }],
+    lines: [{ product: i.product ?? {}, quantity: i.quantity, unitPrice: i.unitPrice ?? '', vatRate: i.vatRate ?? '', packaging: i.packaging ?? { type: 'none', capacity: 0 }, departmentNotes: i.departmentNotes ?? {}, plateId: i.plateId }],
   };
 }
 
@@ -88,7 +91,7 @@ function prepareLine(ctx: ActionCtx, l: LineInput, currency: Currency) {
   }
   const departmentNotes = Object.fromEntries(Object.entries(l.departmentNotes).filter(([k, v]) => sector.stages.some((s) => s.id === k) && v.trim()));
   const total = computeOrderTotal(unitPrice, quantity, vatRate, currency);
-  return { product, unitPrice, vatRate, quantity, packaging, departmentNotes, totalMinor: total.minor };
+  return { product, unitPrice, vatRate, quantity, packaging, departmentNotes, totalMinor: total.minor, plateId: l.plateId ?? null };
 }
 
 // Sipariş alanlarını doğrular ve hesaplar. Satır hataları çok satırlı biçimde "lines.<n>." önekiyle döner.
@@ -113,6 +116,16 @@ async function prepare(ctx: ActionCtx, i: OrderInput) {
     if (!(Number(parseRate(i.fxRate, 'fxRate', 'Kur')) > 0)) throw new AppError('VALIDATION', 'Kur sıfırdan büyük olmalı.', { fxRate: 'Kur sıfırdan büyük olmalı.' });
     fx = { fxRate: parseRate(i.fxRate, 'fxRate', 'Kur'), fxRateDate: i.fxRateDate, fxSource: i.fxSource || 'TCMB döviz satış' };
   }
+  // Klişe/poze yalnızca siparişin müşterisine ait, arşivlenmemiş kayıtlardan seçilebilir (okuma: üretim modülü tablosu).
+  const plateIds = [...new Set(lines.map((l) => l.plateId).filter((x): x is string => Boolean(x)))];
+  const ownPlates = plateIds.length ? await ctx.tx.select({ id: plates.id, partyId: plates.partyId, archived: plates.archived }).from(plates).where(inArray(plates.id, plateIds)) : [];
+  lines.forEach((l, n) => {
+    if (!l.plateId) return;
+    const p = ownPlates.find((x) => x.id === l.plateId);
+    if (!p || p.archived || p.partyId !== i.partyId) {
+      throw new AppError('VALIDATION', 'Klişeyi bu müşterinin klişelerinden seçin.', { [`${single ? '' : `lines.${n}.`}plateId`]: 'Bu müşterinin klişelerinden seçin.' });
+    }
+  });
   const totalMinor = prepared.reduce((s, l) => s + l.totalMinor, 0n);
   return { lines: prepared, totalMinor, quantity: prepared.reduce((s, l) => s + l.quantity, 0), ...fx };
 }
@@ -123,7 +136,7 @@ async function insertLines(ctx: ActionCtx, orderId: string, p: Prepared) {
   await ctx.tx.insert(orderLines).values(
     p.lines.map((l, n) => ({
       companyId: ctx.companyId, orderId, lineNo: n + 1, product: l.product, quantity: l.quantity, unitPrice: l.unitPrice, vatRate: l.vatRate,
-      totalMinor: l.totalMinor, packaging: l.packaging, departmentNotes: l.departmentNotes,
+      totalMinor: l.totalMinor, packaging: l.packaging, departmentNotes: l.departmentNotes, plateId: l.plateId,
     })),
   );
 }
