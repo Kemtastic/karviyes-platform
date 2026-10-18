@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { generateSync } from 'otplib';
 import { E2E_ADMIN } from './env';
 
@@ -6,8 +6,14 @@ import { E2E_ADMIN } from './env';
 test.describe.configure({ mode: 'serial' });
 
 let secret = '';
+// Giriş hız sınırına (dakikada 5) takılmamak için 2FA'lı ilk tam girişten sonra oturum çerezleri yeniden kullanılır.
+let session: Awaited<ReturnType<BrowserContext['cookies']>> = [];
 
 async function login(page: Page) {
+  if (session.length) {
+    await page.context().addCookies(session);
+    return;
+  }
   await page.goto('/giris');
   await page.getByLabel('E-posta').fill(E2E_ADMIN.email);
   await page.getByLabel('Parola').fill(E2E_ADMIN.password);
@@ -17,6 +23,7 @@ async function login(page: Page) {
     await page.getByLabel('Doğrulama kodu').fill(generateSync({ secret }));
     await page.getByRole('button', { name: 'Doğrula' }).click();
     await page.waitForURL((u) => u.pathname === '/');
+    session = await page.context().cookies();
   }
 }
 
@@ -213,4 +220,13 @@ test('sipariş arama ve son siparişten ürünleri getirme', async ({ page }) =>
   await expect(page.getByRole('status')).toContainText('ürünleri getirildi');
   // Son sipariş iki ürünlüydü (45 ve 30 cm).
   await expect(page.getByRole('region', { name: 'Ürün 2' }).getByLabel('En (cm)')).toHaveValue('30');
+});
+
+test('satış raporu: satışçı ve ürün kırılımı', async ({ page }) => {
+  await login(page);
+  await page.goto('/siparisler/raporlar');
+  await expect(page.getByRole('cell', { name: 'Ayşe Satış' })).toBeVisible();
+  await page.getByRole('link', { name: 'Ürün', exact: true }).click();
+  await expect(page.getByRole('columnheader', { name: 'Ort. birim fiyat' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: /^45×45 cm/ }).first()).toBeVisible();
 });
