@@ -103,7 +103,7 @@ export function JobScreen({ job, sector, canManage, fabric, staff, userRoles }: 
       <section className="rounded-xl border border-stone-200 bg-white p-4">
         {job.stage === 'waiting' && canManage && !job.fabricReserved && <ReserveFabric job={job} fabric={fabric} onDone={refresh} />}
         {job.stage === 'waiting' && canManage && job.fabricReserved && <SendToStage job={job} sector={sector} onDone={refresh} />}
-        {def && canWork && <StageWork job={job} sector={sector} staff={staff} onDone={refresh} />}
+        {def && canWork && <StageWork job={job} sector={sector} staff={staff} onDone={refresh} canOverride={canManage} />}
         {job.stage === 'finishing' && canWork && job.stageStatus === 'waiting' && <FinishingExtras job={job} onDone={refresh} />}
         {job.stage === 'review' && canManage && <Review job={job} sector={sector} onDone={refresh} />}
         {job.stage === 'completed' && canManage && <Ship job={job} onDone={refresh} />}

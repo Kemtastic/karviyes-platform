@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { getSector } from '@/sectors';
 import { Button } from '@/ui/button';
 import { FormField, fieldClass } from '@/ui/form-field';
@@ -11,9 +11,10 @@ const toNumber = (v: string | undefined) => (v ? Number(v.replace(',', '.')) : u
 type Job = { id: string; version: number; stage: string; stageStatus: string; quantity: number };
 
 // Bir aşamayı başlatma ve bitirme formları. Tablet için büyük dokunma hedefleri.
-export function StageWork({ job, sector, staff, onDone }: { job: Job; sector: string; staff: { id: string; name: string }[]; onDone: () => void }) {
+export function StageWork({ job, sector, staff, onDone, canOverride = false }: { job: Job; sector: string; staff: { id: string; name: string }[]; onDone: () => void; canOverride?: boolean }) {
   const def = getSector(sector).stages.find((s) => s.id === job.stage);
   const start = useAction(startStageAction);
+  const startForm = useRef<HTMLFormElement>(null);
   const finish = useAction(finishStageAction);
   const [people, setPeople] = useState<string[]>([]);
   const [ack, setAck] = useState(false);
@@ -42,10 +43,20 @@ export function StageWork({ job, sector, staff, onDone }: { job: Job; sector: st
           e.preventDefault();
           start.run({ jobId: job.id, version: job.version, machine: new FormData(e.currentTarget).get('machine'), staffIds: people }, onDone);
         }}
+        ref={startForm}
       >
         <FormField label="Makine"><input name="machine" placeholder="örn. Kesim 1" className={`${fieldClass} min-h-12 text-lg`} /></FormField>
         {staffPicker}
         {start.error && <p role="alert" className="text-red-700">{start.error}</p>}
+        {start.error.includes('gerekli') && canOverride && (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => start.run({ jobId: job.id, version: job.version, machine: startForm.current ? new FormData(startForm.current).get('machine') : '', staffIds: people, skipMaterials: true }, onDone)}
+          >
+            Malzeme ayırmadan başlat (kayda geçer)
+          </Button>
+        )}
         <div className="sticky bottom-16 z-10 bg-white/95 py-2 lg:bottom-0">
           <Button disabled={start.pending} className="min-h-14 w-full text-lg">{def.label}: İşe başla</Button>
         </div>

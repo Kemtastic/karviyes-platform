@@ -93,3 +93,15 @@ describe('stok açığı', () => {
     expect(await materialShortages({}, cutter())).toMatchObject({ ok: false, code: 'FORBIDDEN' });
   });
 });
+
+describe('malzeme ayırmadan başlatma (inceleme)', () => {
+  it('üretim takip bilinçli olarak sapsız başlatabilir ve kayda geçer; bölüm tableti yapamaz', async () => {
+    const jobId = await jobAtCutting();
+    expect(await startStage({ jobId, machine: 'Kesim 1', staffIds: [operatorId], skipMaterials: true, version: await version(jobId) }, cutter())).toMatchObject({ ok: false, code: 'FORBIDDEN' });
+    expect(await startStage({ jobId, machine: 'Kesim 1', staffIds: [operatorId], skipMaterials: true, version: await version(jobId) }, tracking())).toMatchObject({ ok: true });
+    const d = await jobDetail({ id: jobId }, tracking());
+    if (!d.ok) throw new Error(d.message);
+    expect(d.data.events.find((e) => e.kind === 'started')?.data).toMatchObject({ materialsSkipped: true });
+    expect(d.data.materials.find((m) => m.kind === 'handle')).toMatchObject({ reserved: 0 });
+  });
+});

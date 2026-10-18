@@ -181,13 +181,15 @@ export const startStage = defineAction({
   name: 'production.startStage',
   module: 'production',
   roles: ALL_PRODUCTION,
-  input: z.object({ ...jobRef, machine: z.string().trim().max(60).default(''), staffIds: z.array(z.string().uuid()).max(20).default([]) }),
+  input: z.object({ ...jobRef, machine: z.string().trim().max(60).default(''), staffIds: z.array(z.string().uuid()).max(20).default([]), skipMaterials: z.boolean().default(false) }),
   run: async (ctx, i) => {
     const loaded = await load(ctx, i.jobId, i.version);
     assertStageRole(ctx, loaded.sector, loaded.job.stage);
     await assertStaff(ctx, i.staffIds);
-    await reserveStageMaterials(ctx, loaded);
-    await apply(ctx, loaded, i.version, { type: 'start' }, { kind: 'started', staffIds: i.staffIds, machine: i.machine });
+    // Malzeme stoğu sisteme girilmemişse üretim durmasın: yönetici/üretim takip bilinçli olarak ayırmadan başlatır, kayda geçer.
+    if (i.skipMaterials && !ctx.user.roles.some((r) => r === 'admin' || r === 'tracking')) throw new AppError('FORBIDDEN', 'Malzeme ayırmadan başlatmayı yalnızca üretim takip yapabilir.');
+    if (!i.skipMaterials) await reserveStageMaterials(ctx, loaded);
+    await apply(ctx, loaded, i.version, { type: 'start' }, { kind: 'started', staffIds: i.staffIds, machine: i.machine, ...(i.skipMaterials ? { data: { materialsSkipped: true } } : {}) });
     return { id: i.jobId };
   },
 });
