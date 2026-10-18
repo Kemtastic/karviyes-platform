@@ -80,10 +80,10 @@ test('sipariş → üretim → kesim (telefon) → kesim bitiş → kontrol → 
   await page.waitForURL(orderUrl);
   await expect(page.getByText('12.221,00 ₺').first()).toBeVisible(); // toplam ve kalan (peşinat yok)
 
-  // Alacaklar → cari hesap
+  // Sipariş bakiyeleri → cari kartı
   await page.goto('/siparisler/alacaklar');
   await page.getByRole('cell', { name: 'E2E Gıda Ltd. Şti.' }).click();
-  await expect(page.getByRole('heading', { name: 'Cari hesap' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sipariş bakiyesi' })).toBeVisible();
 
   // Excel'e aktar (CSV, BOM'lu)
   const csv = await page.request.get('/api/disa-aktar/siparisler');
@@ -194,4 +194,23 @@ test('satış takibi: görüşme kaydı, planlanan listesi ve cari kartında ge�
   await expect(page.getByRole('row', { name: /E2E Gıda Ltd\. Şti\./ })).toBeVisible();
   await page.getByRole('link', { name: 'E2E Gıda Ltd. Şti.' }).click();
   await expect(page.getByRole('region', { name: 'Satış takibi' }).getByText('Yeni sezon fiyatı istedi')).toBeVisible();
+});
+
+test('sipariş arama ve son siparişten ürünleri getirme', async ({ page }) => {
+  await login(page);
+  await page.goto('/siparisler');
+  await page.getByLabel('Ara').fill('e2e gida');
+  await page.getByRole('button', { name: 'Süz' }).click();
+  await expect(page.getByRole('cell', { name: 'E2E Gıda Ltd. Şti.' }).first()).toBeVisible();
+  await page.getByLabel('Ara').fill('yok-boyle-musteri');
+  await page.getByRole('button', { name: 'Süz' }).click();
+  await expect(page.getByText('Bu durumda sipariş yok.')).toBeVisible();
+
+  await page.goto('/siparisler/yeni');
+  await page.getByRole('combobox', { name: 'Müşteri' }).fill('E2E');
+  await page.getByRole('option').getByText('E2E Gıda Ltd. Şti.').click();
+  await page.getByRole('button', { name: 'Son siparişten ürünleri getir' }).click();
+  await expect(page.getByRole('status')).toContainText('ürünleri getirildi');
+  // Son sipariş iki ürünlüydü (45 ve 30 cm).
+  await expect(page.getByRole('region', { name: 'Ürün 2' }).getByLabel('En (cm)')).toHaveValue('30');
 });

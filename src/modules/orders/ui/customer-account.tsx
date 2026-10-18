@@ -18,8 +18,8 @@ export function CustomerAccount({ account }: { account: Account }) {
   return (
     <section className="space-y-4 rounded-xl border border-stone-200 bg-white p-4 sm:p-6">
       <div>
-        <h2 className="font-semibold">Cari hesap</h2>
-        <p className="text-sm text-stone-600">Sipariş tutarları ve tahsilatlar üzerinden. Eksi bakiye, müşteriye iade edilecek tutardır.</p>
+        <h2 className="font-semibold">Sipariş bakiyesi</h2>
+        <p className="text-sm text-stone-600">Sipariş tutarları ve tahsilatlar üzerinden; fatura bazlı cari değildir. Eksi bakiye, müşteriye iade edilecek tutardır.</p>
       </div>
       {account.totals.length ? (
         <div className="grid gap-3 sm:grid-cols-3">

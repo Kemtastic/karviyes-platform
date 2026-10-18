@@ -1,7 +1,11 @@
 'use server';
 import { searchParties } from '@/core/parties/service';
+import { lastOrderLines } from '@/modules/orders/server/queries';
 import { addPayment, cancelOrder, correctPayment, createOrder, markInvoiced, updateOrder } from '@/modules/orders/server/actions';
 
+export async function lastOrderLinesAction(input: unknown) {
+  return lastOrderLines(input);
+}
 export async function createOrderAction(input: unknown) {
   return createOrder(input);
 }

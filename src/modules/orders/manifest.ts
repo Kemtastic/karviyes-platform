@@ -6,6 +6,6 @@ export const ordersManifest: ModuleManifest = {
   dependsOn: [],
   nav: [
     { href: '/siparisler', label: 'Siparişler', roles: ['admin', 'sales', 'tracking'], icon: 'clipboard-list' },
-    { href: '/siparisler/alacaklar', label: 'Alacaklar', roles: ['admin', 'sales', 'tracking'], icon: 'wallet' },
+    { href: '/siparisler/alacaklar', label: 'Sipariş Bakiyeleri', roles: ['admin', 'sales', 'tracking'], icon: 'wallet' },
   ],
 };

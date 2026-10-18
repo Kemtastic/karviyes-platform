@@ -9,7 +9,7 @@ import { Button } from '@/ui/button';
 import { FormField, fieldClass } from '@/ui/form-field';
 import { MoneyInput } from '@/ui/money-input';
 import { useAction } from '@/ui/use-action';
-import { createOrderAction, searchCustomersAction, updateOrderAction } from './actions';
+import { createOrderAction, lastOrderLinesAction, searchCustomersAction, updateOrderAction } from './actions';
 import { computeOrderTotal, parseRate, parseUnitPrice } from '../domain/totals';
 import { PACKAGING_LABELS } from '../domain/packaging';
 
@@ -104,6 +104,17 @@ export function OrderForm({ sector: sectorId, salesStaff, initial }: Props) {
   const previews = useMemo(() => lines.map((l) => linePreview(sector, l, currency)), [lines, currency, sector]);
   const grandTotal = previews.every((p) => p.totalMinor !== null) ? formatMoney(money(previews.reduce((s, p) => s + (p.totalMinor ?? 0n), 0n), currency)) : '';
 
+  // Tekrarlayan siparişler için müşterinin son siparişindeki ürünler ve fiyatlar forma alınır.
+  const [copyNote, setCopyNote] = useState('');
+  async function copyLastOrder() {
+    if (!party) return;
+    const r = await lastOrderLinesAction({ partyId: party.id });
+    if (!r.ok) return setCopyNote(r.message);
+    if (!r.data || !r.data.lines.length) return setCopyNote('Bu müşterinin önceki siparişi yok.');
+    setLines(r.data.lines.map((l) => lineFromInitial(l, sector)));
+    setCopyNote(`${r.data.no} numaralı siparişin ürünleri getirildi; adet ve fiyatları kontrol edin.`);
+  }
+
   const patchLine = (key: number, patch: Partial<LineState>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
 
   function submit(e: React.FormEvent<HTMLFormElement>) {
@@ -156,6 +167,12 @@ export function OrderForm({ sector: sectorId, salesStaff, initial }: Props) {
             </>
           )}
         </div>
+        {party && !initial && (
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="button" variant="secondary" onClick={() => void copyLastOrder()}>Son siparişten ürünleri getir</Button>
+            {copyNote && <p role="status" className="text-sm text-stone-700">{copyNote}</p>}
+          </div>
+        )}
         {!salesStaff.length && <p className="text-sm text-amber-800">Satış personeli tanımlı değil. Ayarlar → Personel bölümünden “Satış” bölümüyle personel ekleyin.</p>}
       </section>
 

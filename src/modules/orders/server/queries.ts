@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, like, lte, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { defineAction, type ActionCtx } from '@/core/action';
 import { parties, staff } from '@/core/db/schema';
@@ -6,6 +6,7 @@ import { AppError } from '@/core/errors';
 import { CURRENCIES, money, moneyToJSON, type Currency } from '@/core/money';
 import { DEPARTMENT_ROLES, type Role } from '@/core/modules/types';
 import { decimalCell } from '@/core/export/csv';
+import { normalizeSearch } from '@/core/parties/search';
 import { formatDate } from '@/core/dates';
 import { getSector } from '@/sectors';
 import { LINE_STATUS_LABELS as LINE_TEXT, ORDER_STATUS_LABELS as STATUS_TEXT } from '../ui/status-labels';
@@ -45,13 +46,29 @@ export const listOrders = defineAction({
   module: 'orders',
   roles: OFFICE,
   rateLimit: false,
-  input: z.object({ status: z.enum(ORDER_STATUSES).optional(), partyId: z.string().uuid().optional() }),
+  input: z.object({
+    status: z.enum(ORDER_STATUSES).optional(),
+    partyId: z.string().uuid().optional(),
+    q: z.string().trim().max(100).optional(),
+    from: z.string().date().optional(),
+    to: z.string().date().optional(),
+  }),
   run: async (ctx, i) => {
+    // Arama: sipariş numarası veya müşteri (adı, yetkili, VKN, il — Türkçe harf duyarsız arama anahtarı).
+    const key = i.q ? normalizeSearch(i.q) : '';
     const rows = await ctx.tx
       .select({ o: orders, partyName: parties.name })
       .from(orders)
       .innerJoin(parties, eq(parties.id, orders.partyId))
-      .where(and(i.status ? eq(orders.status, i.status) : undefined, i.partyId ? eq(orders.partyId, i.partyId) : undefined))
+      .where(
+        and(
+          i.status ? eq(orders.status, i.status) : undefined,
+          i.partyId ? eq(orders.partyId, i.partyId) : undefined,
+          i.from ? gte(orders.orderDate, i.from) : undefined,
+          i.to ? lte(orders.orderDate, i.to) : undefined,
+          i.q ? or(like(orders.no, `%${i.q.toUpperCase().replace(/[^0-9A-Z-]/g, '')}%`), key ? like(parties.searchKey, `%${key}%`) : undefined) : undefined,
+        ),
+      )
       .orderBy(desc(orders.orderDate), desc(orders.no))
       .limit(500);
     const ids = rows.map((r) => r.o.id);
@@ -251,5 +268,25 @@ export const exportOrders = defineAction({
     }));
     await ctx.audit({ entity: 'order', entityId: ctx.companyId, after: { export: 'orders', rows: out.length, status: i.status ?? 'all' } });
     return { headers, rows: out };
+  },
+});
+
+// "Eski siparişten kopyala": müşterinin iptal edilmemiş son siparişinin satırları (fiyatlarıyla).
+export const lastOrderLines = defineAction({
+  name: 'orders.lastLines',
+  module: 'orders',
+  roles: OFFICE,
+  rateLimit: false,
+  input: z.object({ partyId: z.string().uuid() }),
+  run: async (ctx, i) => {
+    const [o] = await ctx.tx
+      .select({ id: orders.id, no: orders.no, orderDate: orders.orderDate })
+      .from(orders)
+      .where(and(eq(orders.partyId, i.partyId), ne(orders.status, 'cancelled')))
+      .orderBy(desc(orders.orderDate), desc(orders.no))
+      .limit(1);
+    if (!o) return null;
+    const lines = ((await linesOf(ctx, [o.id])).get(o.id) ?? []).filter((l) => l.status !== 'cancelled');
+    return { ...o, lines: lines.map((l) => ({ product: l.product, quantity: l.quantity, unitPrice: l.unitPrice, vatRate: l.vatRate, packaging: l.packaging, departmentNotes: l.departmentNotes })) };
   },
 });
