@@ -18,6 +18,11 @@ export function orderBalance(total: Money, payments: PaymentLike[]): Money {
   return money(total.minor - paid, total.currency);
 }
 
+// Cari bakiyeye giren sipariş tutarı: iptal edilen siparişin borcu yoktur; alınmış para müşteriye iade borcu olarak kalır.
+export function receivableTotal(status: string, total: Money): Money {
+  return status === 'cancelled' ? money(0n, total.currency) : total;
+}
+
 // "8,75", "1.234,5678" veya "8.75" → "8.7500" (en çok 4 ondalık).
 export function parseUnitPrice(input: string): string {
   let text = input.trim().replace(/\s/g, '');

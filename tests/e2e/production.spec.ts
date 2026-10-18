@@ -80,6 +80,12 @@ test('sipariş → üretim → kesim (telefon) → kesim bitiş → kontrol → 
   await page.waitForURL(orderUrl);
   await expect(page.getByText('12.221,00 ₺').first()).toBeVisible(); // toplam ve kalan (peşinat yok)
 
+  // Alacaklar → cari hesap
+  await page.goto('/siparisler/alacaklar');
+  await page.getByRole('cell', { name: 'E2E Gıda Ltd. Şti.' }).click();
+  await expect(page.getByRole('heading', { name: 'Cari hesap' })).toBeVisible();
+  await expect(page.getByText('12.221,00 ₺').first()).toBeVisible();
+
   // Kumaş stoğu
   await page.goto('/uretim/kumas');
   await page.getByRole('button', { name: 'Bobin ekle' }).click();
