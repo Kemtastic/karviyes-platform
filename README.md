@@ -38,7 +38,9 @@ pnpm dev                             # http://localhost:3000
 
 ```
 src/core/        çekirdek: kimlik+2FA, firma, kullanıcı/rol, cari, dosya, audit, para/tarih, güvenli eylem sarmalayıcısı
-src/modules/     orders (sipariş, tahsilat) · production (iş, aşamalar, kumaş, klişe, sevk, rapor)
+src/modules/     orders (çok ürünlü sipariş, tahsilat, sipariş bakiyesi, satış raporları, Excel)
+                 production (satır başına iş, aşamalar, kumaş ve sap stoğu, stok açığı, klişe/poze, sevk, rapor)
+                 sales (satış takibi: arama kaydı, sonraki arama, sorumlu satışçı)
 src/sectors/     sektör paketleri: bags (bez çanta). Plastik poşet aynı arayüzle eklenir.
 src/app/         Next.js rotaları (ince kabuk)
 drizzle/         tek göç zinciri; her göç sonunda app_secure_tables() RLS ve yetkileri uygular
@@ -46,3 +48,12 @@ deploy/          Docker, Caddy, şifreli yedek
 ```
 
 Modüller `kurulum.config.json` içindeki `modules` listesiyle açılır; kapalı modülün ekranları ve işlemleri yoktur.
+
+## Özellikler (v1.1)
+
+- **Sipariş:** bir siparişte en çok 20 ürün satırı; her satırın kendi fiyatı, KDV'si, paketi, bölüm notu ve klişe/pozesi. Üretime alınca her satıra bir iş açılır (`S-2026-000012/2`). Taslak düzenlenebilir; "Son siparişten ürünleri getir"; dövizli siparişte TCMB kuru tek tıkla.
+- **Bakiye ve raporlar:** müşteri kartında sipariş bakiyesi, açık sipariş bakiyeleri listesi, satış raporları (satışçı / müşteri / ay / ürün; KDV hariç, KDV, ortalama ve son fiyat). Bunlar **fatura bazlı yasal cari değildir**; fatura için entegratör kararı bekleniyor.
+- **Üretim:** kulplu çantada sap bobini kesim başlarken otomatik ayrılır (her 1300 adete 1 bobin 5 cm); aşama bitince ayrılan malzeme kullanıldı olur; kumaş ekranında stok açığı.
+- **Satış takibi** (`sales` modülü): bugün / geciken / planlanan aramalar, görüşme notu, sonraki arama tarihi, sorumlu satışçı.
+- **Excel:** siparişleri ve carileri dışa aktarma (CSV, Türkçe Excel uyumlu, formül enjeksiyonuna karşı korumalı); carileri içe aktarma (önizleme, eski sistem başlıkları, mükerrer kontrolü).
+- **Ana sayfa:** rolüne göre özet kartları (kumaş bekleyen, kontrol bekleyen, faturaya hazır, açık bakiye, bugün aranacaklar).
