@@ -19,8 +19,9 @@ function contentSecurityPolicy(nonce: string): string {
   ].join('; ');
 }
 
-function secure(res: NextResponse, csp: string): NextResponse {
-  res.headers.set('Content-Security-Policy', csp);
+function secure(res: NextResponse, csp: string | null): NextResponse {
+  // API yanıtları belge değildir; CSP'yi gerekirse yanıtın kendisi verir (ör. dosya ucunda sandbox).
+  if (csp) res.headers.set('Content-Security-Policy', csp);
   res.headers.set('X-Content-Type-Options', 'nosniff');
   res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
@@ -47,7 +48,7 @@ export function proxy(req: NextRequest) {
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set('x-nonce', nonce);
   requestHeaders.set('Content-Security-Policy', csp);
-  return secure(NextResponse.next({ request: { headers: requestHeaders } }), csp);
+  return secure(NextResponse.next({ request: { headers: requestHeaders } }), pathname.startsWith('/api/') ? null : csp);
 }
 
 export const config = { matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'] };

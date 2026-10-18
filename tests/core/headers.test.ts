@@ -26,3 +26,12 @@ describe('güvenlik başlıkları', () => {
     expect(await res.json()).toMatchObject({ ok: false, code: 'UNAUTHENTICATED' });
   });
 });
+
+describe('API yanıtlarında CSP', () => {
+  it('oturumlu API isteğinde proxy CSP koymaz (dosya ucu kendi sandbox CSP sini verir)', () => {
+    const req = new NextRequest('http://localhost:3000/api/files/abc', { headers: { cookie: 'better-auth.session_token=deneme' } });
+    const res = proxy(req);
+    expect(res.headers.get('content-security-policy')).toBeNull();
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+  });
+});
