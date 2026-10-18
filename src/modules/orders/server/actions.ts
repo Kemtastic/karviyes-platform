@@ -18,7 +18,7 @@ const orderInput = z.object({
   salespersonStaffId: z.string().uuid(),
   orderDate: z.string().date(),
   product: z.record(z.unknown()),
-  quantity: z.coerce.number().int().positive().optional(),
+  quantity: z.coerce.number().int().positive().max(10_000_000, 'Adet en çok 10.000.000 olabilir.').optional(),
   unitPrice: z.string().min(1),
   vatRate: z.string().min(1),
   currency: z.enum(CURRENCIES),
@@ -54,10 +54,13 @@ async function prepare(ctx: ActionCtx, i: OrderInput) {
   }
   const unitPrice = parseUnitPrice(i.unitPrice);
   const vatRate = parseRate(i.vatRate, 'vatRate', 'KDV oranı');
+  // Veritabanı KDV oranını 2 ondalıkla saklar; tutar da aynı oranla hesaplanmalı.
+  if (/\.\d{3,}$/.test(vatRate)) throw new AppError('VALIDATION', 'KDV oranı en çok 2 ondalık olabilir.', { vatRate: 'KDV oranı en çok 2 ondalık olabilir.' });
   if (Number(vatRate) > 100) throw new AppError('VALIDATION', 'KDV oranı 0–100 arasında olmalı.', { vatRate: 'KDV oranı 0–100 arasında olmalı.' });
   let fx: { fxRate: string | null; fxRateDate: string | null; fxSource: string | null } = { fxRate: null, fxRateDate: null, fxSource: null };
   if (i.currency !== 'TRY') {
     if (!i.fxRate || !i.fxRateDate) throw new AppError('VALIDATION', 'Dövizli siparişte kur ve kur tarihi zorunlu.', { fxRate: 'Kur zorunlu.', fxRateDate: 'Kur tarihi zorunlu.' });
+    if (!(Number(parseRate(i.fxRate, 'fxRate', 'Kur')) > 0)) throw new AppError('VALIDATION', 'Kur sıfırdan büyük olmalı.', { fxRate: 'Kur sıfırdan büyük olmalı.' });
     fx = { fxRate: parseRate(i.fxRate, 'fxRate', 'Kur'), fxRateDate: i.fxRateDate, fxSource: i.fxSource || 'TCMB döviz satış' };
   }
   const quantity = i.quantity ?? sector.targetQuantity(product);
@@ -194,7 +197,7 @@ export const addPayment = defineAction({
   name: 'orders.addPayment',
   module: 'orders',
   roles: OFFICE,
-  input: z.object({ orderId: z.string().uuid(), amount: z.string().min(1), paidAt: z.string().date().default(istanbulToday()), note: z.string().max(300).default('') }),
+  input: z.object({ orderId: z.string().uuid(), amount: z.string().min(1), paidAt: z.string().date().optional(), note: z.string().max(300).default('') }),
   run: async (ctx, i) => {
     const o = await loadOrder(ctx, i.orderId);
     if (o.status === 'cancelled') throw new AppError('INVALID_STATE', 'İptal edilmiş siparişe ödeme eklenemez.');
@@ -202,7 +205,7 @@ export const addPayment = defineAction({
     if (amount.minor <= 0n) throw new AppError('VALIDATION', 'Tutar sıfırdan büyük olmalı.', { amount: 'Tutar sıfırdan büyük olmalı.' });
     const [row] = await ctx.tx
       .insert(orderPayments)
-      .values({ companyId: ctx.companyId, orderId: o.id, kind: 'payment', amountMinor: amount.minor, currency: o.currency, paidAt: i.paidAt, note: i.note, createdBy: ctx.user.userId })
+      .values({ companyId: ctx.companyId, orderId: o.id, kind: 'payment', amountMinor: amount.minor, currency: o.currency, paidAt: i.paidAt ?? istanbulToday(), note: i.note, createdBy: ctx.user.userId })
       .returning({ id: orderPayments.id });
     await ctx.audit({ entity: 'order_payment', entityId: row!.id, after: { orderId: o.id, amount: moneyToJSON(amount) } });
     return { id: row!.id };

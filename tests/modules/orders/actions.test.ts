@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createTestDb, type TestDb } from '../../helpers/db';
 import { runtime, testUser } from '../../helpers/runtime';
 import { createParty } from '@/core/parties/service';
@@ -131,5 +131,33 @@ describe('inceleme düzeltmeleri', () => {
     if (!r.ok) throw new Error('x');
     const u = await updateOrder({ ...order(), id: r.data.id, version: 1, currency: 'USD', fxRate: '41', fxRateDate: '2026-10-17' }, sales());
     expect(u).toMatchObject({ ok: false, code: 'INVALID_STATE' });
+  });
+});
+
+describe('girdi sınırları (v1.1)', () => {
+  it('adet en çok 10 milyon', async () => {
+    expect(await createOrder({ ...order(), quantity: 10_000_001 }, sales())).toMatchObject({ ok: false, code: 'VALIDATION' });
+  });
+
+  it('sıfır kur reddedilir', async () => {
+    expect(await createOrder({ ...order(), currency: 'USD', fxRate: '0', fxRateDate: '2026-10-17' }, sales())).toMatchObject({ ok: false, code: 'VALIDATION' });
+  });
+
+  it('KDV oranı en çok 2 ondalık (veritabanı ile tutar aynı oranı kullanır)', async () => {
+    expect(await createOrder({ ...order(), vatRate: '10,555' }, sales())).toMatchObject({ ok: false, code: 'VALIDATION' });
+  });
+
+  it('tarihi boş tahsilat bugünün tarihini alır (sunucu açılış günü değil)', async () => {
+    const r = await createOrder(order(), sales());
+    if (!r.ok) throw new Error('x');
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2027-03-05T10:00:00Z'));
+    try {
+      expect(await addPayment({ orderId: r.data.id, amount: '10' }, sales())).toMatchObject({ ok: true });
+    } finally {
+      vi.useRealTimers();
+    }
+    const o = await orderForOffice({ id: r.data.id }, sales());
+    expect(o.ok && o.data.payments.map((p) => p.paidAt)).toEqual(['2027-03-05']);
   });
 });

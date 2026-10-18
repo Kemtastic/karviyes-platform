@@ -256,11 +256,11 @@ export const shipJob = defineAction({
   name: 'production.ship',
   module: 'production',
   roles: TRACKING,
-  input: z.object({ ...jobRef, qty: z.coerce.number().int(), shippedAt: z.string().date().default(istanbulToday()), note: z.string().trim().max(300).default('') }),
+  input: z.object({ ...jobRef, qty: z.coerce.number().int(), shippedAt: z.string().date().optional(), note: z.string().trim().max(300).default('') }),
   run: async (ctx, i) => {
     const loaded = await load(ctx, i.jobId, i.version);
     const next = await apply(ctx, loaded, i.version, { type: 'ship', qty: i.qty }, { kind: 'shipped', data: { qty: i.qty }, note: i.note });
-    await ctx.tx.insert(shipments).values({ companyId: ctx.companyId, jobId: i.jobId, qty: i.qty, shippedAt: i.shippedAt, note: i.note, createdBy: ctx.user.userId });
+    await ctx.tx.insert(shipments).values({ companyId: ctx.companyId, jobId: i.jobId, qty: i.qty, shippedAt: i.shippedAt ?? istanbulToday(), note: i.note, createdBy: ctx.user.userId });
     await onProductionProgress(ctx.tx, { orderId: loaded.order.id, shippedQty: next.shippedQty });
     await ctx.audit({ entity: 'job', entityId: i.jobId, after: { shipped: i.qty, totalShipped: next.shippedQty } });
     return { id: i.jobId, stage: next.stage };
