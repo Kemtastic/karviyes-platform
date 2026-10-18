@@ -74,3 +74,16 @@ export const partyCalls = defineAction({
     return { calls: rows.map((r) => ({ ...r, at: r.at.toISOString() })), responsibleStaffId: contact?.staffId ?? null };
   },
 });
+
+// Sorumlu seçimi için aktif satış personeli (sipariş modülüne bağlı kalmamak için burada).
+export const salesStaffList = defineAction({
+  name: 'sales.staff',
+  module: 'sales',
+  roles: SALES,
+  rateLimit: false,
+  input: z.object({}),
+  run: async (ctx) =>
+    (await ctx.tx.select({ id: staff.id, name: staff.name, departments: staff.departments, active: staff.active }).from(staff).orderBy(asc(staff.name)))
+      .filter((s) => s.active && s.departments.includes('sales'))
+      .map((s) => ({ id: s.id, name: s.name })),
+});

@@ -180,3 +180,18 @@ test('iki ürünlü sipariş: satır başına tutar, toplam ve ürün tablosu', 
   await expect(rows).toHaveCount(3);
   await expect(page.getByText('13.871,00 ₺').first()).toBeVisible();
 });
+
+test('satış takibi: görüşme kaydı, planlanan listesi ve cari kartında geçmiş', async ({ page }) => {
+  await login(page);
+  await page.goto('/satis?gorunum=all');
+  await page.getByRole('row', { name: /E2E Gıda Ltd\. Şti\./ }).getByRole('button', { name: 'Görüşme ekle' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Görüşme notu').fill('Yeni sezon fiyatı istedi');
+  await dialog.getByRole('button', { name: 'Yarın' }).click();
+  await dialog.getByRole('button', { name: 'Görüşmeyi kaydet' }).click();
+  await expect(dialog).toBeHidden();
+  await page.getByRole('link', { name: 'Planlanan' }).click();
+  await expect(page.getByRole('row', { name: /E2E Gıda Ltd\. Şti\./ })).toBeVisible();
+  await page.getByRole('link', { name: 'E2E Gıda Ltd. Şti.' }).click();
+  await expect(page.getByRole('region', { name: 'Satış takibi' }).getByText('Yeni sezon fiyatı istedi')).toBeVisible();
+});
