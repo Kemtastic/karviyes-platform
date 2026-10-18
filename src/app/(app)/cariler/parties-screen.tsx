@@ -19,9 +19,9 @@ export function PartiesScreen({ rows, initialQuery }: { rows: Row[]; initialQuer
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Cariler</h1>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-[26px]">Cariler</h1>
         <div className="flex gap-2">
-          <a href="/api/disa-aktar/cariler" className="inline-flex min-h-11 items-center rounded-lg border border-stone-300 bg-white px-4 text-sm font-semibold">Excel&apos;e aktar</a>
+          <a href="/api/disa-aktar/cariler" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 shadow-sm transition-colors hover:border-stone-400 hover:bg-stone-50">Excel&apos;e aktar</a>
           <Button variant="secondary" onClick={() => setImporting(true)}>Excel&apos;den aktar</Button>
           <Button onClick={() => setCreating(true)}>Yeni cari</Button>
         </div>

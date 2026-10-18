@@ -38,7 +38,7 @@ export function DepartmentScreen({ stage, title, sector, initial, staff }: { sta
   return (
     <div className="space-y-4">
       {offline && <p role="status" className="sticky top-0 z-30 rounded-lg bg-amber-100 p-3 font-medium text-amber-900">Bağlantı yok, yeniden deneniyor…</p>}
-      <h1 className="text-2xl font-semibold">{title}</h1>
+      <h1 className="text-2xl font-semibold tracking-tight sm:text-[26px]">{title}</h1>
       <div role="tablist" className="grid grid-cols-2 gap-2">
         {(['waiting', 'in_progress'] as const).map((t) => (
           <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className="min-h-14 rounded-xl border border-stone-300 text-lg font-semibold aria-selected:border-stone-900 aria-selected:bg-stone-900 aria-selected:text-white">
@@ -51,7 +51,7 @@ export function DepartmentScreen({ stage, title, sector, initial, staff }: { sta
         <ul className="space-y-3">
           {list.map((i) => (
             <li key={i.id}>
-              <button onClick={() => setOpenId(i.id)} aria-current={openId === i.id ? 'true' : undefined} className="w-full rounded-xl border border-stone-200 bg-white p-4 text-left shadow-sm aria-[current=true]:border-[var(--brand)] aria-[current=true]:ring-2 aria-[current=true]:ring-[var(--brand)]">
+              <button onClick={() => setOpenId(i.id)} aria-current={openId === i.id ? 'true' : undefined} className="w-full rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)] p-5 text-left shadow-sm aria-[current=true]:border-[var(--brand)] aria-[current=true]:ring-2 aria-[current=true]:ring-[var(--brand)]">
                 <span className="flex justify-between gap-2"><strong className="text-lg">{i.partyName}</strong><span className="font-mono text-sm text-stone-500">{i.no}</span></span>
                 <span className="block text-stone-700">{i.productText}</span>
                 <span className="block text-sm text-stone-500">{i.quantity.toLocaleString('tr-TR')} adet · <DateText value={i.orderDate} /></span>

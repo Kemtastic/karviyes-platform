@@ -19,7 +19,7 @@ export function StaffScreen({ rows }: { rows: StaffRow[] }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Personel</h1>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-[26px]">Personel</h1>
         <Button onClick={() => setEditing('new')}>Personel ekle</Button>
       </div>
       <p className="text-sm text-stone-600">Personel kartları giriş yapmaz; bölüm formlarında işi yapan kişi olarak seçilir. Satışçılar siparişte satış yapan olarak seçilir.</p>

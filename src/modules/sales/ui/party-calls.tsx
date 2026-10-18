@@ -21,9 +21,9 @@ export function PartyCalls({ party, calls, responsibleStaffId, staff }: Props) {
   const [calling, setCalling] = useState(false);
   const owner = useAction(setResponsibleAction);
   return (
-    <section aria-label="Satış takibi" className="space-y-3 rounded-xl border border-stone-200 bg-white p-4 sm:p-6">
+    <section aria-label="Satış takibi" className="space-y-3 rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)] p-5 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-semibold">Satış takibi</h2>
+        <h2 className="text-[15px] font-semibold text-stone-900">Satış takibi</h2>
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-2 text-sm">
             Sorumlu

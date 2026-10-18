@@ -13,7 +13,7 @@ export default async function ReceivablesPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold">Açık sipariş bakiyeleri</h1>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-[26px]">Açık sipariş bakiyeleri</h1>
         <p className="text-stone-600">Sipariş tutarı ile tahsilat arasındaki fark. Faturaya dayalı yasal cari bakiye değildir; muhasebe kaydı için faturaları esas alın.</p>
       </div>
       {sums.size > 0 && (

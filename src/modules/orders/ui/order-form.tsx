@@ -169,8 +169,8 @@ export function OrderForm({ sector: sectorId, salesStaff, initial, initialPlates
 
   return (
     <form onSubmit={submit} className="space-y-6">
-      <section className="space-y-4 rounded-xl border border-stone-200 bg-white p-4 sm:p-6">
-        <h2 className="font-semibold">Müşteri</h2>
+      <section className="space-y-4 rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)] p-5 sm:p-6">
+        <h2 className="text-[15px] font-semibold text-stone-900">Müşteri</h2>
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="sm:col-span-2"><CustomerPicker value={party} onChange={choose} error={fe.partyId} /></div>
           <FormField label="Sipariş tarihi" required error={fe.orderDate}><input type="date" name="orderDate" defaultValue={initial?.orderDate ?? istanbulToday()} className={fieldClass} /></FormField>
@@ -229,8 +229,8 @@ export function OrderForm({ sector: sectorId, salesStaff, initial, initialPlates
         <Button type="button" variant="secondary" onClick={() => setLines((ls) => [...ls, emptyLine()])}>Ürün ekle</Button>
       )}
 
-      <section className="space-y-4 rounded-xl border border-stone-200 bg-white p-4 sm:p-6">
-        <h2 className="font-semibold">Toplam ve ödeme</h2>
+      <section className="space-y-4 rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)] p-5 sm:p-6">
+        <h2 className="text-[15px] font-semibold text-stone-900">Toplam ve ödeme</h2>
         <p className="text-lg">Sipariş toplamı (KDV dahil): <strong className="tabular-nums">{grandTotal || '—'}</strong></p>
         {!initial && <div className="max-w-xs"><FormField label="Peşinat" error={fe.deposit}><MoneyInput name="deposit" currency={currency} /></FormField></div>}
       </section>
@@ -260,9 +260,9 @@ function LineEditor({ index, count, line: l, preview, currency, sector, errors, 
   const err = (k: string) => errors[`lines.${index}.${k}`];
   const title = count > 1 ? `Ürün ${index + 1}` : 'Ürün';
   return (
-    <section aria-label={title} className="space-y-4 rounded-xl border border-stone-200 bg-white p-4 sm:p-6">
+    <section aria-label={title} className="space-y-4 rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)] p-5 sm:p-6">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="font-semibold">{title}</h2>
+        <h2 className="text-[15px] font-semibold text-stone-900">{title}</h2>
         {count > 1 && <Button type="button" variant="ghost" onClick={onRemove}>Ürünü kaldır</Button>}
       </div>
       <div className="grid gap-4 sm:grid-cols-3">

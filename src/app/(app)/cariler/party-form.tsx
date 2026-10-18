@@ -34,7 +34,7 @@ export function PartyForm({ party, canArchive, onSaved }: { party: Party | null;
   }
 
   return (
-    <form onSubmit={submit} className="space-y-4 rounded-xl border border-stone-200 bg-white p-4 sm:p-6">
+    <form onSubmit={submit} className="space-y-4 rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)] p-5 sm:p-6">
       <div className="grid gap-4 sm:grid-cols-2">
         <FormField label="Ünvan / ad soyad" required error={fe.name}><input name="name" defaultValue={party?.name} className={fieldClass} /></FormField>
         <FormField label="Tür" required>

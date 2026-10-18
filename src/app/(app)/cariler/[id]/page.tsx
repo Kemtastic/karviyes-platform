@@ -23,7 +23,7 @@ export default async function PartyPage({ params }: { params: Promise<{ id: stri
   const sales = party.kind !== 'supplier' && !party.archived && (await canUseSales()) ? await Promise.all([partyCalls({ partyId: party.id }), salesStaffList({})]) : null;
   return (
     <div className="max-w-3xl space-y-4">
-      <h1 className="text-2xl font-semibold">{party.name}</h1>
+      <h1 className="text-2xl font-semibold tracking-tight sm:text-[26px]">{party.name}</h1>
       {account?.ok && <CustomerAccount account={account.data} />}
       {sales?.[0].ok && <PartyCalls party={{ id: party.id, name: party.name }} calls={sales[0].data.calls} responsibleStaffId={sales[0].data.responsibleStaffId} staff={sales[1].ok ? sales[1].data : []} />}
       <PartyForm party={party} canArchive={user.roles.some((x) => x === 'admin' || x === 'tracking')} />

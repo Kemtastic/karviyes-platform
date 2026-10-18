@@ -13,7 +13,7 @@ export default async function CompanySettingsPage() {
   if (!c) notFound();
   return (
     <div className="max-w-xl space-y-4">
-      <h1 className="text-2xl font-semibold">Firma ayarları</h1>
+      <h1 className="text-2xl font-semibold tracking-tight sm:text-[26px]">Firma ayarları</h1>
       <BrandingForm name={c.name} brandColor={c.brandColor ?? '#c2410c'} logoFileId={c.logoFileId} />
     </div>
   );

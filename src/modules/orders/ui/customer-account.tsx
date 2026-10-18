@@ -16,9 +16,9 @@ type Account = {
 export function CustomerAccount({ account }: { account: Account }) {
   const router = useRouter();
   return (
-    <section className="space-y-4 rounded-xl border border-stone-200 bg-white p-4 sm:p-6">
+    <section className="space-y-4 rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)] p-5 sm:p-6">
       <div>
-        <h2 className="font-semibold">Sipariş bakiyesi</h2>
+        <h2 className="text-[15px] font-semibold text-stone-900">Sipariş bakiyesi</h2>
         <p className="text-sm text-stone-600">Sipariş tutarları ve tahsilatlar üzerinden; fatura bazlı cari değildir. Eksi bakiye, müşteriye iade edilecek tutardır.</p>
       </div>
       {account.totals.length ? (

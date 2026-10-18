@@ -24,7 +24,7 @@ export function CallList({ rows, view, staff, responsible, counts }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Satış takibi</h1>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-[26px]">Satış takibi</h1>
         <label className="flex items-center gap-2 text-sm">
           Sorumlu
           <select value={responsible} onChange={(e) => router.push(href(view, e.target.value))} className={`${fieldClass} w-auto`}>
@@ -35,7 +35,7 @@ export function CallList({ rows, view, staff, responsible, counts }: Props) {
       </div>
       <nav aria-label="Liste" className="flex flex-wrap gap-2">
         {VIEWS.map(([v, label]) => (
-          <Link key={v} href={href(v)} aria-current={view === v ? 'page' : undefined} className="rounded-full border px-3 py-1 text-sm aria-[current=page]:bg-stone-900 aria-[current=page]:text-white">
+          <Link key={v} href={href(v)} aria-current={view === v ? 'page' : undefined} className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-stone-200 bg-white px-3.5 py-1.5 text-sm font-medium text-stone-600 shadow-sm transition-colors hover:border-stone-300 hover:text-stone-900 aria-[current=page]:border-stone-900 aria-[current=page]:bg-stone-900 aria-[current=page]:text-white">
             {label}{v !== 'all' && counts[v] ? ` (${counts[v]})` : ''}
           </Link>
         ))}

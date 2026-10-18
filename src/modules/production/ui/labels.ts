@@ -1,3 +1,4 @@
+import type { Tone } from '@/ui/badge';
 import { getSector } from '@/sectors';
 
 export const STATUS_LABELS: Record<string, string> = {
@@ -25,3 +26,12 @@ export const EVENT_LABELS: Record<string, string> = {
   shipped: 'Sevk edildi',
   cancelled: 'İptal edildi',
 };
+
+// Aşama rozet tonu: bekleyen mavi, bölümde marka rengi, kontrol amber, bitti yeşil.
+export function stageTone(stage: string): Tone {
+  if (stage === 'waiting') return 'info';
+  if (stage === 'review') return 'warning';
+  if (stage === 'completed') return 'success';
+  if (stage === 'shipped' || stage === 'cancelled') return 'muted';
+  return 'brand';
+}

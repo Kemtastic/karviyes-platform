@@ -19,7 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (mustEnrollTwoFactor(user, cfg)) redirect('/iki-adim-kurulum');
 
   const [company] = await withCompany(user.companyId, (tx) => tx.select().from(companies).where(eq(companies.id, user.companyId)), await getDb());
-  const nav = navFor(user.roles, cfg).map(({ href, label }) => ({ href, label }));
+  const nav = navFor(user.roles, cfg).map(({ href, label, icon }) => ({ href, label, icon }));
 
   return (
     <AppShell

@@ -21,18 +21,18 @@ export default async function SalesReportsPage({ searchParams }: { searchParams:
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold">Satış raporları</h1>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-[26px]">Satış raporları</h1>
         <p className="text-stone-600">Sipariş tarihine göre; iptal edilen siparişler ve satırlar hariç. Fatura bazlı değildir.</p>
       </div>
       <form className="flex flex-wrap items-end gap-2">
         <input type="hidden" name="kirilim" value={groupBy} />
-        <label className="flex flex-col text-sm">Başlangıç<input type="date" name="bas" defaultValue={from} className="min-h-11 rounded-lg border border-stone-300 px-3" /></label>
-        <label className="flex flex-col text-sm">Bitiş<input type="date" name="bit" defaultValue={to} className="min-h-11 rounded-lg border border-stone-300 px-3" /></label>
-        <button className="min-h-11 rounded-lg border border-stone-300 bg-white px-4 text-sm font-semibold">Göster</button>
+        <label className="flex flex-col text-sm">Başlangıç<input type="date" name="bas" defaultValue={from} className="mt-1 min-h-10 rounded-xl border border-stone-300 bg-white px-3 text-sm shadow-sm focus:border-[var(--brand)] focus:outline-none focus:ring-4 focus:ring-[var(--brand-soft)]" /></label>
+        <label className="flex flex-col text-sm">Bitiş<input type="date" name="bit" defaultValue={to} className="mt-1 min-h-10 rounded-xl border border-stone-300 bg-white px-3 text-sm shadow-sm focus:border-[var(--brand)] focus:outline-none focus:ring-4 focus:ring-[var(--brand-soft)]" /></label>
+        <button className="min-h-10 rounded-xl bg-stone-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-stone-800">Göster</button>
       </form>
       <nav aria-label="Kırılım" className="flex flex-wrap gap-2">
         {REPORT_GROUPS.map((g) => (
-          <Link key={g} href={href(g)} aria-current={groupBy === g ? 'page' : undefined} className="rounded-full border px-3 py-1 text-sm aria-[current=page]:bg-stone-900 aria-[current=page]:text-white">
+          <Link key={g} href={href(g)} aria-current={groupBy === g ? 'page' : undefined} className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-stone-200 bg-white px-3.5 py-1.5 text-sm font-medium text-stone-600 shadow-sm transition-colors hover:border-stone-300 hover:text-stone-900 aria-[current=page]:border-stone-900 aria-[current=page]:bg-stone-900 aria-[current=page]:text-white">
             {GROUP_LABELS[g]}
           </Link>
         ))}

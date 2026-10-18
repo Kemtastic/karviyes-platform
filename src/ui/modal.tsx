@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useId, useRef, useState } from 'react';
+import { X } from 'lucide-react';
 import { Button } from './button';
 
 type Props = { open: boolean; title: string; onClose: () => void; dirty?: boolean; children: React.ReactNode; wide?: boolean };
@@ -43,21 +44,21 @@ export function Modal({ open, title, onClose, dirty = false, children, wide = fa
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-stone-950/40 backdrop-blur-[2px] sm:items-center sm:p-4">
       <div
         ref={ref}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         onKeyDown={onKeyDown}
-        className={`max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl sm:rounded-2xl ${wide ? 'sm:max-w-3xl' : 'sm:max-w-lg'}`}
+        className={`max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl bg-white p-6 shadow-[var(--shadow-pop)] sm:rounded-2xl ${wide ? 'sm:max-w-3xl' : 'sm:max-w-lg'}`}
       >
-        <div className="mb-4 flex items-start justify-between gap-4">
-          <h2 id={titleId} className="text-lg font-semibold">
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <h2 id={titleId} className="text-lg font-semibold tracking-tight">
             {title}
           </h2>
-          <Button variant="ghost" onClick={requestClose} aria-label="Kapat">
-            ✕
+          <Button variant="ghost" onClick={requestClose} aria-label="Kapat" className="-mr-2 -mt-1 min-h-9 px-2">
+            <X aria-hidden className="h-5 w-5" />
           </Button>
         </div>
         {confirming ? (

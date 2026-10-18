@@ -47,14 +47,14 @@ export function OrderDetail({ order: o, canMarkInvoice }: { order: Order; canMar
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="font-mono text-sm text-stone-500">{o.no}</p>
-          <h1 className="text-2xl font-semibold">{o.party.name}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-[26px]">{o.party.name}</h1>
           <p className="text-stone-600"><DateText value={o.orderDate} /> · {ORDER_STATUS_LABELS[o.status]}{o.salesperson ? ` · Satış: ${o.salesperson}` : ''}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <a href={`/api/pdf/siparis/${o.id}`} className="inline-flex min-h-11 items-center rounded-lg border border-stone-300 bg-white px-4 text-sm font-semibold">Sipariş PDF</a>
+          <a href={`/api/pdf/siparis/${o.id}`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 shadow-sm transition-colors hover:border-stone-400 hover:bg-stone-50">Sipariş PDF</a>
           {o.status !== 'cancelled' && <Button variant="secondary" onClick={() => setPaying(true)}>Tahsilat ekle</Button>}
           {o.status === 'ready_to_invoice' && canMarkInvoice && <Button onClick={() => setInvoicing(true)}>Fatura kesildi olarak işaretle</Button>}
-          {o.status === 'draft' && <Link href={`/siparisler/${o.id}/duzenle`} className="inline-flex min-h-11 items-center rounded-lg border border-stone-300 bg-white px-4 text-sm font-semibold">Düzenle</Link>}
+          {o.status === 'draft' && <Link href={`/siparisler/${o.id}/duzenle`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 shadow-sm transition-colors hover:border-stone-400 hover:bg-stone-50">Düzenle</Link>}
           {o.status === 'draft' && <Button variant="danger" onClick={() => setCancelling(true)}>Siparişi iptal et</Button>}
         </div>
       </div>
@@ -63,27 +63,27 @@ export function OrderDetail({ order: o, canMarkInvoice }: { order: Order; canMar
       {o.invoiceMark && <p className="rounded-lg bg-green-50 p-3 text-green-800">Fatura: {o.invoiceMark.no} · <DateText value={o.invoiceMark.date} /></p>}
 
       <section aria-label="Ürünler" className="space-y-2">
-        <h2 className="font-semibold">Ürünler</h2>
-        <div className="overflow-x-auto rounded-lg border border-stone-200 bg-white">
+        <h2 className="text-[15px] font-semibold text-stone-900">Ürünler</h2>
+        <div className="overflow-x-auto rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)]">
           <table className="w-full text-sm">
-            <thead className="bg-stone-50 text-left text-stone-600">
-              <tr><th className="px-3 py-2">#</th><th className="px-3 py-2">Ürün</th><th className="px-3 py-2 text-right">Adet</th><th className="px-3 py-2 text-right">Birim fiyat</th><th className="px-3 py-2 text-right">KDV</th><th className="px-3 py-2 text-right">Tutar</th><th className="px-3 py-2">Paket</th><th className="px-3 py-2">Durum</th></tr>
+            <thead className="border-b border-stone-200 bg-stone-50/80 text-left text-xs uppercase tracking-wide text-stone-500">
+              <tr><th className="px-4 py-3 font-semibold">#</th><th className="px-4 py-3 font-semibold">Ürün</th><th className="px-4 py-3 font-semibold text-right">Adet</th><th className="px-4 py-3 font-semibold text-right">Birim fiyat</th><th className="px-4 py-3 font-semibold text-right">KDV</th><th className="px-4 py-3 font-semibold text-right">Tutar</th><th className="px-4 py-3 font-semibold">Paket</th><th className="px-4 py-3 font-semibold">Durum</th></tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
               {o.lines.map((l) => (
                 <tr key={l.id} className={l.status === 'cancelled' ? 'text-stone-400 line-through' : ''}>
-                  <td className="px-3 py-2 tabular-nums">{l.lineNo}</td>
-                  <td className="px-3 py-2">
+                  <td className="px-4 py-3 tabular-nums">{l.lineNo}</td>
+                  <td className="px-4 py-3">
                     {l.productText}
                     {l.plateName && <span className="block text-xs text-stone-600">Klişe: {l.plateName}</span>}
                     {Object.entries(l.departmentNotes).map(([k, v]) => <span key={k} className="mt-1 block rounded bg-amber-50 px-2 py-1 text-xs text-amber-900 no-underline">{k}: {v}</span>)}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums">{l.quantity.toLocaleString('tr-TR')}{l.producedQty ? <span className="block text-xs text-stone-500">üretilen {l.producedQty.toLocaleString('tr-TR')} · sevk {l.shippedQty.toLocaleString('tr-TR')}</span> : null}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{Number(l.unitPrice).toLocaleString('tr-TR', { maximumFractionDigits: 4 })}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">%{Number(l.vatRate).toLocaleString('tr-TR')}</td>
-                  <td className="px-3 py-2"><Money value={moneyFromJSON(l.total)} /></td>
-                  <td className="px-3 py-2">{PACKAGING_LABELS[l.packaging.type as keyof typeof PACKAGING_LABELS]}{l.packaging.packages ? ` · ${l.packaging.packages} × ${l.packaging.capacity}` : ''}</td>
-                  <td className="px-3 py-2">{LINE_STATUS_LABELS[l.status]}{l.cancelReason ? `: ${l.cancelReason}` : ''}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{l.quantity.toLocaleString('tr-TR')}{l.producedQty ? <span className="block text-xs text-stone-500">üretilen {l.producedQty.toLocaleString('tr-TR')} · sevk {l.shippedQty.toLocaleString('tr-TR')}</span> : null}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{Number(l.unitPrice).toLocaleString('tr-TR', { maximumFractionDigits: 4 })}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">%{Number(l.vatRate).toLocaleString('tr-TR')}</td>
+                  <td className="px-4 py-3"><Money value={moneyFromJSON(l.total)} /></td>
+                  <td className="px-4 py-3">{PACKAGING_LABELS[l.packaging.type as keyof typeof PACKAGING_LABELS]}{l.packaging.packages ? ` · ${l.packaging.packages} × ${l.packaging.capacity}` : ''}</td>
+                  <td className="px-4 py-3">{LINE_STATUS_LABELS[l.status]}{l.cancelReason ? `: ${l.cancelReason}` : ''}</td>
                 </tr>
               ))}
             </tbody>
@@ -93,23 +93,23 @@ export function OrderDetail({ order: o, canMarkInvoice }: { order: Order; canMar
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-xl border border-stone-200 bg-white p-4"><p className="text-sm text-stone-500">Toplam (KDV dahil)</p><Money value={moneyFromJSON(o.total)} className="text-left text-2xl font-semibold" /></div>
-        <div className="rounded-xl border border-stone-200 bg-white p-4"><p className="text-sm text-stone-500">Kalan</p><Money value={moneyFromJSON(o.balance)} className="text-left text-2xl font-semibold" /></div>
+        <div className="rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)] p-5"><p className="text-sm text-stone-500">Toplam (KDV dahil)</p><Money value={moneyFromJSON(o.total)} className="text-left text-2xl font-semibold" /></div>
+        <div className="rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)] p-5"><p className="text-sm text-stone-500">Kalan</p><Money value={moneyFromJSON(o.balance)} className="text-left text-2xl font-semibold" /></div>
       </section>
 
       <section className="space-y-2">
-        <h2 className="font-semibold">Tahsilatlar</h2>
-        <div className="overflow-x-auto rounded-lg border border-stone-200 bg-white">
+        <h2 className="text-[15px] font-semibold text-stone-900">Tahsilatlar</h2>
+        <div className="overflow-x-auto rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)]">
           <table className="w-full text-sm">
-            <thead className="bg-stone-50 text-left text-stone-600"><tr><th className="px-3 py-2">Tarih</th><th className="px-3 py-2">Tür</th><th className="px-3 py-2">Not</th><th className="px-3 py-2 text-right">Tutar</th><th /></tr></thead>
+            <thead className="border-b border-stone-200 bg-stone-50/80 text-left text-xs uppercase tracking-wide text-stone-500"><tr><th className="px-4 py-3 font-semibold">Tarih</th><th className="px-4 py-3 font-semibold">Tür</th><th className="px-4 py-3 font-semibold">Not</th><th className="px-4 py-3 font-semibold text-right">Tutar</th><th /></tr></thead>
             <tbody className="divide-y divide-stone-100">
               {o.payments.map((p) => (
                 <tr key={p.id}>
-                  <td className="px-3 py-2"><DateText value={p.paidAt} /></td>
-                  <td className="px-3 py-2">{KIND[p.kind] ?? p.kind}</td>
-                  <td className="px-3 py-2 text-stone-600">{p.note}</td>
-                  <td className="px-3 py-2"><Money value={moneyFromJSON(p.amount)} /></td>
-                  <td className="px-3 py-2 text-right">{p.kind !== 'correction' && o.status !== 'cancelled' && <Button variant="ghost" onClick={() => setCorrecting(p)}>Düzelt</Button>}</td>
+                  <td className="px-4 py-3"><DateText value={p.paidAt} /></td>
+                  <td className="px-4 py-3">{KIND[p.kind] ?? p.kind}</td>
+                  <td className="px-4 py-3 text-stone-600">{p.note}</td>
+                  <td className="px-4 py-3"><Money value={moneyFromJSON(p.amount)} /></td>
+                  <td className="px-4 py-3 text-right">{p.kind !== 'correction' && o.status !== 'cancelled' && <Button variant="ghost" onClick={() => setCorrecting(p)}>Düzelt</Button>}</td>
                 </tr>
               ))}
               {!o.payments.length && <tr><td colSpan={5} className="px-3 py-4 text-center text-stone-500">Henüz tahsilat yok.</td></tr>}

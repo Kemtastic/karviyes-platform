@@ -19,29 +19,29 @@ export default async function ShipmentsPage({ searchParams }: { searchParams: Pr
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Sevk geçmişi</h1>
-        <Link href="/uretim?sekme=ready" className="inline-flex min-h-11 items-center rounded-lg border border-stone-300 bg-white px-4 text-sm font-semibold">Sevke hazır işler</Link>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-[26px]">Sevk geçmişi</h1>
+        <Link href="/uretim?sekme=ready" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 shadow-sm transition-colors hover:border-stone-400 hover:bg-stone-50">Sevke hazır işler</Link>
       </div>
       <form className="flex flex-wrap items-end gap-2">
-        <label className="flex flex-col text-sm">Başlangıç<input type="date" name="bas" defaultValue={from} className="min-h-11 rounded-lg border border-stone-300 px-3" /></label>
-        <label className="flex flex-col text-sm">Bitiş<input type="date" name="bit" defaultValue={to} className="min-h-11 rounded-lg border border-stone-300 px-3" /></label>
-        <button className="min-h-11 rounded-lg border border-stone-300 bg-white px-4 text-sm font-semibold">Göster</button>
+        <label className="flex flex-col text-sm">Başlangıç<input type="date" name="bas" defaultValue={from} className="mt-1 min-h-10 rounded-xl border border-stone-300 bg-white px-3 text-sm shadow-sm focus:border-[var(--brand)] focus:outline-none focus:ring-4 focus:ring-[var(--brand-soft)]" /></label>
+        <label className="flex flex-col text-sm">Bitiş<input type="date" name="bit" defaultValue={to} className="mt-1 min-h-10 rounded-xl border border-stone-300 bg-white px-3 text-sm shadow-sm focus:border-[var(--brand)] focus:outline-none focus:ring-4 focus:ring-[var(--brand-soft)]" /></label>
+        <button className="min-h-10 rounded-xl bg-stone-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-stone-800">Göster</button>
       </form>
       <p className="text-stone-700">{r.data.length} sevk · toplam <strong className="tabular-nums">{total.toLocaleString('tr-TR')}</strong> adet</p>
-      <div className="overflow-x-auto rounded-lg border border-stone-200 bg-white">
+      <div className="overflow-x-auto rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)]">
         <table className="w-full text-sm">
-          <thead className="bg-stone-50 text-left text-stone-600">
-            <tr><th className="px-3 py-2">Tarih</th><th className="px-3 py-2">İş</th><th className="px-3 py-2">Müşteri</th><th className="px-3 py-2">Ürün</th><th className="px-3 py-2 text-right">Adet</th><th className="px-3 py-2">Not</th></tr>
+          <thead className="border-b border-stone-200 bg-stone-50/80 text-left text-xs uppercase tracking-wide text-stone-500">
+            <tr><th className="px-4 py-3 font-semibold">Tarih</th><th className="px-4 py-3 font-semibold">İş</th><th className="px-4 py-3 font-semibold">Müşteri</th><th className="px-4 py-3 font-semibold">Ürün</th><th className="px-4 py-3 font-semibold text-right">Adet</th><th className="px-4 py-3 font-semibold">Not</th></tr>
           </thead>
           <tbody className="divide-y divide-stone-100">
             {r.data.map((s) => (
               <tr key={s.id}>
-                <td className="px-3 py-2 whitespace-nowrap">{formatDate(s.shippedAt)}</td>
-                <td className="px-3 py-2 font-mono"><Link href={`/uretim/is/${s.jobId}`} className="underline">{s.jobNo}</Link></td>
-                <td className="px-3 py-2">{s.partyName}</td>
-                <td className="px-3 py-2 text-stone-600">{s.product}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{s.qty.toLocaleString('tr-TR')}</td>
-                <td className="px-3 py-2 text-stone-600">{s.note}</td>
+                <td className="px-4 py-3 whitespace-nowrap">{formatDate(s.shippedAt)}</td>
+                <td className="px-4 py-3 font-mono"><Link href={`/uretim/is/${s.jobId}`} className="underline">{s.jobNo}</Link></td>
+                <td className="px-4 py-3">{s.partyName}</td>
+                <td className="px-4 py-3 text-stone-600">{s.product}</td>
+                <td className="px-4 py-3 text-right tabular-nums">{s.qty.toLocaleString('tr-TR')}</td>
+                <td className="px-4 py-3 text-stone-600">{s.note}</td>
               </tr>
             ))}
             {!r.data.length && <tr><td colSpan={6} className="px-3 py-4 text-center text-stone-500">Bu aralıkta sevk yok.</td></tr>}

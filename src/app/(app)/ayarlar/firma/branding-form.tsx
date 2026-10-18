@@ -27,7 +27,7 @@ export function BrandingForm({ name, brandColor, logoFileId }: { name: string; b
 
   return (
     <form
-      className="space-y-4 rounded-xl border border-stone-200 bg-white p-4 sm:p-6"
+      className="space-y-4 rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)] p-5 sm:p-6"
       onSubmit={(e) => {
         e.preventDefault();
         setSaved(false);

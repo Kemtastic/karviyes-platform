@@ -9,8 +9,12 @@ import { navFor } from '@/core/nav';
 import { ordersSummary } from '@/modules/orders/server/queries';
 import { materialShortages, productionSummary } from '@/modules/production/server/queries';
 import { callList } from '@/modules/sales/server/queries';
+import { ChevronRight } from 'lucide-react';
+import { NavIcon } from '@/ui/icon';
+import { PageHeader } from '@/ui/page-header';
+import { StatCard } from '@/ui/stat-card';
 
-type Card = { label: string; value: string; href: string; tone?: 'warn' };
+type Card = { label: string; value: string; href: string; icon: string; tone?: 'warn' };
 
 const has = (roles: Role[], ...want: Role[]) => roles.some((r) => want.includes(r));
 
@@ -35,45 +39,52 @@ export default async function HomePage() {
   if (production?.ok) {
     const p = production.data;
     cards.push(
-      { label: 'Kumaş bekleyen iş', value: String(p.waitingFabric), href: '/uretim?sekme=fabric', tone: p.waitingFabric ? 'warn' : undefined },
-      { label: 'Üretimdeki iş', value: String(p.inProduction), href: '/uretim?sekme=production' },
-      { label: 'Kontrol bekleyen', value: String(p.review), href: '/uretim?sekme=review', tone: p.review ? 'warn' : undefined },
-      { label: 'Sevke hazır', value: String(p.readyToShip), href: '/uretim?sekme=ready' },
+      { label: 'Kumaş bekleyen iş', value: String(p.waitingFabric), href: '/uretim?sekme=fabric', icon: 'layers', tone: p.waitingFabric ? 'warn' : undefined },
+      { label: 'Üretimdeki iş', value: String(p.inProduction), href: '/uretim?sekme=production', icon: 'factory' },
+      { label: 'Kontrol bekleyen', value: String(p.review), href: '/uretim?sekme=review', icon: 'shield', tone: p.review ? 'warn' : undefined },
+      { label: 'Sevke hazır', value: String(p.readyToShip), href: '/uretim?sekme=ready', icon: 'truck' },
     );
   }
-  if (shortages?.ok && shortages.data.length) cards.push({ label: 'Stok açığı (malzeme türü)', value: String(shortages.data.length), href: '/uretim/kumas', tone: 'warn' });
+  if (shortages?.ok && shortages.data.length) cards.push({ label: 'Stok açığı (malzeme türü)', value: String(shortages.data.length), href: '/uretim/kumas', icon: 'layers', tone: 'warn' });
   if (orders?.ok) {
     const o = orders.data;
     cards.push(
-      { label: 'Yeni sipariş', value: String(o.counts.draft ?? 0), href: '/siparisler?durum=draft' },
-      { label: 'Faturaya hazır', value: String(o.counts.ready_to_invoice ?? 0), href: '/siparisler?durum=ready_to_invoice', tone: o.counts.ready_to_invoice ? 'warn' : undefined },
-      { label: 'Açık sipariş bakiyesi', value: o.openBalances.length ? o.openBalances.map((m) => formatMoney(moneyFromJSON(m))).join(' · ') : '—', href: '/siparisler/alacaklar' },
+      { label: 'Yeni sipariş', value: String(o.counts.draft ?? 0), href: '/siparisler?durum=draft', icon: 'clipboard-list' },
+      { label: 'Faturaya hazır', value: String(o.counts.ready_to_invoice ?? 0), href: '/siparisler?durum=ready_to_invoice', icon: 'clipboard-list', tone: o.counts.ready_to_invoice ? 'warn' : undefined },
+      { label: 'Açık sipariş bakiyesi', value: o.openBalances.length ? o.openBalances.map((m) => formatMoney(moneyFromJSON(m))).join(' · ') : '—', href: '/siparisler/alacaklar', icon: 'wallet' },
     );
   }
-  if (today?.ok) cards.push({ label: 'Bugün aranacak', value: String(today.data.length), href: '/satis?gorunum=today' });
-  if (overdue?.ok && overdue.data.length) cards.push({ label: 'Geciken arama', value: String(overdue.data.length), href: '/satis?gorunum=overdue', tone: 'warn' });
+  if (today?.ok) cards.push({ label: 'Bugün aranacak', value: String(today.data.length), href: '/satis?gorunum=today', icon: 'phone' });
+  if (overdue?.ok && overdue.data.length) cards.push({ label: 'Geciken arama', value: String(overdue.data.length), href: '/satis?gorunum=overdue', icon: 'phone', tone: 'warn' });
 
   const links = navFor(user.roles, cfg).filter((n) => n.href !== '/');
+  const hour = Number(new Intl.DateTimeFormat('tr-TR', { hour: 'numeric', hour12: false, timeZone: 'Europe/Istanbul' }).format(new Date()));
+  const greeting = hour < 12 ? 'Günaydın' : hour < 18 ? 'İyi günler' : 'İyi akşamlar';
+  const dateText = new Intl.DateTimeFormat('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Istanbul' }).format(new Date());
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Hoş geldiniz, {user.name}</h1>
+    <div className="space-y-8">
+      <PageHeader eyebrow={dateText} title={<>Hoş geldiniz, {user.name}</>} description={`${greeting}. Günün özeti ve sık kullandığınız ekranlar aşağıda.`} />
       {cards.length > 0 && (
-        <section aria-label="Özet" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <section aria-label="Özet" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {cards.map((c) => (
-            <Link key={c.label} href={c.href} className={`rounded-xl border bg-white p-4 shadow-sm hover:border-[var(--brand)] ${c.tone === 'warn' ? 'border-amber-300 bg-amber-50' : 'border-stone-200'}`}>
-              <span className="block text-sm text-stone-600">{c.label}</span>
-              <span className="block text-2xl font-semibold tabular-nums">{c.value}</span>
-            </Link>
+            <StatCard key={c.label} label={c.label} value={c.value} href={c.href} icon={c.icon} tone={c.tone} />
           ))}
         </section>
       )}
-      <nav aria-label="Kısayollar" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {links.map((l) => (
-          <Link key={l.href} href={l.href} className="rounded-xl border border-stone-200 bg-white p-5 font-medium shadow-sm hover:border-[var(--brand)]">
-            {l.label}
-          </Link>
-        ))}
-      </nav>
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-stone-500">Hızlı erişim</h2>
+        <nav aria-label="Kısayollar" className="grid gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3">
+          {links.map((l) => (
+            <Link key={l.href} href={l.href} className="group flex items-center gap-3 rounded-2xl border border-stone-200/80 bg-white p-3 font-medium sm:p-4 shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-md">
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-stone-100 text-stone-600 transition group-hover:bg-[var(--brand-soft)] group-hover:text-[var(--brand-strong)]">
+                <NavIcon name={l.icon} />
+              </span>
+              <span className="flex-1">{l.label}</span>
+              <ChevronRight aria-hidden className="h-4 w-4 text-stone-400 transition group-hover:translate-x-0.5 group-hover:text-stone-700" />
+            </Link>
+          ))}
+        </nav>
+      </section>
     </div>
   );
 }

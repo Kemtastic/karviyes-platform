@@ -1,13 +1,52 @@
 @import 'tailwindcss';
 
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --color-canvas: #f5f4f1;
+  --shadow-card: 0 1px 2px rgb(28 25 23 / 0.04), 0 2px 6px rgb(28 25 23 / 0.05);
+  --shadow-pop: 0 12px 32px rgb(28 25 23 / 0.16), 0 2px 6px rgb(28 25 23 / 0.08);
+}
+
+/* Firma rengi kabukta firmadan gelir (style="--brand: …"); türevleri aynı öğede yeniden hesaplanır. */
+:root,
+[data-brand] {
+  --brand-soft: color-mix(in srgb, var(--brand) 10%, white);
+  --brand-softer: color-mix(in srgb, var(--brand) 5%, white);
+  --brand-strong: color-mix(in srgb, var(--brand) 82%, black);
+}
+
 :root {
-  /* Firma rengi kabukta firmadan gelir; burada varsayılan. */
   --brand: #c2410c;
   --danger: #b91c1c;
+}
+
+body {
+  background: var(--color-canvas);
 }
 
 /* Klavye odağı her zaman görünür. */
 :focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: 2px;
+}
+
+::selection {
+  background: var(--brand-soft);
+}
+
+/* İnce kaydırma çubukları (yatay tablolar ve kenar menüsü). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(168 162 158 / 0.6) transparent;
+}
+
+@media print {
+  aside,
+  nav[aria-label='Alt menü'],
+  header {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
 }

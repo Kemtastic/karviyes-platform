@@ -21,7 +21,7 @@ export function UsersScreen({ members, currentMembershipId }: { members: MemberR
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Kullanıcılar</h1>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-[26px]">Kullanıcılar</h1>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={() => setMode('device')}>Bölüm tableti ekle</Button>
           <Button onClick={() => setMode('invite')}>Kullanıcı davet et</Button>

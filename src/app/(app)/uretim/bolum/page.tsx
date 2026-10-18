@@ -13,10 +13,10 @@ export default async function DepartmentIndexPage() {
   if (own) redirect(`/uretim/bolum/${own.id}`);
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Bölüm ekranları</h1>
+      <h1 className="text-2xl font-semibold tracking-tight sm:text-[26px]">Bölüm ekranları</h1>
       <div className="grid gap-3 sm:grid-cols-3">
         {stages.map((s) => (
-          <Link key={s.id} href={`/uretim/bolum/${s.id}`} className="rounded-xl border border-stone-200 bg-white p-6 text-lg font-semibold shadow-sm hover:border-[var(--brand)]">{s.label}</Link>
+          <Link key={s.id} href={`/uretim/bolum/${s.id}`} className="rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)] p-6 text-lg font-semibold shadow-sm hover:border-[var(--brand)]">{s.label}</Link>
         ))}
       </div>
     </div>

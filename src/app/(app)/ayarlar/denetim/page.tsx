@@ -16,26 +16,26 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Denetim kaydı</h1>
+      <h1 className="text-2xl font-semibold tracking-tight sm:text-[26px]">Denetim kaydı</h1>
       <p className="text-sm text-stone-600">Sistemde yapılan her değişiklik burada değiştirilemez biçimde tutulur.</p>
-      <form className="grid gap-3 rounded-xl border border-stone-200 bg-white p-4 sm:grid-cols-4">
+      <form className="grid gap-3 rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)] p-5 sm:grid-cols-4">
         <label className="text-sm font-medium">Başlangıç<input type="date" name="from" defaultValue={sp.from} className={fieldClass} /></label>
         <label className="text-sm font-medium">Bitiş<input type="date" name="to" defaultValue={sp.to} className={fieldClass} /></label>
         <label className="text-sm font-medium">Kayıt türü<input name="entity" defaultValue={sp.entity} placeholder="örn. order" className={fieldClass} /></label>
         <button className="self-end rounded-lg bg-stone-900 px-4 py-2.5 font-semibold text-white">Filtrele</button>
       </form>
-      <div className="overflow-x-auto rounded-lg border border-stone-200 bg-white">
+      <div className="overflow-x-auto rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)]">
         <table className="w-full text-sm">
-          <thead className="bg-stone-50 text-left text-stone-600">
-            <tr><th className="px-3 py-2">Zaman</th><th className="px-3 py-2">İşlem</th><th className="px-3 py-2">Kayıt</th><th className="px-3 py-2">Kullanıcı</th></tr>
+          <thead className="border-b border-stone-200 bg-stone-50/80 text-left text-xs uppercase tracking-wide text-stone-500">
+            <tr><th className="px-4 py-3 font-semibold">Zaman</th><th className="px-4 py-3 font-semibold">İşlem</th><th className="px-4 py-3 font-semibold">Kayıt</th><th className="px-4 py-3 font-semibold">Kullanıcı</th></tr>
           </thead>
           <tbody className="divide-y divide-stone-100">
             {r.data.rows.map((a) => (
               <tr key={a.id}>
-                <td className="whitespace-nowrap px-3 py-2">{formatDateTime(new Date(a.at))}</td>
-                <td className="px-3 py-2 font-mono text-xs">{a.action}</td>
-                <td className="px-3 py-2 font-mono text-xs">{a.entity} · {a.entityId.slice(0, 8)}</td>
-                <td className="px-3 py-2 font-mono text-xs">{a.actorUserId?.slice(0, 8) ?? 'sistem'}</td>
+                <td className="whitespace-nowrap px-4 py-3">{formatDateTime(new Date(a.at))}</td>
+                <td className="px-4 py-3 font-mono text-xs">{a.action}</td>
+                <td className="px-4 py-3 font-mono text-xs">{a.entity} · {a.entityId.slice(0, 8)}</td>
+                <td className="px-4 py-3 font-mono text-xs">{a.actorUserId?.slice(0, 8) ?? 'sistem'}</td>
               </tr>
             ))}
             {!r.data.rows.length && <tr><td colSpan={4} className="px-3 py-6 text-center text-stone-500">Kayıt yok.</td></tr>}

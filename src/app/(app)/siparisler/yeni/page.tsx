@@ -8,7 +8,7 @@ export default async function NewOrderPage() {
   const staff = await listSalesStaff({});
   return (
     <div className="max-w-4xl space-y-4">
-      <h1 className="text-2xl font-semibold">Yeni sipariş</h1>
+      <h1 className="text-2xl font-semibold tracking-tight sm:text-[26px]">Yeni sipariş</h1>
       <OrderForm sector={getInstallConfig().sector} salesStaff={staff.ok ? staff.data.map((s) => ({ id: s.id, name: s.name })) : []} />
     </div>
   );

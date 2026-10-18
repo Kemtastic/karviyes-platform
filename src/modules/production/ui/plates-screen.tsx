@@ -16,17 +16,17 @@ export function PlatesScreen({ rows }: { rows: Plate[] }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Klişeler</h1>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-[26px]">Klişeler</h1>
         <Button onClick={() => setAdding(true)}>Klişe ekle</Button>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {rows.map((p) => (
-          <article key={p.id} className="space-y-2 rounded-xl border border-stone-200 bg-white p-4">
+          <article key={p.id} className="space-y-2 rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)] p-5">
             {p.fileIds[0] && (
               // eslint-disable-next-line @next/next/no-img-element -- kendi dosya uç noktamız
               <img src={`/api/files/${p.fileIds[0]}`} alt={`${p.name} klişe görseli`} className="h-40 w-full rounded-lg bg-stone-100 object-contain" />
             )}
-            <h2 className="font-semibold">{p.name}</h2>
+            <h2 className="text-[15px] font-semibold text-stone-900">{p.name}</h2>
             <p className="text-sm text-stone-600">{p.partyName}</p>
             {p.colours && <p className="text-sm">Renkler: {p.colours}</p>}
             {p.notes && <p className="text-sm text-stone-600">{p.notes}</p>}
