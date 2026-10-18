@@ -15,6 +15,20 @@
       "when": 1792290203675,
       "tag": "0001_security",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792290603201,
+      "tag": "0002_auth_memberships",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792290604633,
+      "tag": "0003_auth_memberships_secure",
+      "breakpoints": true
     }
   ]
 }

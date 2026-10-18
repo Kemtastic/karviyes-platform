@@ -6,7 +6,7 @@ import { auditLog } from '@/core/db/schema';
 import { rowsOf } from '@/core/db/client';
 
 // company_id taşımayan, firmalar arası paylaşılan tablolar (kimlik ve altyapı).
-const GLOBAL_TABLES = new Set(['companies', 'user', 'session', 'account', 'verification', 'two_factor', 'rate_limits', 'invites']);
+const GLOBAL_TABLES = new Set(['companies', 'user', 'session', 'account', 'verification', 'two_factor', 'rate_limit', 'rate_limits', 'invites']);
 
 let t: TestDb;
 beforeAll(async () => { t = await createTestDb(); });

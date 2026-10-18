@@ -38,10 +38,9 @@ BEGIN
   GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_user;
 END $$;
 --> statement-breakpoint
--- Firma tablosu: uygulama yalnızca kendi firmasını okuyabilir ve marka bilgisini güncelleyebilir.
+-- Firma tablosu: uygulama rolü yalnızca kendi firmasını okuyup marka bilgisini güncelleyebilir.
+-- FORCE yok: kurulum ve oturum, firma kimliğini slug ile sahip bağlantısından okur.
 ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE companies FORCE ROW LEVEL SECURITY;
 --> statement-breakpoint
 CREATE POLICY company_self ON companies TO app_user
   USING (id = nullif(current_setting('app.company_id', true), '')::uuid)
