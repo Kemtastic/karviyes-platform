@@ -57,6 +57,8 @@ export const listOrders = defineAction({
   run: async (ctx, i) => {
     // Arama: sipariş numarası veya müşteri (adı, yetkili, VKN, il — Türkçe harf duyarsız arama anahtarı).
     const key = i.q ? normalizeSearch(i.q) : '';
+    // Harf/rakam kalmayan arama (ör. ".") hiçbir şeyle eşleşmez; boş LIKE her şeyi döndürürdü.
+    const noPart = i.q ? i.q.toUpperCase().replace(/[^0-9A-Z-]/g, '') : '';
     const rows = await ctx.tx
       .select({ o: orders, partyName: parties.name })
       .from(orders)
@@ -67,7 +69,7 @@ export const listOrders = defineAction({
           i.partyId ? eq(orders.partyId, i.partyId) : undefined,
           i.from ? gte(orders.orderDate, i.from) : undefined,
           i.to ? lte(orders.orderDate, i.to) : undefined,
-          i.q ? or(like(orders.no, `%${i.q.toUpperCase().replace(/[^0-9A-Z-]/g, '')}%`), key ? like(parties.searchKey, `%${key}%`) : undefined) : undefined,
+          i.q ? (noPart || key ? or(noPart ? like(orders.no, `%${noPart}%`) : undefined, key ? like(parties.searchKey, `%${key}%`) : undefined) : sql`false`) : undefined,
         ),
       )
       .orderBy(desc(orders.orderDate), desc(orders.no))
@@ -167,7 +169,7 @@ export const customerAccount = defineAction({
   rateLimit: false,
   input: z.object({ partyId: z.string().uuid() }),
   run: async (ctx, i) => {
-    const rows = await ctx.tx.select().from(orders).where(eq(orders.partyId, i.partyId)).orderBy(desc(orders.orderDate), desc(orders.no)).limit(1000);
+    const rows = await ctx.tx.select().from(orders).where(eq(orders.partyId, i.partyId)).orderBy(desc(orders.orderDate), desc(orders.no)).limit(10000);
     const ids = rows.map((o) => o.id);
     const pays = ids.length ? await ctx.tx.select().from(orderPayments).where(inArray(orderPayments.orderId, ids)) : [];
     const lines = await linesOf(ctx, ids);
@@ -312,6 +314,6 @@ export const lastOrderLines = defineAction({
       .limit(1);
     if (!o) return null;
     const lines = ((await linesOf(ctx, [o.id])).get(o.id) ?? []).filter((l) => l.status !== 'cancelled');
-    return { ...o, lines: lines.map((l) => ({ product: l.product, quantity: l.quantity, unitPrice: l.unitPrice, vatRate: l.vatRate, packaging: l.packaging, departmentNotes: l.departmentNotes })) };
+    return { ...o, lines: lines.map((l) => ({ product: l.product, quantity: l.quantity, unitPrice: l.unitPrice, vatRate: l.vatRate, packaging: l.packaging, departmentNotes: l.departmentNotes, plateId: l.plateId })) };
   },
 });

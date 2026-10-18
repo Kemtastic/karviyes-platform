@@ -15,3 +15,31 @@ export function uploadPrecheck(req: Request, hasSession: boolean): Response | nu
   if (length > MAX_FILE_BYTES + FORM_OVERHEAD) return fail(413, 'VALIDATION', 'Dosya en fazla 10 MB olabilir.');
   return null;
 }
+
+export const UPLOAD_BODY_LIMIT = MAX_FILE_BYTES + FORM_OVERHEAD;
+
+// Gövdeyi en çok `limit` bayt okur; aşılırsa okumayı keser ve null döner.
+// Boyutu bildirilmeyen (HTTP/2, parçalı) isteklerde bellek sınırsız dolmasın diye.
+export async function readBodyCapped(req: Request, limit = UPLOAD_BODY_LIMIT): Promise<Uint8Array<ArrayBuffer> | null> {
+  if (!req.body) return new Uint8Array();
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > limit) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(size);
+  let offset = 0;
+  for (const c of chunks) {
+    out.set(c, offset);
+    offset += c.byteLength;
+  }
+  return out;
+}

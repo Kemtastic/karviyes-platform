@@ -30,6 +30,9 @@ function previousDay(date: string): string {
 
 // Verilen gün veya öncesinde yayımlanmış son bültenden döviz satış kuru.
 export async function tcmbRate(currency: 'USD' | 'EUR', date: string, fetcher: Fetcher = (u) => fetch(u, { signal: AbortSignal.timeout(8000) })) {
+  // Gelecek ve çok eski tarih için TCMB'ye gidilmez (gereksiz dış istek).
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  if (date < '2000-01-01' || date > tomorrow) throw new AppError('VALIDATION', 'Kur tarihi 2000 ile bugün arasında olmalı.', { fxRateDate: 'Geçerli bir tarih seçin.' });
   let day = date;
   for (let i = 0; i < MAX_LOOKBACK_DAYS; i++, day = previousDay(day)) {
     let res: Response;
@@ -55,6 +58,7 @@ export async function cachedTcmbRate(currency: 'USD' | 'EUR', date: string) {
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.value;
   const value = await tcmbRate(currency, date);
+  if (cache.size >= 500) cache.clear();
   cache.set(key, { at: Date.now(), value });
   return value;
 }

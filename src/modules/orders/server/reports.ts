@@ -39,8 +39,12 @@ export const salesReport = defineAction({
       else if (i.groupBy === 'customer') [key, label] = [r.partyId, r.partyName];
       else if (i.groupBy === 'month') [key, label] = [r.orderDate.slice(0, 7), r.orderDate.slice(0, 7)];
       else {
-        const p = sector.validateProduct(r.line.product);
-        label = sector.analysisKey?.(p) ?? sector.describe(p);
+        try {
+          const p = sector.validateProduct(r.line.product);
+          label = sector.analysisKey?.(p) ?? sector.describe(p);
+        } catch {
+          label = 'Ürün bilgisi okunamadı';
+        }
         key = label;
       }
       const id = `${key}|${currency}`;

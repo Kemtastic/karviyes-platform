@@ -46,6 +46,8 @@ describe('sipariş arama', () => {
   });
 
   it('tarih aralığı', async () => {
+    // Harf/rakam kalmayan arama her şeyi döndürmemeli.
+    expect(await found({ q: '.' })).toEqual([]);
     expect(await found({ from: '2026-10-01', to: '2026-10-31' })).toEqual([nos.ekim, nos.deniz].sort());
     expect(await found({ from: '2026-10-11' })).toEqual([nos.deniz]);
   });
@@ -55,7 +57,7 @@ describe('eski siparişten kopyala', () => {
   it('müşterinin son siparişinin satırları (fiyatlarıyla) gelir', async () => {
     const r = await lastOrderLines({ partyId: ozgur }, sales());
     if (!r.ok) throw new Error(r.message);
-    expect(r.data).toMatchObject({ no: nos.ekim, lines: [{ unitPrice: '5.0000', vatRate: '10.00', product: { colour: 'Krem' } }] });
+    expect(r.data).toMatchObject({ no: nos.ekim, lines: [{ unitPrice: '5.0000', vatRate: '10.00', product: { colour: 'Krem' }, plateId: null }] });
   });
 
   it('siparişi olmayan müşteride boş döner', async () => {

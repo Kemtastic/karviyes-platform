@@ -15,6 +15,7 @@ Firma sahibi/yönetici (masaüstü), satış (telefon + masaüstü), üretim tak
 - Para: kuruş `bigint` + para birimi; hesap yalnızca `src/core/money.ts`; yarım birim sıfırdan uzağa yuvarlanır. Float ile para hesabı yasak.
 - Her yazma `defineAction` üzerinden (oturum → modül → rol → hız sınırı → zod → firma kapsamlı işlem → audit).
 - Her yeni tablo: `company_id` + göç sonunda `SELECT app_secure_tables();` (RLS ve yetkiler). `tests/core/db/rls.test.ts` her tabloyu denetler.
+- Veri taşıyan göç (mevcut satırları okuyan/yazan): canlıda göçler süper kullanıcı olmayan `uretim_app` ile çalışır ve zorunlu RLS onu da süzer — göç başında ilgili tablolarda `NO FORCE ROW LEVEL SECURITY`, sonda `app_secure_tables()` (örnek: `drizzle/0021_order_lines.sql`), göç testi eski şemaya veri yazıp doğrular (`tests/core/db/order-lines-migration.test.ts`).
 - Bir modül başka modülün tablosuna yazmaz; `server/public.ts` fonksiyonunu çağırır (okuma serbest).
 - Sürüm (`version`) kontrolü rol ve durum kontrolünden önce: eski ekrandan gelen istek CONFLICT alır.
 - Bölüm tabletleri fiyat, tutar, tahsilat ve bakiye göremez.

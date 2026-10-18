@@ -35,3 +35,9 @@ describe('CSV okuma', () => {
     expect(parseCsv(toCsv(['A', 'B', 'C'], rows))).toEqual([['A', 'B', 'C'], ...rows]);
   });
 });
+
+describe('sayısal metinler', () => {
+  it('negatif ondalık tutar formül sayılmaz (Excel sayı olarak toplar)', () => {
+    expect(toCsv(['A'], [['-12,00'], ['-5']]).split(String.fromCharCode(13, 10))).toEqual([String.fromCharCode(0xfeff) + 'A', '-12,00', '-5', '']);
+  });
+});

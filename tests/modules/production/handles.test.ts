@@ -6,6 +6,10 @@ import { createStaff } from '@/core/users/service';
 import { createOrder } from '@/modules/orders/server/actions';
 import { addFabricRolls, finishStage, reserveFabric, sendToStage, startProduction, startStage } from '@/modules/production/server/actions';
 import { jobDetail, listFabric, materialShortages } from '@/modules/production/server/queries';
+import { salesReport } from '@/modules/orders/server/reports';
+import { orderLines } from '@/modules/orders/db/schema';
+import { withCompany } from '@/core/db/scope';
+import { eq } from 'drizzle-orm';
 
 let t: TestDb;
 let partyId: string;
@@ -103,5 +107,14 @@ describe('malzeme ayırmadan başlatma (inceleme)', () => {
     if (!d.ok) throw new Error(d.message);
     expect(d.data.events.find((e) => e.kind === 'started')?.data).toMatchObject({ materialsSkipped: true });
     expect(d.data.materials.find((m) => m.kind === 'handle')).toMatchObject({ reserved: 0 });
+  });
+});
+
+describe('bozuk ürün kaydı (inceleme)', () => {
+  it('tek satırın ürün bilgisi bozuksa stok açığı ve satış raporu yine çalışır', async () => {
+    const orderId = await order({ ...kulplu, colour: 'Bordo' });
+    await withCompany(t.companyA, (tx) => tx.update(orderLines).set({ product: { width: 'bozuk' } }).where(eq(orderLines.orderId, orderId)), t.db);
+    expect(await materialShortages({}, tracking())).toMatchObject({ ok: true });
+    expect(await salesReport({ from: '2026-01-01', to: '2026-12-31', groupBy: 'product' }, tracking())).toMatchObject({ ok: true });
   });
 });

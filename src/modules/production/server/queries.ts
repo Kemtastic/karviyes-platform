@@ -194,7 +194,15 @@ export const materialShortages = defineAction({
       .from(orderLines)
       .innerJoin(orders, eq(orders.id, orderLines.orderId))
       .where(and(eq(orderLines.status, 'open'), inArray(orders.status, ['draft', 'in_production'])));
-    for (const l of open) for (const n of sector.materials(sector.validateProduct(l.product), l.quantity)) demands.push({ ...n, ref: `${l.no}/${l.lineNo}` });
+    // Tek bozuk ürün kaydı tüm paneli düşürmesin: okunamayan satır atlanır.
+    const needsOf = (product: Record<string, unknown>, quantity: number) => {
+      try {
+        return sector.materials(sector.validateProduct(product), quantity);
+      } catch {
+        return [];
+      }
+    };
+    for (const l of open) for (const n of needsOf(l.product, l.quantity)) demands.push({ ...n, ref: `${l.no}/${l.lineNo}` });
     const active = await ctx.tx
       .select({ id: jobs.id, no: jobs.no, product: orderLines.product, quantity: orderLines.quantity })
       .from(jobs)
@@ -204,7 +212,7 @@ export const materialShortages = defineAction({
       ? await ctx.tx.select({ jobId: fabricRolls.reservedJobId, reservedFor: fabricRolls.reservedFor }).from(fabricRolls).where(inArray(fabricRolls.reservedJobId, active.map((j) => j.id)))
       : [];
     for (const j of active) {
-      for (const n of sector.materials(sector.validateProduct(j.product), j.quantity)) {
+      for (const n of needsOf(j.product, j.quantity)) {
         const have = taken.filter((r) => r.jobId === j.id && (r.reservedFor ?? 'fabric') === n.kind).length;
         if (n.rolls > have) demands.push({ ...n, rolls: n.rolls - have, ref: j.no });
       }

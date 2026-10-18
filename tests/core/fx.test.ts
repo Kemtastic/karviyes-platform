@@ -38,3 +38,13 @@ describe('TCMB kuru', () => {
     await expect(tcmbRate('USD', '2026-10-18', async () => new Response('', { status: 500 }))).rejects.toThrow(/TCMB kuru alınamadı/);
   });
 });
+
+describe('TCMB tarih sınırı', () => {
+  it('gelecek ve 2000 öncesi tarih istenmez (dış istek yapılmaz)', async () => {
+    let calls = 0;
+    const fetcher = async () => { calls++; return new Response('', { status: 404 }); };
+    await expect(tcmbRate('USD', '2999-01-01', fetcher)).rejects.toThrow(/tarih/i);
+    await expect(tcmbRate('USD', '1999-12-31', fetcher)).rejects.toThrow(/tarih/i);
+    expect(calls).toBe(0);
+  });
+});

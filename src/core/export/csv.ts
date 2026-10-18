@@ -5,7 +5,8 @@ type Cell = string | number | null | undefined;
 function cellText(v: Cell): string {
   if (v === null || v === undefined) return '';
   if (typeof v === 'number') return String(v);
-  const text = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
+  // Düz sayı ("-12,00") formül değildir; önek eklenirse Excel metin sayar ve toplamaz.
+  const text = /^[=+\-@\t\r]/.test(v) && !/^-?\d+(,\d+)?$/.test(v) ? `'${v}` : v;
   return /[;"\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 

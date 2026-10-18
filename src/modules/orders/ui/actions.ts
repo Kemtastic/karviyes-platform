@@ -1,7 +1,10 @@
 'use server';
 import { z } from 'zod';
 import { toFailure, type ActionResult } from '@/core/action';
+import { mustEnrollTwoFactor } from '@/core/auth/policy';
 import { getCurrentUser } from '@/core/auth/session';
+import { getInstallConfig } from '@/core/install-config';
+import { isModuleEnabled } from '@/core/modules/registry';
 import { cachedTcmbRate } from '@/core/fx/tcmb';
 import { listPlates } from '@/modules/production/server/plates';
 import { searchParties } from '@/core/parties/service';
@@ -38,6 +41,10 @@ export async function searchCustomersAction(input: { q: string }) {
 export async function tcmbRateAction(input: { currency: string; date: string }): Promise<ActionResult<{ rate: string; rateDate: string; source: string }>> {
   const user = await getCurrentUser();
   if (!user || !user.roles.some((r) => r === 'admin' || r === 'sales' || r === 'tracking')) return { ok: false, code: 'FORBIDDEN', message: 'Bu işlem için yetkiniz yok.' };
+  // defineAction dışında olduğu için 2FA ve modül denetimi burada da yapılır.
+  const cfg = getInstallConfig();
+  if (mustEnrollTwoFactor(user, cfg)) return { ok: false, code: 'FORBIDDEN', message: 'Önce iki adımlı doğrulamayı kurun.' };
+  if (!isModuleEnabled('orders', cfg)) return { ok: false, code: 'MODULE_DISABLED', message: 'Bu modül bu kurulumda açık değil.' };
   const parsed = z.object({ currency: z.enum(['USD', 'EUR']), date: z.string().date() }).safeParse(input);
   if (!parsed.success) return { ok: false, code: 'VALIDATION', message: 'Döviz ve tarih seçin.' };
   try {
