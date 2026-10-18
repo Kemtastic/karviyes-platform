@@ -70,3 +70,21 @@ describe('carileri içe aktarma', () => {
     expect(await importParties({ csv: legacyCsv, dryRun: true }, runtime(t, testUser(t.companyA, ['cutting'], { kind: 'device' })))).toMatchObject({ ok: false, code: 'FORBIDDEN' });
   });
 });
+
+describe('içe aktarma sınırları (inceleme)', () => {
+  it('5000 satır tek seferde eklenir (veritabanı parametre sınırına takılmaz)', async () => {
+    const t2 = await createTestDb();
+    try {
+      const csv = ['Ad;Telefon', ...Array.from({ length: 5000 }, (_, i) => `Toplu Cari ${i};0555 ${i}`)].join('\r\n');
+      const r = await importParties({ csv, dryRun: false }, runtime(t2, testUser(t2.companyA, ['admin'])));
+      expect(r.ok && r.data.added).toBe(5000);
+    } finally {
+      await t2.close();
+    }
+  }, 120000);
+
+  it('Türkçe karakterleri bozulmuş (yanlış kodlamayla okunmuş) dosya reddedilir', async () => {
+    const r = await importParties({ csv: 'Ad\r\nKar\uFFFDyaka Gıda', dryRun: true }, admin());
+    expect(r).toMatchObject({ ok: false, code: 'VALIDATION' });
+  });
+});

@@ -25,7 +25,14 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
     setDone(null);
     if (!file) return;
     setFileName(file.name);
-    const text = await file.text();
+    // Excel'in "CSV UTF-8"i UTF-8'dir; Türkçe Windows'taki düz "CSV" ise Windows-1254. Önce UTF-8 denenir.
+    const bytes = await file.arrayBuffer();
+    let text: string;
+    try {
+      text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } catch {
+      text = new TextDecoder('windows-1254').decode(bytes);
+    }
     setCsv(text);
     run.run({ csv: text, dryRun: true }, (r) => setPreview(r));
   }

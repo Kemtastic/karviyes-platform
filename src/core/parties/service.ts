@@ -154,6 +154,8 @@ export const importParties = defineAction({
   roles: EDITORS,
   input: z.object({ csv: z.string().max(3_000_000, 'Dosya en fazla 3 MB olabilir.'), dryRun: z.boolean() }),
   run: async (ctx, i) => {
+    // Yanlış kodlamayla okunmuş dosya (ör. Windows-1254 → UTF-8) bozuk harf (U+FFFD) içerir; bozuk adla kayıt açılmasın.
+    if (i.csv.includes('�')) throw new AppError('VALIDATION', 'Dosyadaki Türkçe karakterler okunamadı. Excel’de "CSV UTF-8" olarak kaydedip tekrar deneyin.');
     const [header, ...data] = parseCsv(i.csv);
     if (!header) throw new AppError('VALIDATION', 'Dosya boş.');
     if (data.length > 5000) throw new AppError('VALIDATION', 'Bir seferde en çok 5000 satır aktarılabilir.');
@@ -214,7 +216,10 @@ export const importParties = defineAction({
     });
 
     if (!i.dryRun && toInsert.length) {
-      await ctx.tx.insert(parties).values(toInsert.map((p) => ({ companyId: ctx.companyId, ...p, searchKey: searchKeyOf(p) })));
+      // Postgres tek sorguda en çok 65.535 parametre alır (satır başına 14): parçalar hâlinde eklenir.
+      for (let n = 0; n < toInsert.length; n += 1000) {
+        await ctx.tx.insert(parties).values(toInsert.slice(n, n + 1000).map((p) => ({ companyId: ctx.companyId, ...p, searchKey: searchKeyOf(p) })));
+      }
       await ctx.audit({ entity: 'party', entityId: ctx.companyId, after: { import: toInsert.length, skipped: skipped.length, errors: errors.length } });
     }
     return { total: data.length, toAdd: toInsert.length, added: i.dryRun ? 0 : toInsert.length, skipped, errors, warnings, preview: toInsert.slice(0, 20).map((p) => ({ name: p.name, kind: p.kind, city: p.city, phone: p.phone })) };

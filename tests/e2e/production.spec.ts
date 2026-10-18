@@ -282,3 +282,16 @@ test('sevk geçmişi', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Sevk geçmişi' })).toBeVisible();
   await expect(page.getByRole('cell', { name: 'E2E Gıda Ltd. Şti.' }).first()).toBeVisible();
 });
+
+test('Türkçe Windows CSV (Windows-1254) içe aktarımında harfler bozulmaz', async ({ page }) => {
+  await login(page);
+  await page.goto('/cariler');
+  await page.getByRole('button', { name: "Excel'den aktar" }).click();
+  const dialog = page.getByRole('dialog');
+  // "Ad" başlığı + "Şişli Ğıda Çanta" — Windows-1254 baytları
+  const bytes = Buffer.from([0x41, 0x64, 0x0d, 0x0a, 0xde, 0x69, 0xfe, 0x6c, 0x69, 0x20, 0xd0, 0xfd, 0x64, 0x61, 0x20, 0xc7, 0x61, 0x6e, 0x74, 0x61]);
+  await dialog.getByLabel('Dosya').setInputFiles({ name: 'eski.csv', mimeType: 'text/csv', buffer: bytes });
+  await dialog.getByRole('button', { name: '1 cariyi içe aktar' }).click();
+  await dialog.getByRole('button', { name: 'Tamam' }).click();
+  await expect(page.getByRole('cell', { name: 'Şişli Ğıda Çanta' })).toBeVisible();
+});
