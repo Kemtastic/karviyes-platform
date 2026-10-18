@@ -189,22 +189,23 @@ function CustomerPicker({ value, onChange, error }: { value: { id: string; name:
       </FormField>
     );
   }
+  // Etiket doğrudan arama kutusuna bağlanır (FormField çocuğu input olmalı); liste dışarıda.
   return (
-    <FormField label="Müşteri" required error={error} hint="En az 2 harf yazın">
-      <span className="relative block">
+    <div className="relative">
+      <FormField label="Müşteri" required error={error} hint="En az 2 harf yazın">
         <input value={q} onChange={(e) => void search(e.target.value)} onKeyDown={(e) => e.key === 'Escape' && setOpen(false)} role="combobox" aria-expanded={open} aria-autocomplete="list" className={fieldClass} />
-        {open && results.length > 0 && (
-          <ul role="listbox" className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-stone-200 bg-white shadow-lg">
-            {results.map((p) => (
-              <li key={p.id} role="option" aria-selected={false}>
-                <button type="button" className="w-full px-3 py-2.5 text-left hover:bg-stone-100" onClick={() => { onChange(p); setOpen(false); }}>
-                  {p.name} <span className="text-sm text-stone-500">{p.city}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </span>
-    </FormField>
+      </FormField>
+      {open && results.length > 0 && (
+        <ul role="listbox" className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-stone-200 bg-white shadow-lg">
+          {results.map((p) => (
+            <li key={p.id} role="option" aria-selected={false}>
+              <button type="button" className="w-full px-3 py-2.5 text-left hover:bg-stone-100" onClick={() => { onChange(p); setOpen(false); }}>
+                {p.name} <span className="text-sm text-stone-500">{p.city}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

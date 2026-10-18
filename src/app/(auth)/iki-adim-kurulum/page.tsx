@@ -7,6 +7,7 @@ import { AuthCard, buttonClass, inputClass } from '@/ui/auth-card';
 export default function TwoFactorSetupPage() {
   const [qr, setQr] = useState('');
   const [codes, setCodes] = useState<string[]>([]);
+  const [secret, setSecret] = useState('');
   const [error, setError] = useState('');
 
   async function start(e: React.FormEvent<HTMLFormElement>) {
@@ -19,6 +20,7 @@ export default function TwoFactorSetupPage() {
     }
     setQr(await QRCode.toDataURL(data.totpURI, { margin: 1, width: 220 }));
     setCodes(data.backupCodes);
+    setSecret(new URL(data.totpURI).searchParams.get('secret') ?? '');
   }
 
   async function verify(e: React.FormEvent<HTMLFormElement>) {
@@ -46,6 +48,9 @@ export default function TwoFactorSetupPage() {
           <p className="text-sm text-stone-600">Google Authenticator veya benzeri bir uygulamayla kodu okutun, ardından uygulamadaki 6 haneli kodu girin.</p>
           {/* eslint-disable-next-line @next/next/no-img-element -- QR kodu yerel data URL */}
           <img src={qr} alt="İki adımlı doğrulama QR kodu" className="mx-auto" />
+          <p className="text-center text-sm text-stone-600">
+            Okutamıyorsanız bu anahtarı uygulamaya elle girin: <code data-testid="totp-secret" className="break-all font-mono">{secret}</code>
+          </p>
           <details className="rounded-lg bg-amber-50 p-3 text-sm">
             <summary className="cursor-pointer font-medium">Yedek kodlar (bir kez gösterilir, saklayın)</summary>
             <ul className="mt-2 grid grid-cols-2 gap-1 font-mono">

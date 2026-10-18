@@ -11,3 +11,5 @@ test-results/
 *.tsbuildinfo
 next-env.d.ts
 kurulum.config.json
+.next-e2e/
+test-results/

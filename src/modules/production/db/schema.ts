@@ -70,3 +70,20 @@ export const shipments = pgTable(
   },
   (t) => [index('shipments_job_idx').on(t.companyId, t.jobId)],
 );
+
+// Müşteriye ait baskı klişeleri ve görselleri.
+export const plates = pgTable(
+  'plates',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    companyId: uuid('company_id').notNull(),
+    partyId: uuid('party_id').notNull(),
+    name: text('name').notNull(),
+    colours: text('colours').notNull().default(''),
+    fileIds: uuid('file_ids').array().notNull().default([]),
+    notes: text('notes').notNull().default(''),
+    archived: boolean('archived').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('plates_party_idx').on(t.companyId, t.partyId)],
+);

@@ -2,6 +2,8 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Uçtan uca testler ayrı derleme klasörü kullanır; açık geliştirme sunucusuyla çakışmaz.
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   reactStrictMode: true,
   // Veritabanı sürücüleri paketlenmez; Node çalışma zamanında doğrudan yüklenir.
   serverExternalPackages: ['@electric-sql/pglite', 'pg'],

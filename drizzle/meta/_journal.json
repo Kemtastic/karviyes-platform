@@ -113,6 +113,20 @@
       "when": 1792293069808,
       "tag": "0015_production_secure",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1792293165049,
+      "tag": "0016_plates",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792293166417,
+      "tag": "0017_plates_secure",
+      "breakpoints": true
     }
   ]
 }
