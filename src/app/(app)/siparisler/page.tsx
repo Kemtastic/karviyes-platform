@@ -15,7 +15,10 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Siparişler</h1>
-        <Link href="/siparisler/yeni" className="inline-flex min-h-11 items-center rounded-lg bg-[var(--brand)] px-4 font-semibold text-white">Yeni sipariş</Link>
+        <div className="flex gap-2">
+          <a href={`/api/disa-aktar/siparisler${status ? `?durum=${status}` : ''}`} className="inline-flex min-h-11 items-center rounded-lg border border-stone-300 bg-white px-4 text-sm font-semibold">Excel&apos;e aktar</a>
+          <Link href="/siparisler/yeni" className="inline-flex min-h-11 items-center rounded-lg bg-[var(--brand)] px-4 font-semibold text-white">Yeni sipariş</Link>
+        </div>
       </div>
       <nav aria-label="Durum" className="flex flex-wrap gap-2">
         <Link href="/siparisler" aria-current={!status ? 'page' : undefined} className="rounded-full border px-3 py-1 text-sm aria-[current=page]:bg-stone-900 aria-[current=page]:text-white">Tümü</Link>

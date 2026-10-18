@@ -84,6 +84,11 @@ test('sipariş → üretim → kesim (telefon) → kesim bitiş → kontrol → 
   await page.goto('/siparisler/alacaklar');
   await page.getByRole('cell', { name: 'E2E Gıda Ltd. Şti.' }).click();
   await expect(page.getByRole('heading', { name: 'Cari hesap' })).toBeVisible();
+
+  // Excel'e aktar (CSV, BOM'lu)
+  const csv = await page.request.get('/api/disa-aktar/siparisler');
+  expect(csv.headers()['content-type']).toContain('text/csv');
+  expect((await csv.text()).split(String.fromCharCode(13, 10))[1]).toContain('E2E Gıda Ltd. Şti.');
   await expect(page.getByText('12.221,00 ₺').first()).toBeVisible();
 
   // Kumaş stoğu

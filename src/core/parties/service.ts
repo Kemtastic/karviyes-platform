@@ -113,3 +113,19 @@ export const partyDetail = defineAction({
     return row;
   },
 });
+
+const KIND_TEXT = { customer: 'Müşteri', supplier: 'Tedarikçi', both: 'Müşteri ve tedarikçi' } as const;
+
+// Excel için cari listesi (arşivlenmemiş). Kişisel veri içerdiği için denetime yazılır.
+export const exportParties = defineAction({
+  name: 'parties.export',
+  roles: EDITORS,
+  input: z.object({}),
+  run: async (ctx) => {
+    const rows = await ctx.tx.select().from(parties).where(eq(parties.archived, false)).orderBy(asc(parties.name)).limit(20000);
+    const headers = ['Ad', 'Tür', 'Şahıs/Şirket', 'VKN/TCKN', 'Vergi dairesi', 'İl', 'İlçe', 'Adres', 'Yetkili', 'Telefon', 'E-posta', 'Not'];
+    const out = rows.map((p) => [p.name, KIND_TEXT[p.kind], p.legalType === 'company' ? 'Şirket' : 'Şahıs', p.taxId, p.taxOffice, p.city, p.district, p.address, p.contactName, p.phone, p.email, p.notes]);
+    await ctx.audit({ entity: 'party', entityId: ctx.companyId, after: { export: 'parties', rows: out.length } });
+    return { headers, rows: out };
+  },
+});

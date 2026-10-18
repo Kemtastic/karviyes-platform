@@ -111,6 +111,7 @@ export const bags: SectorPackage<BagProduct, BagCalc> = {
   canSkipTo: (p, target) => target !== 'cutting' || p.noPrint,
   canTurn: (p) => p.shape === '3D',
   materials: bagMaterials,
+  formatField: (key, value) => (key === 'biyeType' ? (value === 'without' ? 'Biyesiz' : 'Biyeli') : null),
   describe: (p) =>
     [`${p.width}×${p.height}${p.gusset ? `×${p.gusset}` : ''} cm`, p.shape, p.handle, `${p.gsm} gr`, p.colour, p.noPrint ? 'baskısız' : `baskı: ${p.print}`].join(' · '),
 };

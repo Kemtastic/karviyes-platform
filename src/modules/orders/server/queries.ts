@@ -5,7 +5,10 @@ import { parties, staff } from '@/core/db/schema';
 import { AppError } from '@/core/errors';
 import { CURRENCIES, money, moneyToJSON, type Currency } from '@/core/money';
 import { DEPARTMENT_ROLES, type Role } from '@/core/modules/types';
+import { decimalCell } from '@/core/export/csv';
+import { formatDate } from '@/core/dates';
 import { getSector } from '@/sectors';
+import { ORDER_STATUS_LABELS as STATUS_TEXT } from '../ui/status-labels';
 import { ORDER_STATUSES, orderPayments, orders } from '../db/schema';
 import { orderBalance, receivableTotal } from '../domain/totals';
 
@@ -159,5 +162,57 @@ export const receivables = defineAction({
     return open
       .sort((a, b) => CURRENCIES.indexOf(a.currency as Currency) - CURRENCIES.indexOf(b.currency as Currency) || (b.balance > a.balance ? 1 : b.balance < a.balance ? -1 : 0))
       .map((t) => ({ partyId: t.partyId, partyName: nameOf.get(t.partyId)?.name ?? '', phone: nameOf.get(t.partyId)?.phone ?? '', currency: t.currency as Currency, orderCount: t.count, balance: moneyToJSON(money(t.balance, t.currency as Currency)) }));
+  },
+});
+
+const decimalText = (v: string | null) => (v ? v.replace('.', ',') : '');
+
+// Excel için sipariş listesi: başlıklar sektörün ürün alanlarından gelir. Kişisel veri içerdiği için denetime yazılır.
+export const exportOrders = defineAction({
+  name: 'orders.export',
+  module: 'orders',
+  roles: OFFICE,
+  input: z.object({ status: z.enum(ORDER_STATUSES).optional() }),
+  run: async (ctx, i) => {
+    const sector = getSector(ctx.cfg.sector);
+    const rows = await ctx.tx
+      .select({ o: orders, party: parties, seller: staff.name })
+      .from(orders)
+      .innerJoin(parties, eq(parties.id, orders.partyId))
+      .leftJoin(staff, eq(staff.id, orders.salespersonStaffId))
+      .where(i.status ? eq(orders.status, i.status) : undefined)
+      .orderBy(desc(orders.orderDate), desc(orders.no))
+      .limit(20000);
+    const ids = rows.map((r) => r.o.id);
+    const pays = ids.length ? await ctx.tx.select({ orderId: orderPayments.orderId, amount: orderPayments.amountMinor }).from(orderPayments).where(inArray(orderPayments.orderId, ids)) : [];
+    const paidOf = new Map<string, bigint>();
+    for (const p of pays) paidOf.set(p.orderId, (paidOf.get(p.orderId) ?? 0n) + p.amount);
+    const fields = sector.productFields;
+    const headers = [
+      'Sipariş No', 'Tarih', 'Müşteri', 'Yetkili', 'Telefon', 'Satışçı',
+      ...fields.map((f) => (f.unit ? `${f.label} (${f.unit})` : f.label)),
+      'Kumaş eni (cm)', 'Adet', 'Üretilen', 'Sevk edilen', 'Birim fiyat', 'KDV %', 'Para birimi', 'Kur', 'Toplam', 'Tahsilat', 'Kalan', 'Durum', 'Fatura No',
+    ];
+    const out = rows.map(({ o, party, seller }) => {
+      const product = o.product as Record<string, unknown>;
+      const validated = sector.validateProduct(product);
+      const paid = paidOf.get(o.id) ?? 0n;
+      const receivable = receivableTotal(o.status, money(o.totalMinor, o.currency as Currency)).minor;
+      return [
+        o.no, formatDate(o.orderDate), party.name, party.contactName, party.phone, seller ?? '',
+        ...fields.map((f) => {
+          const v = product[f.key];
+          const custom = sector.formatField?.(f.key, v);
+          if (custom !== undefined && custom !== null) return custom;
+          if (typeof v === 'boolean') return v ? 'Evet' : '';
+          return typeof v === 'number' ? v : v === undefined || v === null ? '' : String(v);
+        }),
+        sector.materials(validated, o.quantity).find((m) => m.kind === 'fabric')?.widthCm ?? null,
+        o.quantity, o.producedQty, o.shippedQty, decimalText(o.unitPrice), decimalText(o.vatRate), o.currency, decimalText(o.fxRate),
+        decimalCell(o.totalMinor), decimalCell(paid), decimalCell(receivable - paid), STATUS_TEXT[o.status], o.invoiceMark?.no ?? '',
+      ];
+    });
+    await ctx.audit({ entity: 'order', entityId: ctx.companyId, after: { export: 'orders', rows: out.length, status: i.status ?? 'all' } });
+    return { headers, rows: out };
   },
 });

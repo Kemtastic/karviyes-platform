@@ -4,7 +4,7 @@ import { runtime, testUser } from '../helpers/runtime';
 import { normalizeSearch } from '@/core/parties/search';
 import { validateTaxId } from '@/core/parties/tax-id';
 import { isDistrictOf } from '@/core/parties/locations';
-import { createParty, partyDetail, searchParties, updateParty } from '@/core/parties/service';
+import { createParty, exportParties, partyDetail, searchParties, updateParty } from '@/core/parties/service';
 
 describe('VKN / TCKN', () => {
   it.each(['9990000005', '9990000013', '1234567890', '0000000019'])('geçerli VKN %s', (v) => expect(validateTaxId(v, 'company')).toBe(true));
@@ -97,5 +97,21 @@ describe('inceleme düzeltmeleri (cari)', () => {
     if (!p.ok) throw new Error('x');
     expect(await partyDetail({ id: p.data.id }, runtime(t, testUser(t.companyA, ['cutting'])))).toMatchObject({ ok: false, code: 'FORBIDDEN' });
     expect(await partyDetail({ id: p.data.id }, admin)).toMatchObject({ ok: true, data: { name: 'Gizli Cari' } });
+  });
+});
+
+describe('cari dışa aktarımı', () => {
+  let t: TestDb;
+  beforeAll(async () => { t = await createTestDb(); });
+  afterAll(async () => { await t.close(); });
+
+  it('arşivlenmemiş cariler başlıklarıyla; bölüm tableti alamaz', async () => {
+    const admin = runtime(t, testUser(t.companyA, ['admin']));
+    await createParty({ kind: 'customer', name: 'Dış Aktarım A.Ş.', legalType: 'company', taxId: '9990000005', city: 'Antalya', district: 'Muratpaşa', phone: '0555 000 00 01' }, admin);
+    const r = await exportParties({}, admin);
+    if (!r.ok) throw new Error(r.message);
+    const row = Object.fromEntries(r.data.headers.map((h, i) => [h, r.data.rows[0]![i]]));
+    expect(row).toMatchObject({ Ad: 'Dış Aktarım A.Ş.', Tür: 'Müşteri', 'VKN/TCKN': '9990000005', İl: 'Antalya', İlçe: 'Muratpaşa', Telefon: '0555 000 00 01' });
+    expect(await exportParties({}, runtime(t, testUser(t.companyA, ['cutting'], { kind: 'device' })))).toMatchObject({ ok: false, code: 'FORBIDDEN' });
   });
 });

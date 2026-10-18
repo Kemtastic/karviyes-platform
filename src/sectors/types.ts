@@ -46,6 +46,8 @@ export type SectorPackage<P extends Product = Product, C = Record<string, number
   canTurn(p: P): boolean;
   /** Ürünün malzeme ihtiyacı (stok açığı ve otomatik ayırma için). */
   materials(p: P, quantity: number): MaterialNeed[];
+  /** Dışa aktarımda bir ürün alanının okunur değeri (varsayılan: değerin kendisi). */
+  formatField?(key: string, value: unknown): string | number | null;
   /** Ürünü tek satırda özetler (listeler ve PDF için). */
   describe(p: P): string;
 };
