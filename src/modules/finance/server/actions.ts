@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { defineAction, type ActionCtx } from '@/core/action';
 import { istanbulToday } from '@/core/dates';
@@ -9,7 +9,7 @@ import { CURRENCIES, formatMoney, parseMoney, type Currency } from '@/core/money
 import { requireModule } from '@/core/modules/registry';
 import type { Role } from '@/core/modules/types';
 import { invoiceBreakdown, markOrderInvoiced, recordOrderPayment, revertOrderInvoiced, reverseOrderPayment } from '@/modules/orders/server/api';
-import { finAccounts, finChecks, finInvoices, finMovements, finOpenings, finSettings } from '../db/schema';
+import { finAccounts, finAllocations, finChecks, finInvoices, finMovements, finOpenings, finSettings } from '../db/schema';
 import { invoiceTotals } from '../domain/ledger';
 
 export const FIN: Role[] = ['admin', 'accounting'];
@@ -73,6 +73,34 @@ async function assertCashCovers(ctx: ActionCtx, a: { id: string; kind: string; o
     .where(and(eq(finMovements.accountId, a.id), isNull(finMovements.reversedAt)));
   const balance = a.openingMinor + BigInt(r?.net ?? '0');
   if (balance - out < 0n) throw new AppError('VALIDATION', `${a.name} bakiyesi yetersiz (kasa eksiye düşemez).`, { [field]: 'Kasa bakiyesi yetmiyor.' });
+}
+
+/**
+ * Tahsilatı/ödemeyi seçilen faturalara sırayla dağıtır (her faturanın eşleşmemiş kalanı kadar).
+ * Fatura aynı cariye ve para birimine ait, kayıtlı ve uygun türde olmalı.
+ */
+async function allocate(ctx: ActionCtx, i: { movementId: string; partyId: string; currency: Currency; amount: bigint; invoiceIds: string[]; kinds: ('sales' | 'purchase')[] }) {
+  const invoices = await ctx.tx.select().from(finInvoices).where(inArray(finInvoices.id, i.invoiceIds));
+  const used = await ctx.tx
+    .select({ invoiceId: finAllocations.invoiceId, sum: sql<string>`sum(${finAllocations.amountMinor})` })
+    .from(finAllocations)
+    .innerJoin(finMovements, eq(finMovements.id, finAllocations.movementId))
+    .where(and(inArray(finAllocations.invoiceId, i.invoiceIds), isNull(finMovements.reversedAt)))
+    .groupBy(finAllocations.invoiceId);
+  const usedOf = new Map(used.map((u) => [u.invoiceId, BigInt(u.sum)]));
+  let left = i.amount;
+  for (const id of [...new Set(i.invoiceIds)]) {
+    const f = invoices.find((x) => x.id === id);
+    if (!f || f.status !== 'recorded' || f.partyId !== i.partyId || f.currency !== i.currency || !(i.kinds as string[]).includes(f.kind)) {
+      throw new AppError('VALIDATION', 'Eşleştirilen fatura bu cariye, para birimine ya da işleme uygun değil.', { invoiceIds: 'Listeden fatura seçin.' });
+    }
+    const open = f.totalMinor - (usedOf.get(id) ?? 0n);
+    const take = left < open ? left : open;
+    if (take <= 0n) continue;
+    await ctx.tx.insert(finAllocations).values({ companyId: ctx.companyId, movementId: i.movementId, invoiceId: id, amountMinor: take });
+    left -= take;
+    if (left === 0n) break;
+  }
 }
 
 // ── Kasa ve banka hesapları ────────────────────────────────────────────────
@@ -234,7 +262,7 @@ export const recordPayment = defineAction({
   name: 'finance.recordPayment',
   module: 'finance',
   roles: FIN,
-  input: z.object({ kind: z.enum(['collection', 'payment']), partyId: z.string().uuid('Cari seçin.'), accountId: z.string().uuid('Hesap seçin.'), amount: z.string().trim().min(1, 'Tutarı yazın.').max(30), date: isoDate, note, orderId: z.string().uuid().nullable().default(null) }),
+  input: z.object({ kind: z.enum(['collection', 'payment']), partyId: z.string().uuid('Cari seçin.'), accountId: z.string().uuid('Hesap seçin.'), amount: z.string().trim().min(1, 'Tutarı yazın.').max(30), date: isoDate, note, orderId: z.string().uuid().nullable().default(null), invoiceIds: z.array(z.string().uuid()).max(20).default([]) }),
   run: async (ctx, i) => {
     await party(ctx, i.partyId);
     const a = await account(ctx, i.accountId);
@@ -246,6 +274,7 @@ export const recordPayment = defineAction({
       .insert(finMovements)
       .values({ companyId: ctx.companyId, kind: i.kind, direction: i.kind === 'collection' ? 'in' : 'out', partyId: i.partyId, accountId: a.id, amountMinor: amount, currency: a.currency, date: i.date, note: i.note, createdBy: ctx.user.userId })
       .returning({ id: finMovements.id });
+    if (i.invoiceIds.length) await allocate(ctx, { movementId: row!.id, partyId: i.partyId, currency: a.currency, amount, invoiceIds: i.invoiceIds, kinds: i.kind === 'collection' ? ['sales'] : ['purchase'] });
     // Tahsilat bir siparişe aitse sipariş bakiyesine de işlenir (aynı işlem içinde; biri olmazsa ikisi de olmaz).
     let order: string | null = null;
     if (i.orderId) {

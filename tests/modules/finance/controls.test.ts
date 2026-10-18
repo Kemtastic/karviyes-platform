@@ -110,3 +110,19 @@ describe('karışık oranlı fatura', () => {
     expect(await recordInvoice({ kind: 'purchase', partyId: ids.tedarikci, docNo: 'KO-4', date: '2026-10-13', currency: 'TRY' }, acc())).toMatchObject({ ok: false, code: 'VALIDATION' });
   });
 });
+
+describe('fatura-tahsilat eşleştirme', () => {
+  it('seçilen fatura önce kapanır; hareket iptal edilince eşleştirme düşer; başka carinin faturası seçilemez', async () => {
+    const p = ok(await createParty({ kind: 'customer', name: 'Eşleştirme Müşterisi', legalType: 'company' }, admin())).id;
+    ok(await recordInvoice({ kind: 'sales', partyId: p, docNo: 'E-1', date: '2026-08-01', due: '2026-08-31', currency: 'TRY', base: '1.000', vatRate: 0 }, acc()));
+    const yeni = ok(await recordInvoice({ kind: 'sales', partyId: p, docNo: 'E-2', date: '2026-10-01', due: '2026-10-31', currency: 'TRY', base: '2.000', vatRate: 0 }, acc()));
+    const pay = ok(await recordPayment({ kind: 'collection', partyId: p, accountId: ids.banka, amount: '2.000', date: '2026-10-05', invoiceIds: [yeni.id] }, acc()));
+    const open = async () => ok(await partyLedger({ partyId: p, today: '2026-10-18' }, acc())).currencies[0]!.receivable.map((x) => [x.text, x.open]);
+    expect(await open()).toEqual([['Satış faturası E-1', '100000']]);
+    const { reverseMovement } = await import('@/modules/finance/server/actions');
+    ok(await reverseMovement({ id: pay.id, reason: 'Yanlış' }, acc()));
+    expect(await open()).toEqual([['Satış faturası E-1', '100000'], ['Satış faturası E-2', '200000']]);
+    const other = ok(await recordInvoice({ kind: 'sales', partyId: ids.musteri, docNo: 'E-X', date: '2026-10-01', currency: 'TRY', base: '10', vatRate: 0 }, acc()));
+    expect(await recordPayment({ kind: 'collection', partyId: p, accountId: ids.banka, amount: '10', date: '2026-10-05', invoiceIds: [other.id] }, acc())).toMatchObject({ ok: false, fieldErrors: { invoiceIds: expect.any(String) } });
+  });
+});

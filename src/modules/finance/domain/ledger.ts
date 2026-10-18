@@ -77,7 +77,8 @@ export function bucketOf(due: string | null, today: string): { bucket: AgingBuck
  * Açık kalemler (FIFO): borçlandıran kalemler (açılış alacağı, satış faturası, cariye ödeme/iade) vade sırasıyla
  * (vadesiz en sona) alacaklandıran toplamla kapatılır. `side` 'payable' verilirse hesap ters yönden yapılır.
  */
-export function openItems(entries: LedgerEntry[], today: string, side: 'receivable' | 'payable' = 'receivable'): OpenItem[] {
+/** allocated: belirli kalemlere eşleştirilmiş tutarlar (kalem id → tutar); bunlar FIFO'dan önce düşülür. */
+export function openItems(entries: LedgerEntry[], today: string, side: 'receivable' | 'payable' = 'receivable', allocated: Map<string, bigint> = new Map()): OpenItem[] {
   const sign = side === 'receivable' ? 1n : -1n;
   // Tutar her zaman bu tarafın yönündeki büyüklüktür (açılış eksi girilmiş olabilir).
   const debits: { e: LedgerEntry; amt: bigint }[] = [];
@@ -90,14 +91,23 @@ export function openItems(entries: LedgerEntry[], today: string, side: 'receivab
   // Açılış kaleminin vadesi açılış tarihidir (en eski borç önce kapanır); vadesiz faturalar en sona.
   const dueOf = (e: LedgerEntry) => e.due ?? (e.kind === 'opening' ? e.date : null);
   debits.sort((a, b) => (dueOf(a.e) ?? '9999-12-31').localeCompare(dueOf(b.e) ?? '9999-12-31') || a.e.date.localeCompare(b.e.date) || a.e.id.localeCompare(b.e.id));
-  const out: OpenItem[] = [];
+  // Önce eşleştirilmiş tutarlar (havuzdan düşülerek), sonra kalan havuz vade sırasıyla.
+  const remaining = new Map<string, bigint>();
   for (const { e: d, amt } of debits) {
+    const want = allocated.get(d.id) ?? 0n;
+    const used = [want, amt, pool].reduce((m, v) => (v < m ? v : m));
+    pool -= used > 0n ? used : 0n;
+    remaining.set(d.id, amt - (used > 0n ? used : 0n));
+  }
+  const out: OpenItem[] = [];
+  for (const { e: d, amt: total } of debits) {
+    const amt = remaining.get(d.id)!;
     const used = pool < amt ? pool : amt;
     pool -= used;
     const open = amt - used;
     if (open <= 0n) continue;
     const due = dueOf(d);
-    out.push({ id: d.id, date: d.date, due, total: amt, open, text: d.text, ...bucketOf(due, today) });
+    out.push({ id: d.id, date: d.date, due, total, open, text: d.text, ...bucketOf(due, today) });
   }
   return out;
 }

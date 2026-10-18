@@ -7,7 +7,7 @@ import { FormField, fieldClass } from '@/ui/form-field';
 import { Modal } from '@/ui/modal';
 import { useAction } from '@/ui/use-action';
 import {
-  createAccountAction, endorseCheckAction, findPartiesAction, partyOpenOrdersAction, issueCheckAction, receiveCheckAction, recordExpenseAction, recordInvoiceAction,
+  createAccountAction, endorseCheckAction, findPartiesAction, partyOpenInvoicesAction, partyOpenOrdersAction, issueCheckAction, receiveCheckAction, recordExpenseAction, recordInvoiceAction,
   recordPaymentAction, setOpeningAction, settleCheckAction, transferAction,
 } from './actions';
 
@@ -179,31 +179,63 @@ export function InvoiceDialog({ kind, party: fixed, onClose, onDone }: Done & { 
   );
 }
 
+type OpenInvoice = { id: string; text: string; open: string; due: string | null; currency: string };
 type OpenOrder = { id: string; no: string; orderDate: string; balance: { minor: string; currency: string } };
 
 export function PaymentDialog({ kind, accounts, party: fixed, onClose, onDone }: Done & { kind: 'collection' | 'payment'; accounts: AccountOption[]; party?: PartyRef }) {
   const save = useAction(recordPaymentAction);
   const [party, setPartyState] = useState<PartyRef | null>(fixed ?? null);
   const [orders, setOrders] = useState<OpenOrder[]>([]);
+  const [invoices, setInvoices] = useState<OpenInvoice[]>([]);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [accountId, setAccountId] = useState(accounts[0]?.id ?? '');
   const f = save.fieldErrors;
+  const side = kind === 'collection' ? 'receivable' : 'payable';
   const loadOrders = (p: PartyRef | null) => {
     setOrders([]);
+    setInvoices([]);
+    setPicked([]);
     if (p && kind === 'collection') void partyOpenOrdersAction({ partyId: p.id }).then(setOrders);
+    if (p) void partyOpenInvoicesAction({ partyId: p.id, side }).then(setInvoices);
   };
+  const currency = accounts.find((a) => a.id === accountId)?.currency;
+  const shownInvoices = invoices.filter((x) => x.currency === currency);
   const setParty = (p: PartyRef | null) => { setPartyState(p); loadOrders(p); };
   useEffect(() => {
     if (fixed && kind === 'collection') void partyOpenOrdersAction({ partyId: fixed.id }).then(setOrders);
+    if (fixed) void partyOpenInvoicesAction({ partyId: fixed.id, side: kind === 'collection' ? 'receivable' : 'payable' }).then(setInvoices);
   }, [fixed, kind]);
   return (
     <Modal open title={kind === 'collection' ? 'Tahsilat al' : 'Ödeme yap'} onClose={onClose}>
-      <form className="space-y-4" onSubmit={(e) => { const d = formData(e); save.run({ ...d, kind, partyId: party?.id ?? '', orderId: d.orderId || null }, onDone); }}>
+      <form className="space-y-4" onSubmit={(e) => { const d = formData(e); save.run({ ...d, kind, partyId: party?.id ?? '', orderId: d.orderId || null, invoiceIds: picked.filter((id) => shownInvoices.some((x) => x.id === id)) }, onDone); }}>
         {!fixed && <PartyPicker value={party} onChange={setParty} kind={kind === 'collection' ? 'customer' : undefined} error={f.partyId} />}
-        <AccountSelect accounts={accounts} error={f.accountId} label={kind === 'collection' ? 'Giren hesap' : 'Çıkan hesap'} />
+        <FormField label={kind === 'collection' ? 'Giren hesap' : 'Çıkan hesap'} required error={f.accountId} hint={!accounts.length ? 'Önce Kasa ve Banka ekranından hesap açın.' : undefined}>
+          <select name="accountId" value={accountId} onChange={(e) => setAccountId(e.target.value)} className={fieldClass}>
+            {accounts.map((a) => <option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}
+          </select>
+        </FormField>
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField label="Tutar" required error={f.amount} hint="Hesabın para biriminde"><input name="amount" inputMode="decimal" className={fieldClass} placeholder="0,00" /></FormField>
           <FormField label="Tarih" required error={f.date}><input type="date" name="date" defaultValue={today()} max={today()} className={fieldClass} /></FormField>
         </div>
         <FormField label="Açıklama" error={f.note}><input name="note" className={fieldClass} placeholder={kind === 'collection' ? 'örn. Havale, S-2026-000004' : 'örn. Kumaş ödemesi'} /></FormField>
+        {shownInvoices.length > 0 && (
+          <fieldset className="space-y-1.5">
+            <legend className="text-sm font-medium text-stone-700">Kapatılacak faturalar <span className="font-normal text-stone-500">(isteğe bağlı; seçilmezse en eski vadeden kapanır)</span></legend>
+            <ul className="max-h-40 divide-y divide-stone-100 overflow-auto rounded-xl border border-stone-200">
+              {shownInvoices.map((x) => (
+                <li key={x.id}>
+                  <label className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-stone-50">
+                    <input type="checkbox" className="h-4 w-4 accent-[var(--brand)]" checked={picked.includes(x.id)} onChange={(e) => setPicked((p) => (e.target.checked ? [...p, x.id] : p.filter((y) => y !== x.id)))} />
+                    <span className="flex-1">{x.text}{x.due && <span className="ml-2 text-xs text-stone-500">vade {x.due.split('-').reverse().join('.')}</span>}</span>
+                    <span className="tabular-nums font-medium">{formatMoney(moneyFromJSON({ minor: x.open, currency: x.currency as Currency }))}</span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+            {f.invoiceIds && <p role="alert" className="text-sm font-medium text-red-700">{f.invoiceIds}</p>}
+          </fieldset>
+        )}
         {orders.length > 0 && (
           <FormField label="Siparişe de işle" error={f.orderId} hint="Seçilirse tahsilat sipariş bakiyesinden de düşer; iki ekrana ayrı ayrı girmeyin.">
             <select name="orderId" className={fieldClass} defaultValue="">

@@ -175,3 +175,17 @@ export const finSettings = pgTable('fin_settings', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   updatedBy: text('updated_by'),
 });
+
+// Tahsilat/ödemenin belirli faturalara eşleştirilmesi: eşleşen tutar önce o faturayı kapatır, kalan FIFO ile dağılır.
+export const finAllocations = pgTable(
+  'fin_allocations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    companyId: uuid('company_id').notNull(),
+    movementId: uuid('movement_id').notNull(),
+    invoiceId: uuid('invoice_id').notNull(),
+    amountMinor: bigint('amount_minor', { mode: 'bigint' }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('fin_allocations_invoice_idx').on(t.companyId, t.invoiceId), index('fin_allocations_movement_idx').on(t.companyId, t.movementId)],
+);

@@ -4,7 +4,7 @@ import { defineAction, type ActionCtx } from '@/core/action';
 import { istanbulToday } from '@/core/dates';
 import { parties } from '@/core/db/schema';
 import { CURRENCIES, type Currency } from '@/core/money';
-import { finAccounts, finChecks, finInvoices, finMovements, finOpenings } from '../db/schema';
+import { finAccounts, finAllocations, finChecks, finInvoices, finMovements, finOpenings } from '../db/schema';
 import { aging, INVOICE_KIND_LABELS, openItems, statement, type Aging, type LedgerEntry, type OpenItem } from '../domain/ledger';
 import { openOrdersOf } from '@/modules/orders/server/api';
 import { FIN, lockedUntil } from './actions';
@@ -16,6 +16,18 @@ type Key = `${string}|${Currency}`;
 
 /** Carilerin defter kayıtları (açılış, fatura, para hareketi) cari × para birimi başına. */
 /** external: karşı tarafa giden ekstre (mutabakat) — personelin iç notları yazılmaz. */
+/** Geçerli eşleştirmeler (iptal edilmemiş hareket, kayıtlı fatura): fatura id → eşleşen tutar. */
+async function allocations(ctx: ActionCtx): Promise<Map<string, bigint>> {
+  const rows = await ctx.tx
+    .select({ invoiceId: finAllocations.invoiceId, sum: sql<string>`sum(${finAllocations.amountMinor})` })
+    .from(finAllocations)
+    .innerJoin(finMovements, eq(finMovements.id, finAllocations.movementId))
+    .innerJoin(finInvoices, eq(finInvoices.id, finAllocations.invoiceId))
+    .where(and(isNull(finMovements.reversedAt), eq(finInvoices.status, 'recorded')))
+    .groupBy(finAllocations.invoiceId);
+  return new Map(rows.map((r) => [r.invoiceId, BigInt(r.sum)]));
+}
+
 export async function ledgerEntries(ctx: ActionCtx, partyId?: string, external = false): Promise<Map<Key, LedgerEntry[]>> {
   const [openings, invoices, moves] = await Promise.all([
     ctx.tx.select().from(finOpenings).where(partyId ? eq(finOpenings.partyId, partyId) : undefined),
@@ -55,7 +67,7 @@ export const partyBalances = defineAction({
   input: z.object({ today: isoDate.optional() }),
   run: async (ctx, i) => {
     const today = i.today ?? istanbulToday();
-    const map = await ledgerEntries(ctx);
+    const [map, alloc] = await Promise.all([ledgerEntries(ctx), allocations(ctx)]);
     const ids = [...new Set([...map.keys()].map((k) => k.split('|')[0]!))];
     const names = ids.length ? await ctx.tx.select({ id: parties.id, name: parties.name, kind: parties.kind, phone: parties.phone }).from(parties).where(inArray(parties.id, ids)) : [];
     const nameOf = new Map(names.map((n) => [n.id, n]));
@@ -66,8 +78,8 @@ export const partyBalances = defineAction({
         const p = nameOf.get(partyId);
         return {
           partyId, partyName: p?.name ?? '', kind: p?.kind ?? 'customer', phone: p?.phone ?? '', currency: cur, balance: s(balance),
-          receivable: agingJson(aging(openItems(entries, today, 'receivable'))),
-          payable: agingJson(aging(openItems(entries, today, 'payable'))),
+          receivable: agingJson(aging(openItems(entries, today, 'receivable', alloc))),
+          payable: agingJson(aging(openItems(entries, today, 'payable', alloc))),
           lastDate: entries.reduce((m, e) => (e.date > m ? e.date : m), ''),
         };
       })
@@ -85,7 +97,7 @@ export const partyLedger = defineAction({
   input: z.object({ partyId: z.string().uuid(), from: isoDate.optional(), today: isoDate.optional() }),
   run: async (ctx, i) => {
     const today = i.today ?? istanbulToday();
-    const map = await ledgerEntries(ctx, i.partyId);
+    const [map, alloc] = await Promise.all([ledgerEntries(ctx, i.partyId), allocations(ctx)]);
     const [openings] = await Promise.all([ctx.tx.select().from(finOpenings).where(eq(finOpenings.partyId, i.partyId))]);
     return {
       openings: openings.map((o) => ({ currency: o.currency as Currency, amount: s(o.amountMinor), date: o.date })),
@@ -97,8 +109,8 @@ export const partyLedger = defineAction({
           carried: s(st.carried),
           balance: s(st.balance),
           rows: st.rows.map((r) => ({ id: r.id, date: r.date, due: r.due, kind: r.kind, text: r.text, debit: s(r.debit), credit: s(r.credit), balance: s(r.balance) })),
-          receivable: openItems(entries, today, 'receivable').map(itemJson),
-          payable: openItems(entries, today, 'payable').map(itemJson),
+          receivable: openItems(entries, today, 'receivable', alloc).map(itemJson),
+          payable: openItems(entries, today, 'payable', alloc).map(itemJson),
         };
       }),
     };
@@ -249,11 +261,12 @@ export const financeOverview = defineAction({
     const horizon = new Date(`${today}T12:00:00Z`);
     horizon.setUTCDate(horizon.getUTCDate() + 30);
     const until = horizon.toISOString().slice(0, 10);
-    const [map, accounts, balances, checks] = await Promise.all([
+    const [map, accounts, balances, checks, alloc] = await Promise.all([
       ledgerEntries(ctx),
       ctx.tx.select().from(finAccounts).where(eq(finAccounts.archived, false)),
       accountBalances(ctx),
       ctx.tx.select({ c: finChecks, partyName: parties.name }).from(finChecks).innerJoin(parties, eq(parties.id, finChecks.partyId)).where(inArray(finChecks.status, ['portfolio', 'issued'])),
+      allocations(ctx),
     ]);
     const z0 = () => ({ receivable: 0n, overdueReceivable: 0n, payable: 0n, overduePayable: 0n, cash: 0n, bank: 0n, checksIn: 0n, checksOut: 0n });
     const per = new Map<Currency, ReturnType<typeof z0>>();
@@ -267,7 +280,7 @@ export const financeOverview = defineAction({
       const [partyId, cur] = k.split('|') as [string, Currency];
       const t = get(cur);
       for (const side of ['receivable', 'payable'] as const) {
-        const items = openItems(entries, today, side);
+        const items = openItems(entries, today, side, alloc);
         const a = aging(items);
         if (side === 'receivable') { t.receivable += a.total; t.overdueReceivable += a.overdue; } else { t.payable += a.total; t.overduePayable += a.overdue; }
         for (const it of items) {

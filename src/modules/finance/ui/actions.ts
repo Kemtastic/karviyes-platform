@@ -34,3 +34,14 @@ export async function partyOpenOrdersAction(input: { partyId: string }) {
 }
 export async function recordOrderInvoiceAction(input: unknown) { return a.recordOrderInvoice(input); }
 export async function setPeriodLockAction(input: unknown) { return a.setPeriodLock(input); }
+
+/** Ödeme penceresi için carinin açık faturaları (açılış kalemleri hariç). */
+export async function partyOpenInvoicesAction(input: { partyId: string; side: 'receivable' | 'payable' }) {
+  const r = await (await import('@/modules/finance/server/queries')).partyLedger({ partyId: input.partyId });
+  if (!r.ok) return [];
+  return r.data.currencies.flatMap((c) =>
+    (input.side === 'receivable' ? c.receivable : c.payable)
+      .filter((x) => /^[0-9a-f-]{36}$/.test(x.id))
+      .map((x) => ({ id: x.id, text: x.text, open: x.open, due: x.due, currency: c.currency })),
+  );
+}

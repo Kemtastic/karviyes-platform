@@ -63,4 +63,5 @@ Bağımsız kod incelemesi (alt ajan), güvenlik kontrolü, örnek veriye yeni m
 - **F8 bitti**: muhasebeci için Excel (CSV) dışa aktarımları (fatura kayıtları, tahsilat/ödemeler, cari bakiyeler, cari ekstre, hesap ekstresi, Ba-Bs) ve Ba-Bs hazırlık listesi (ay, eşik ayarlanabilir, VKN eksik uyarısı, dövizliler ayrı).
   - Ruling: Ba-Bs varsayılan eşiği 5.000 TL (ekranda değiştirilebilir); iade ve dövizli faturalar otomatik girmez — maliyet: güncel eşik/kural farklıysa mali müşavir düzeltir (ekranda uyarı var).
 - **F9 bitti**: karışık KDV oranlı fatura kaydı (6 orana kadar satır, her oranın KDV'si ayrı yuvarlanır, e-Faturadaki KDV satır başına ±1 TL farkla elle girilebilir), sipariş faturasında oran kırılımı, KDV özetinde oran bazlı tablo. Göç 0030 (`fin_invoices.rates`).
+- **F10 bitti**: fatura-tahsilat eşleştirme (göç 0031 `fin_allocations`): tahsilat/ödemede kapatılacak faturalar seçilebilir; seçilenler önce kapanır, kalan FIFO; hareket iptal edilince eşleştirme düşer.
 

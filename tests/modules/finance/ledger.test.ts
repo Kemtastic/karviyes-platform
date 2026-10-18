@@ -93,6 +93,14 @@ describe('açık kalemler ve yaşlandırma', () => {
     expect(statement([e('a', 'purchase', 1000n, '2026-10-01'), e('ai', 'purchase_return', 200n, '2026-10-02')]).balance).toBe(-800n);
   });
 
+  it('eşleştirilmiş tahsilat önce seçilen faturayı kapatır, kalanı FIFO', () => {
+    const entries = [e('eski', 'sales', 1000n, '2026-08-01', '2026-08-31'), e('yeni', 'sales', 2000n, '2026-09-01', '2026-09-30'), e('t', 'in', 2500n, '2026-10-01')];
+    // Eşleştirme yokken eski fatura önce kapanır.
+    expect(openItems(entries, '2026-10-18').map((i) => [i.id, i.open])).toEqual([['yeni', 500n]]);
+    // 2.000 yeni faturaya eşleşti; kalan 500 eskiye.
+    expect(openItems(entries, '2026-10-18', 'receivable', new Map([['yeni', 2000n]])).map((i) => [i.id, i.open])).toEqual([['eski', 500n]]);
+  });
+
   it('fazla tahsilat açık kalem bırakmaz', () => {
     expect(openItems([e('f', 'sales', 1000n, '2026-10-01'), e('t', 'in', 5000n, '2026-10-02')], '2026-10-18')).toEqual([]);
   });
