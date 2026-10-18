@@ -3,14 +3,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { connectDb, rowsOf } from '@/core/db/client';
+import { closeDb, connectDb, rowsOf } from '@/core/db/client';
 
 describe('veritabanı bağlantısı', () => {
   it('PGlite veri klasörünün üst dizinleri yoksa oluşturur', async () => {
     const base = mkdtempSync(join(tmpdir(), 'pglite-'));
     try {
-      const db = await connectDb(`pglite://${join(base, 'ic', 'ice', 'db')}`);
+      const url = `pglite://${join(base, 'ic', 'ice', 'db')}`;
+      const db = await connectDb(url);
       expect(rowsOf<{ v: number }>(await db.execute(sql`select 1 as v`))[0]?.v).toBe(1);
+      await closeDb(url);
     } finally {
       rmSync(base, { recursive: true, force: true });
     }
@@ -24,6 +26,7 @@ describe('PGlite tek örnek', () => {
       const url = `pglite://${join(base, 'db')}`;
       const [a, b] = await Promise.all([connectDb(url), connectDb(url)]);
       expect(a).toBe(b);
+      await closeDb(url);
     } finally {
       rmSync(base, { recursive: true, force: true });
     }

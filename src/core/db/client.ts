@@ -63,3 +63,15 @@ export async function migrateDb(db: Db, url: string, migrationsFolder = 'drizzle
 export function rowsOf<T>(result: unknown): T[] {
   return (result as { rows: T[] }).rows;
 }
+
+// Paylaşılan bağlantıyı kapatır (testler ve kapanış için).
+export async function closeDb(url: string): Promise<void> {
+  const connection = connections.get(url);
+  connections.delete(url);
+  if (!connection) return;
+  const client = ((await connection) as unknown as { $client?: { waitReady?: Promise<void>; close?: () => Promise<void>; end?: () => Promise<void> } }).$client;
+  // PGlite hazır olmadan kapatılırsa takılır.
+  if (client?.waitReady) await client.waitReady;
+  if (client?.close) await client.close();
+  else if (client?.end) await client.end();
+}
