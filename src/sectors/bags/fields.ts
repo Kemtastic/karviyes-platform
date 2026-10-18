@@ -16,6 +16,7 @@ export const BAG_FIELDS: SectorField[] = [
   { key: 'colour', label: 'Kumaş rengi', type: 'text', required: true },
   { key: 'gsm', label: 'Gramaj', type: 'integer', unit: 'gr/m²', required: true, min: 10, max: 500 },
   { key: 'handleColour', label: 'Kulp rengi', type: 'text' },
+  { key: 'handleGsm', label: 'Kulp gramajı', type: 'integer', unit: 'gr/m²', min: 10, max: 500, hint: 'Boşsa herhangi gramaj' },
   { key: 'noPrint', label: 'Baskısız', type: 'boolean' },
   { key: 'print', label: 'Baskı renkleri', type: 'text', hint: 'Renkleri · ile ayırın' },
   { key: 'rolls', label: 'Bobin sayısı', type: 'integer', required: true, min: 1, max: 1000 },

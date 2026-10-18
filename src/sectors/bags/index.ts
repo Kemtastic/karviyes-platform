@@ -1,5 +1,5 @@
 import { AppError } from '@/core/errors';
-import type { SectorPackage, StageDef, StageId } from '../types';
+import type { MaterialNeed, SectorPackage, StageDef, StageId } from '../types';
 import { calculateBag, type BagCalc } from './calculate';
 import { BAG_FIELDS, HANDLES, SHAPES, WASTE_FIELDS } from './fields';
 
@@ -15,6 +15,7 @@ export type BagProduct = {
   colour: string;
   gsm: number;
   handleColour: string;
+  handleGsm: number;
   noPrint: boolean;
   print: string;
   rolls: number;
@@ -58,6 +59,7 @@ function validate(input: Record<string, unknown>): BagProduct {
   const biye = biyeType === 'without' ? 0 : num('biye', { min: 0, max: 20, label: 'Biye payı' });
   const handleLength = handle === 'Kulplu' ? num('handleLength', { required: true, min: 1, max: 1000, label: 'Kulp uzunluğu' }) : 0;
   const gsm = num('gsm', { required: true, int: true, min: 10, max: 500, label: 'Gramaj' });
+  const handleGsm = handle === 'Kulplu' ? num('handleGsm', { int: true, min: 10, max: 500, label: 'Kulp gramajı' }) : 0;
   const rolls = num('rolls', { required: true, int: true, min: 1, max: 1000, label: 'Bobin sayısı' });
   const noPrint = input.noPrint === true || input.noPrint === 'true' || input.noPrint === 'on';
   const print = noPrint ? '' : text('print');
@@ -65,7 +67,19 @@ function validate(input: Record<string, unknown>): BagProduct {
   const colour = text('colour') || 'Beyaz';
 
   if (Object.keys(errors).length) throw new AppError('VALIDATION', 'Ürün bilgilerini düzeltin.', errors);
-  return { width, height, shape, gusset, biyeType, biye, handle, handleLength, colour, gsm, handleColour: text('handleColour'), noPrint, print, rolls, rollMetres: 1000 };
+  return { width, height, shape, gusset, biyeType, biye, handle, handleLength, colour, gsm, handleColour: text('handleColour'), handleGsm, noPrint, print, rolls, rollMetres: 1000 };
+}
+
+// Eski sistem (lib/inventory.ts reserveHandles): kulplu çantada her 1300 adete 1 bobin 5 cm sap, kesimde tüketilir.
+const BAGS_PER_HANDLE_ROLL = 1300;
+const HANDLE_WIDTH_CM = 5;
+
+function bagMaterials(p: BagProduct, quantity: number): MaterialNeed[] {
+  const needs: MaterialNeed[] = [{ kind: 'fabric', label: 'Kumaş', widthCm: calculateBag(p).fabricCm, colour: p.colour, gsm: p.gsm, rolls: p.rolls, consumeAt: null }];
+  if (p.handle === 'Kulplu') {
+    needs.push({ kind: 'handle', label: 'Sap', widthCm: HANDLE_WIDTH_CM, colour: p.handleColour || p.colour, gsm: p.handleGsm || null, rolls: Math.ceil(quantity / BAGS_PER_HANDLE_ROLL), consumeAt: 'cutting' });
+  }
+  return needs;
 }
 
 export const bags: SectorPackage<BagProduct, BagCalc> = {
@@ -95,6 +109,7 @@ export const bags: SectorPackage<BagProduct, BagCalc> = {
   // Baskılı iş baskıdan geçmeden kesime gidemez.
   canSkipTo: (p, target) => target !== 'cutting' || p.noPrint,
   canTurn: (p) => p.shape === '3D',
+  materials: bagMaterials,
   describe: (p) =>
     [`${p.width}×${p.height}${p.gusset ? `×${p.gusset}` : ''} cm`, p.shape, p.handle, `${p.gsm} gr`, p.colour, p.noPrint ? 'baskısız' : `baskı: ${p.print}`].join(' · '),
 };

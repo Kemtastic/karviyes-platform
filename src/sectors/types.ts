@@ -24,6 +24,9 @@ export type StageDef = {
 
 export type Product = Record<string, unknown>;
 
+/** Üretimin tükettiği bobin malzemesi. gsm null: herhangi gramaj uyar. consumeAt null: işe elle (üretime göndermeden önce) ayrılır. */
+export type MaterialNeed = { kind: 'fabric' | 'handle'; label: string; widthCm: number; colour: string; gsm: number | null; rolls: number; consumeAt: StageId | null };
+
 // Bir sektörün (bez çanta, plastik poşet…) ürün alanları, hesapları ve üretim akışı.
 // Üretim ve sipariş modülleri sektörü bilmez; yalnızca bu arayüzü kullanır.
 export type SectorPackage<P extends Product = Product, C = Record<string, number>> = {
@@ -41,6 +44,8 @@ export type SectorPackage<P extends Product = Product, C = Record<string, number
   nextStages(p: P, current: StageId): StageId[];
   canSkipTo(p: P, target: StageId): boolean;
   canTurn(p: P): boolean;
+  /** Ürünün malzeme ihtiyacı (stok açığı ve otomatik ayırma için). */
+  materials(p: P, quantity: number): MaterialNeed[];
   /** Ürünü tek satırda özetler (listeler ve PDF için). */
   describe(p: P): string;
 };

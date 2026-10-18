@@ -76,3 +76,24 @@ describe('aşama akışı', () => {
     expect(getSector('bags')).toBe(bags);
   });
 });
+
+describe('malzeme ihtiyacı', () => {
+  const kulplu = { width: 45, height: 45, shape: 'Körüksüz', handle: 'Kulplu', handleLength: 60, gsm: 70, rolls: 2, colour: 'Krem', handleColour: 'Kırmızı', handleGsm: 80, noPrint: true, biye: 5 };
+
+  it('kumaş eni hesaptan; kulpluda her 1300 adete 1 bobin 5 cm sap (eski sistemle aynı)', () => {
+    const p = bags.validateProduct(kulplu);
+    expect(bags.materials(p, 2700)).toEqual([
+      { kind: 'fabric', label: 'Kumaş', widthCm: 100, colour: 'Krem', gsm: 70, rolls: 2, consumeAt: null },
+      { kind: 'handle', label: 'Sap', widthCm: 5, colour: 'Kırmızı', gsm: 80, rolls: 3, consumeAt: 'cutting' },
+    ]);
+  });
+
+  it('sap rengi boşsa kumaş rengi, gramajı boşsa herhangi gramaj', () => {
+    const p = bags.validateProduct({ ...kulplu, handleColour: '', handleGsm: '' });
+    expect(bags.materials(p, 1300)[1]).toMatchObject({ colour: 'Krem', gsm: null, rolls: 1 });
+  });
+
+  it('kulpsuz çantada yalnızca kumaş', () => {
+    expect(bags.materials(bags.validateProduct({ ...kulplu, handle: 'El Geçme' }), 2700)).toHaveLength(1);
+  });
+});
