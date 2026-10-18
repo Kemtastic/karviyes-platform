@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { markOrderInvoiced } from './api';
 import { defineAction, type ActionCtx } from '@/core/action';
 import { istanbulToday } from '@/core/dates';
 import { parties, staff } from '@/core/db/schema';
@@ -314,17 +315,5 @@ export const markInvoiced = defineAction({
   module: 'orders',
   roles: ['admin', 'tracking'],
   input: z.object({ id: z.string().uuid(), invoiceNo: z.string().trim().min(1).max(40), invoiceDate: z.string().date(), version: z.number().int() }),
-  run: async (ctx, i) => {
-    const o = await loadOrder(ctx, i.id);
-    if (o.status !== 'ready_to_invoice') throw new AppError('INVALID_STATE', 'Yalnızca faturaya hazır sipariş işaretlenebilir.');
-    const mark = { no: i.invoiceNo, date: i.invoiceDate, by: ctx.user.userId, at: new Date().toISOString() };
-    const updated = await ctx.tx
-      .update(orders)
-      .set({ status: 'invoiced', invoiceMark: mark, version: o.version + 1 })
-      .where(and(eq(orders.id, i.id), eq(orders.version, i.version)))
-      .returning({ id: orders.id });
-    if (!updated.length) throw conflict();
-    await ctx.audit({ entity: 'order', entityId: i.id, before: { status: o.status }, after: { status: 'invoiced', invoice: mark } });
-    return { id: i.id };
-  },
+  run: (ctx, i) => markOrderInvoiced(ctx, { orderId: i.id, version: i.version, invoiceNo: i.invoiceNo, invoiceDate: i.invoiceDate }),
 });

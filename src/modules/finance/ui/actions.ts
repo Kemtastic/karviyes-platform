@@ -32,3 +32,4 @@ export async function partyOpenOrdersAction(input: { partyId: string }) {
   const r = await (await import('@/modules/finance/server/queries')).partyOpenOrders(input);
   return r.ok ? r.data : [];
 }
+export async function recordOrderInvoiceAction(input: unknown) { return a.recordOrderInvoice(input); }

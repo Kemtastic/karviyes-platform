@@ -3,8 +3,12 @@ import { createTestDb, type TestDb } from '../../helpers/db';
 import { runtime, testUser } from '../../helpers/runtime';
 import { createParty } from '@/core/parties/service';
 import { createStaff } from '@/core/users/service';
-import { createAccount, recordPayment, reverseMovement } from '@/modules/finance/server/actions';
-import { partyOpenOrders } from '@/modules/finance/server/queries';
+import { eq } from 'drizzle-orm';
+import { withCompany } from '@/core/db/scope';
+import { createAccount, recordOrderInvoice, recordPayment, reverseMovement } from '@/modules/finance/server/actions';
+import { orders } from '@/modules/orders/db/schema';
+import { orderForOffice } from '@/modules/orders/server/queries';
+import { partyBalances, partyOpenOrders } from '@/modules/finance/server/queries';
 import { createOrder } from '@/modules/orders/server/actions';
 import { customerAccount } from '@/modules/orders/server/queries';
 
@@ -52,5 +56,20 @@ describe('tahsilatı siparişe de işleme', () => {
     expect(await recordPayment({ kind: 'collection', partyId: ids.musteri, accountId: ids.usd, amount: '100', date: '2026-10-05', orderId: ids.siparis }, acc())).toMatchObject({ ok: false, fieldErrors: { orderId: expect.any(String) } });
     expect(await recordPayment({ kind: 'payment', partyId: ids.musteri, accountId: ids.banka, amount: '100', date: '2026-10-05', orderId: ids.siparis }, acc())).toMatchObject({ ok: false, code: 'VALIDATION' });
     expect(await orderBalance(ids.siparis!)).toBe('1200000');
+  });
+});
+
+describe('siparişin faturası ön muhasebeye', () => {
+  it('yalnız faturaya hazır sipariş; sipariş "fatura kesildi" olur ve cariye satış faturası işlenir', async () => {
+    const v = ok(await orderForOffice({ id: ids.siparis! }, admin())).version;
+    expect(await recordOrderInvoice({ orderId: ids.siparis, version: v, docNo: 'GIB1', date: '2026-10-15' }, acc())).toMatchObject({ ok: false, code: 'INVALID_STATE' });
+    // Üretim akışını kısaltmak için sipariş doğrudan "faturaya hazır" yapılır.
+    await withCompany(t.companyA, (tx) => tx.update(orders).set({ status: 'ready_to_invoice' }).where(eq(orders.id, ids.siparis!)), t.db);
+    const r = ok(await recordOrderInvoice({ orderId: ids.siparis, version: v, docNo: 'GIB1', date: '2026-10-15', due: '2026-11-15' }, acc()));
+    expect(r.total).toBe('1200000');
+    const o = ok(await orderForOffice({ id: ids.siparis! }, admin()));
+    expect(o).toMatchObject({ status: 'invoiced', invoiceMark: { no: 'GIB1' } });
+    expect(ok(await partyBalances({}, acc())).find((b) => b.partyId === ids.musteri)?.balance).toBe('1200000');
+    expect(await recordOrderInvoice({ orderId: ids.siparis, version: o.version, docNo: 'GIB2', date: '2026-10-15' }, acc())).toMatchObject({ ok: false, code: 'INVALID_STATE' });
   });
 });

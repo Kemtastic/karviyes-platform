@@ -2,8 +2,8 @@ import { and, desc, eq, inArray, ne } from 'drizzle-orm';
 import type { ActionCtx } from '@/core/action';
 import { istanbulToday } from '@/core/dates';
 import { AppError } from '@/core/errors';
-import { money, moneyToJSON, type Currency } from '@/core/money';
-import { orderPayments, orders } from '../db/schema';
+import { applyRate, money, moneyToJSON, mulPrice, type Currency } from '@/core/money';
+import { orderLines, orderPayments, orders } from '../db/schema';
 import { receivableTotal } from '../domain/totals';
 
 // Sipariş modülünün diğer modüllere açık yüzü: çağıran eylem yetkiyi denetlemiş olmalıdır; aynı işlemin (tx) içinde çalışır.
@@ -48,4 +48,35 @@ export async function reverseOrderPayment(ctx: ActionCtx, paymentId: string, rea
     companyId: ctx.companyId, orderId: orig.orderId, kind: 'correction', amountMinor: -current, currency: orig.currency, paidAt: istanbulToday(), note: `Ön muhasebede iptal: ${reason}`, correctsPaymentId: orig.id, createdBy: ctx.user.userId,
   });
   await ctx.audit({ entity: 'order_payment', entityId: orig.id, before: { amount: current.toString() }, after: { amount: '0', via: 'finance' } });
+}
+
+/** Faturalanacak tutar: iptal edilmemiş satırların KDV hariç toplamı ve KDV'si (sipariş toplamıyla aynı yuvarlama). */
+export async function invoiceBreakdown(ctx: ActionCtx, orderId: string) {
+  const [o] = await ctx.tx.select().from(orders).where(eq(orders.id, orderId));
+  if (!o) throw new AppError('NOT_FOUND', 'Sipariş bulunamadı.');
+  const lines = await ctx.tx.select().from(orderLines).where(and(eq(orderLines.orderId, orderId), ne(orderLines.status, 'cancelled')));
+  let base = 0n;
+  let vat = 0n;
+  for (const l of lines) {
+    const net = mulPrice(l.unitPrice, l.quantity);
+    base += net;
+    vat += applyRate(net, l.vatRate);
+  }
+  return { order: o, currency: o.currency as Currency, base, vat };
+}
+
+/** Siparişi "fatura kesildi" yapar (yalnızca faturaya hazır sipariş). */
+export async function markOrderInvoiced(ctx: ActionCtx, i: { orderId: string; version: number; invoiceNo: string; invoiceDate: string }) {
+  const [o] = await ctx.tx.select().from(orders).where(eq(orders.id, i.orderId));
+  if (!o) throw new AppError('NOT_FOUND', 'Sipariş bulunamadı.');
+  if (o.status !== 'ready_to_invoice') throw new AppError('INVALID_STATE', 'Yalnızca faturaya hazır sipariş işaretlenebilir.');
+  const mark = { no: i.invoiceNo, date: i.invoiceDate, by: ctx.user.userId, at: new Date().toISOString() };
+  const updated = await ctx.tx
+    .update(orders)
+    .set({ status: 'invoiced', invoiceMark: mark, version: o.version + 1 })
+    .where(and(eq(orders.id, i.orderId), eq(orders.version, i.version)))
+    .returning({ id: orders.id });
+  if (!updated.length) throw new AppError('CONFLICT', 'Bu kayıt başka biri tarafından değiştirildi, sayfayı yenileyin.');
+  await ctx.audit({ entity: 'order', entityId: i.orderId, before: { status: o.status }, after: { status: 'invoiced', invoice: mark } });
+  return { id: i.orderId };
 }

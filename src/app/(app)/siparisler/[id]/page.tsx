@@ -1,3 +1,4 @@
+import { isModuleEnabled } from '@/core/modules/registry';
 import { notFound } from 'next/navigation';
 import { getInstallConfig } from '@/core/install-config';
 import { getSector } from '@/sectors';
@@ -12,5 +13,5 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   const r = await orderForOffice({ id });
   if (!r.ok) notFound();
   const stageLabels = Object.fromEntries(getSector(getInstallConfig().sector).stages.map((st) => [st.id, st.label]));
-  return <OrderDetail order={r.data} stageLabels={stageLabels} canMarkInvoice={user.roles.some((x) => x === 'admin' || x === 'tracking')} />;
+  return <OrderDetail order={r.data} stageLabels={stageLabels} canMarkInvoice={user.roles.some((x) => x === 'admin' || x === 'tracking')} financeEnabled={isModuleEnabled('finance', getInstallConfig())} />;
 }

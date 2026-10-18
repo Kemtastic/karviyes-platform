@@ -49,4 +49,6 @@ Bağımsız kod incelemesi (alt ajan), güvenlik kontrolü, örnek veriye yeni m
 - **F4 bitti**: `plastic-bags` sektör paketi (pilot öncesi), üretimde kg/fire kg alanları, malzemesiz üründe ayırma adımı yok, sektöre göre rol adları (kabuk bağlamı), sipariş formunda sektörün varsayılanları ve hesap özeti. Altın test + uçtan uca servis testi.
   - Ruling: Plastikte fiyat adet başına (TL/kg yok) — maliyet: poşetçi kg fiyatı ister; sipariş modülünde fiyat birimi eklenmeli.
   - Ruling: Granül stoğu yok; `materials()` boş — maliyet: hammadde açığı uyarısı yok, pilotla eklenecek.
+- **F5 bitti (karar beklemeyen kısmı)**: siparişte "Fatura kesildi" ön muhasebe açıksa aynı işlemde cariye satış faturası işler (`recordOrderInvoice`, matrah/KDV sipariş satırlarından). Entegratör tasarım notu: `docs/e-fatura-entegrasyonu.md`.
+  - Ruling: Entegratör seçilmeden sağlayıcı arayüzü kodu yazılmadı (kullanılmayan kod olurdu) — maliyet: yok; seçim gelince eklenir.
 

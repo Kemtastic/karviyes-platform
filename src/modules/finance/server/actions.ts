@@ -8,7 +8,7 @@ import { AppError } from '@/core/errors';
 import { CURRENCIES, parseMoney, type Currency } from '@/core/money';
 import { requireModule } from '@/core/modules/registry';
 import type { Role } from '@/core/modules/types';
-import { recordOrderPayment, reverseOrderPayment } from '@/modules/orders/server/api';
+import { invoiceBreakdown, markOrderInvoiced, recordOrderPayment, reverseOrderPayment } from '@/modules/orders/server/api';
 import { finAccounts, finChecks, finInvoices, finMovements, finOpenings } from '../db/schema';
 import { invoiceTotals } from '../domain/ledger';
 
@@ -407,5 +407,38 @@ export const returnCheck = defineAction({
     await setCheck(ctx, c.id, c.version, { status, note: c.note ? `${c.note} · ${i.reason}` : i.reason });
     await ctx.audit({ entity: 'fin_check', entityId: c.id, after: { status, reason: i.reason } });
     return { id: c.id };
+  },
+});
+
+/**
+ * Siparişin faturası kesildiğinde (e-Fatura/e-Arşiv tarafında) sipariş "fatura kesildi" yapılır ve aynı fatura
+ * cariye satış faturası olarak işlenir. Tutarlar sipariş satırlarından hesaplanır; ikisi aynı işlemdedir.
+ */
+export const recordOrderInvoice = defineAction({
+  name: 'finance.recordOrderInvoice',
+  module: 'finance',
+  roles: ['admin', 'tracking', 'accounting'],
+  input: z.object({ orderId: z.string().uuid(), version: z.number().int(), docNo: z.string().trim().min(1, 'Fatura numarasını yazın.').max(40), date: isoDate, due: isoDate.nullable().default(null) }),
+  run: async (ctx, i) => {
+    requireModule('orders', ctx.cfg);
+    notFuture('date')(i.date);
+    if (i.due && i.due < i.date) throw new AppError('VALIDATION', 'Vade fatura tarihinden önce olamaz.', { due: 'Fatura tarihi veya sonrası.' });
+    const b = await invoiceBreakdown(ctx, i.orderId);
+    if (b.base <= 0n) throw new AppError('INVALID_STATE', 'Faturalanacak tutar yok.');
+    await markOrderInvoiced(ctx, { orderId: i.orderId, version: i.version, invoiceNo: i.docNo, invoiceDate: i.date });
+    const [dup] = await ctx.tx
+      .select({ id: finInvoices.id })
+      .from(finInvoices)
+      .where(and(eq(finInvoices.kind, 'sales'), eq(finInvoices.partyId, b.order.partyId), eq(finInvoices.docNo, i.docNo), eq(finInvoices.status, 'recorded')));
+    if (dup) throw new AppError('CONFLICT', 'Bu cari için aynı numaralı fatura zaten kayıtlı.', { docNo: 'Bu numara kayıtlı.' });
+    const [row] = await ctx.tx
+      .insert(finInvoices)
+      .values({
+        companyId: ctx.companyId, kind: 'sales', partyId: b.order.partyId, docNo: i.docNo, date: i.date, due: i.due, currency: b.currency,
+        baseMinor: b.base, vatMinor: b.vat, totalMinor: b.base + b.vat, note: `Sipariş ${b.order.no}`, createdBy: ctx.user.userId,
+      })
+      .returning({ id: finInvoices.id });
+    await ctx.audit({ entity: 'fin_invoice', entityId: row!.id, after: { kind: 'sales', orderId: i.orderId, docNo: i.docNo, total: (b.base + b.vat).toString() } });
+    return { id: row!.id, total: (b.base + b.vat).toString() };
   },
 });

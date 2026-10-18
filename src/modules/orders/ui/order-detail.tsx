@@ -16,6 +16,7 @@ import { Money } from '@/ui/money';
 import { MoneyInput } from '@/ui/money-input';
 import { useAction } from '@/ui/use-action';
 import { addPaymentAction, cancelOrderAction, correctPaymentAction, markInvoicedAction, setDeliveryDateAction } from './actions';
+import { recordOrderInvoiceAction } from '@/modules/finance/ui/actions';
 import { PACKAGING_LABELS } from '../domain/packaging';
 import { LINE_STATUS_LABELS, LINE_STATUS_TONES, ORDER_STATUS_LABELS, ORDER_STATUS_TONES } from './status-labels';
 
@@ -34,7 +35,7 @@ type Order = {
 
 const KIND: Record<string, string> = { deposit: 'Peşinat', payment: 'Tahsilat', correction: 'Düzeltme' };
 
-export function OrderDetail({ order: o, canMarkInvoice, stageLabels = {} }: { order: Order; canMarkInvoice: boolean; stageLabels?: Record<string, string> }) {
+export function OrderDetail({ order: o, canMarkInvoice, stageLabels = {}, financeEnabled = false }: { order: Order; canMarkInvoice: boolean; stageLabels?: Record<string, string>; financeEnabled?: boolean }) {
   const router = useRouter();
   const [paying, setPaying] = useState(false);
   const [correcting, setCorrecting] = useState<Order['payments'][number] | null>(null);
@@ -130,7 +131,7 @@ export function OrderDetail({ order: o, canMarkInvoice, stageLabels = {} }: { or
 
       {paying && <PaymentModal orderId={o.id} currency={currency} onClose={() => setPaying(false)} onDone={() => { setPaying(false); done(); }} />}
       {correcting && <CorrectionModal payment={correcting} currency={currency} onClose={() => setCorrecting(null)} onDone={() => { setCorrecting(null); done(); }} />}
-      {invoicing && <InvoiceModal order={o} onClose={() => setInvoicing(false)} onDone={() => { setInvoicing(false); done(); }} />}
+      {invoicing && <InvoiceModal order={o} finance={financeEnabled} onClose={() => setInvoicing(false)} onDone={() => { setInvoicing(false); done(); }} />}
       <ConfirmDialog
         open={cancelling}
         title="Sipariş iptal edilsin mi?"
@@ -184,16 +185,36 @@ function CorrectionModal({ payment, currency, onClose, onDone }: { payment: Orde
   );
 }
 
-function InvoiceModal({ order, onClose, onDone }: { order: Order; onClose: () => void; onDone: () => void }) {
+function InvoiceModal({ order, finance, onClose, onDone }: { order: Order; finance: boolean; onClose: () => void; onDone: () => void }) {
   const mark = useAction(markInvoicedAction);
+  const record = useAction(recordOrderInvoiceAction);
+  const a = finance ? record : mark;
+  const fe = a.fieldErrors;
   return (
     <Modal open title="Fatura kesildi" onClose={onClose}>
-      <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.currentTarget)); mark.run({ id: order.id, version: order.version, invoiceNo: f.invoiceNo, invoiceDate: f.invoiceDate }, onDone); }}>
-        <p className="text-sm text-stone-600">Faturayı muhasebe programınızda kestikten sonra numarasını buraya yazın.</p>
-        <FormField label="Fatura no" required error={mark.fieldErrors.invoiceNo}><input name="invoiceNo" className={fieldClass} /></FormField>
-        <FormField label="Fatura tarihi" required><input type="date" name="invoiceDate" defaultValue={istanbulToday()} className={fieldClass} /></FormField>
-        {mark.error && <p role="alert" className="text-sm text-red-700">{mark.error}</p>}
-        <Button disabled={mark.pending}>Kaydet</Button>
+      <form
+        className="space-y-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const f = Object.fromEntries(new FormData(e.currentTarget)) as Record<string, string>;
+          if (finance) record.run({ orderId: order.id, version: order.version, docNo: f.invoiceNo, date: f.invoiceDate, due: f.due || null }, onDone);
+          else mark.run({ id: order.id, version: order.version, invoiceNo: f.invoiceNo, invoiceDate: f.invoiceDate }, onDone);
+        }}
+      >
+        <p className="text-sm text-stone-600">Faturayı e-Fatura/e-Arşiv (ya da muhasebe programınızda) kestikten sonra numarasını buraya yazın.</p>
+        <FormField label="Fatura no" required error={fe.invoiceNo ?? fe.docNo}><input name="invoiceNo" className={fieldClass} /></FormField>
+        <FormField label="Fatura tarihi" required error={fe.date}><input type="date" name="invoiceDate" defaultValue={istanbulToday()} max={istanbulToday()} className={fieldClass} /></FormField>
+        {finance && (
+          <>
+            <FormField label="Vade" error={fe.due} hint="Boşsa vadesiz"><input type="date" name="due" className={fieldClass} /></FormField>
+            <p className="rounded-xl bg-sky-50 px-3 py-2 text-sm text-sky-900">Fatura ön muhasebede cariye satış faturası olarak da işlenir (KDV sipariş satırlarından).</p>
+          </>
+        )}
+        {a.error && <p role="alert" className="text-sm text-red-700">{a.error}</p>}
+        <div className="flex justify-end gap-2 border-t border-stone-100 pt-4">
+          <Button type="button" variant="secondary" onClick={onClose}>Vazgeç</Button>
+          <Button disabled={a.pending}>Kaydet</Button>
+        </div>
       </form>
     </Modal>
   );
