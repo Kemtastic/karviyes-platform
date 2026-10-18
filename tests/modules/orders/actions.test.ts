@@ -124,3 +124,12 @@ describe('atölye görünümü', () => {
     expect(await orderForOffice({ id: r.data.id }, runtime(t, testUser(t.companyB, ['sales'])))).toMatchObject({ ok: false, code: 'NOT_FOUND' });
   });
 });
+
+describe('inceleme düzeltmeleri', () => {
+  it('tahsilatı olan siparişin para birimi değiştirilemez (liste bozulmasın)', async () => {
+    const r = await createOrder({ ...order(), deposit: '100' }, sales());
+    if (!r.ok) throw new Error('x');
+    const u = await updateOrder({ ...order(), id: r.data.id, version: 1, currency: 'USD', fxRate: '41', fxRateDate: '2026-10-17' }, sales());
+    expect(u).toMatchObject({ ok: false, code: 'INVALID_STATE' });
+  });
+});

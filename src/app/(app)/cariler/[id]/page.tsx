@@ -1,22 +1,20 @@
-import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import { getCurrentUser } from '@/core/auth/session';
-import { getDb } from '@/core/db/client';
-import { withCompany } from '@/core/db/scope';
-import { parties } from '@/core/db/schema';
+import { partyDetail } from '@/core/parties/service';
 import { PartyForm } from '../party-form';
 
 export default async function PartyPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
-  if (!user || user.kind === 'device') notFound();
   const { id } = await params;
-  if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
-  const [party] = await withCompany(user.companyId, (tx) => tx.select().from(parties).where(eq(parties.id, id)), await getDb());
-  if (!party) notFound();
+  if (!user || !/^[0-9a-f-]{36}$/.test(id)) notFound();
+  // Rol denetimi sorgunun içinde: yalnızca yönetici, satış ve üretim takip görür.
+  const r = await partyDetail({ id });
+  if (!r.ok) notFound();
+  const party = r.data;
   return (
     <div className="max-w-3xl space-y-4">
       <h1 className="text-2xl font-semibold">{party.name}</h1>
-      <PartyForm party={party} canArchive={user.roles.some((r) => r === 'admin' || r === 'tracking')} />
+      <PartyForm party={party} canArchive={user.roles.some((x) => x === 'admin' || x === 'tracking')} />
     </div>
   );
 }

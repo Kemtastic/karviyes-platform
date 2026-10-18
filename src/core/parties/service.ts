@@ -1,4 +1,4 @@
-import { and, asc, eq, like } from 'drizzle-orm';
+import { and, asc, eq, inArray, like } from 'drizzle-orm';
 import { z } from 'zod';
 import { defineAction } from '@/core/action';
 import { parties } from '@/core/db/schema';
@@ -94,9 +94,22 @@ export const searchParties = defineAction({
     const rows = await ctx.tx
       .select()
       .from(parties)
-      .where(and(eq(parties.archived, false), key ? like(parties.searchKey, `%${key}%`) : undefined))
+      .where(and(eq(parties.archived, false), key ? like(parties.searchKey, `%${key}%`) : undefined, i.kind ? inArray(parties.kind, [i.kind, 'both']) : undefined))
       .orderBy(asc(parties.name))
       .limit(i.limit);
-    return i.kind ? rows.filter((p) => p.kind === i.kind || p.kind === 'both') : rows;
+    return rows;
+  },
+});
+
+// Cari kartı: vergi no ve adres içerir; yalnızca ofis rolleri görür.
+export const partyDetail = defineAction({
+  name: 'parties.detail',
+  roles: EDITORS,
+  rateLimit: false,
+  input: z.object({ id: z.string().uuid() }),
+  run: async (ctx, i) => {
+    const [row] = await ctx.tx.select().from(parties).where(eq(parties.id, i.id));
+    if (!row) throw new AppError('NOT_FOUND', 'Cari bulunamadı.');
+    return row;
   },
 });

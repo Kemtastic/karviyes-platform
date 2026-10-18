@@ -4,7 +4,7 @@ import { runtime, testUser } from '../helpers/runtime';
 import { normalizeSearch } from '@/core/parties/search';
 import { validateTaxId } from '@/core/parties/tax-id';
 import { isDistrictOf } from '@/core/parties/locations';
-import { createParty, searchParties, updateParty } from '@/core/parties/service';
+import { createParty, partyDetail, searchParties, updateParty } from '@/core/parties/service';
 
 describe('VKN / TCKN', () => {
   it.each(['9990000005', '9990000013', '1234567890', '0000000019'])('geçerli VKN %s', (v) => expect(validateTaxId(v, 'company')).toBe(true));
@@ -75,5 +75,27 @@ describe('cari kartlar', () => {
 
   it('bölüm tableti cari oluşturamaz', async () => {
     expect(await createParty(base, runtime(t, testUser(t.companyA, ['cutting'], { kind: 'device' })))).toMatchObject({ ok: false, code: 'FORBIDDEN' });
+  });
+});
+
+describe('inceleme düzeltmeleri (cari)', () => {
+  let t: TestDb;
+  beforeAll(async () => { t = await createTestDb(); });
+  afterAll(async () => { await t.close(); });
+
+  it('müşteri araması sınırdan önce türe göre süzülür', async () => {
+    const admin = runtime(t, testUser(t.companyA, ['admin']));
+    for (let i = 0; i < 3; i++) await createParty({ kind: 'supplier', name: `A Tedarik ${i}`, legalType: 'company' }, admin);
+    await createParty({ kind: 'customer', name: 'Z Müşteri', legalType: 'company' }, admin);
+    const r = await searchParties({ q: '', kind: 'customer', limit: 2 }, admin);
+    expect(r.ok && r.data.map((p) => p.name)).toEqual(['Z Müşteri']);
+  });
+
+  it('yalnızca bölüm rolü olan kişisel hesap cari kartını göremez', async () => {
+    const admin = runtime(t, testUser(t.companyA, ['admin']));
+    const p = await createParty({ kind: 'customer', name: 'Gizli Cari', legalType: 'company', taxId: '9990000013' }, admin);
+    if (!p.ok) throw new Error('x');
+    expect(await partyDetail({ id: p.data.id }, runtime(t, testUser(t.companyA, ['cutting'])))).toMatchObject({ ok: false, code: 'FORBIDDEN' });
+    expect(await partyDetail({ id: p.data.id }, admin)).toMatchObject({ ok: true, data: { name: 'Gizli Cari' } });
   });
 });

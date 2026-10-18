@@ -139,6 +139,10 @@ export const updateOrder = defineAction({
   run: async (ctx, i) => {
     const before = await loadOrder(ctx, i.id);
     if (before.status !== 'draft') throw new AppError('INVALID_STATE', 'Üretime alınmış sipariş değiştirilemez.');
+    if (i.currency !== before.currency) {
+      const [paid] = await ctx.tx.select({ id: orderPayments.id }).from(orderPayments).where(eq(orderPayments.orderId, i.id)).limit(1);
+      if (paid) throw new AppError('INVALID_STATE', 'Tahsilatı olan siparişin para birimi değiştirilemez.');
+    }
     const p = await prepare(ctx, i);
     const updated = await ctx.tx
       .update(orders)
