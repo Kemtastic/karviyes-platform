@@ -1,0 +1,12 @@
+node_modules/
+.next/
+.env*
+!.env.example
+.data/
+coverage/
+playwright-report/
+test-results/
+.ai-reports/
+.superpowers/
+*.tsbuildinfo
+next-env.d.ts
