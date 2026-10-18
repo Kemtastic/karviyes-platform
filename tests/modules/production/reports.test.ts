@@ -55,6 +55,14 @@ describe('makine ve personel raporu', () => {
     ]);
   });
 
+  it('iş özeti: hedef, son sağlam adet, kesim firesi (adet), baskı firesi (metre) ve fire oranı', async () => {
+    const r = await machineStaffReport({ from: '2026-10-18', to: '2026-10-18' }, runtime(t, testUser(t.companyA, ['tracking'])));
+    if (!r.ok) throw new Error(r.message);
+    expect(r.data.byJob).toEqual([
+      { jobId, jobNo: expect.stringMatching(/\/1$/), partyName: 'Rapor Müşterisi', target: 2222, good: 2200, cutWaste: 10, printWaste: 30, wasteRate: '0.45' },
+    ]);
+  });
+
   it('satışçı raporu göremez', async () => {
     expect(await machineStaffReport({ from: '2026-10-18', to: '2026-10-18' }, runtime(t, testUser(t.companyA, ['sales'])))).toMatchObject({ ok: false, code: 'FORBIDDEN' });
   });

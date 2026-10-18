@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { istanbulToday } from '@/core/dates';
 import { getInstallConfig } from '@/core/install-config';
@@ -48,7 +49,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
 
   return (
     <div className="space-y-5">
-      <h1 className="text-2xl font-semibold">Makine ve personel raporu</h1>
+      <h1 className="text-2xl font-semibold">Makine, personel ve iş raporu</h1>
       <form className="flex flex-wrap items-end gap-3 rounded-xl border border-stone-200 bg-white p-4">
         <label className="text-sm font-medium">Başlangıç<input type="date" name="from" defaultValue={from} className={fieldClass} /></label>
         <label className="text-sm font-medium">Bitiş<input type="date" name="to" defaultValue={to} className={fieldClass} /></label>
@@ -57,6 +58,33 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
       <p className="text-sm text-stone-600">Fire, aşamanın kendi makinesine ve personeline yazılır: baskı firesi baskıya, kesim firesi kesim ve bitiş aşamalarına.</p>
       {table('Makineler', r.data.byMachine)}
       {table('Personel', r.data.byStaff)}
+      <section className="space-y-2">
+        <h2 className="font-semibold">İşler</h2>
+        <div className="overflow-x-auto rounded-lg border border-stone-200 bg-white">
+          <table className="w-full text-sm">
+            <thead className="bg-stone-50 text-stone-600">
+              <tr>
+                <th className="px-3 py-2 text-left">İş</th><th className="px-3 py-2 text-left">Müşteri</th><th className="px-3 py-2 text-right">Hedef</th>
+                <th className="px-3 py-2 text-right">Sağlam</th><th className="px-3 py-2 text-right">Kesim firesi</th><th className="px-3 py-2 text-right">Baskı firesi (m)</th><th className="px-3 py-2 text-right">Fire oranı</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-stone-100">
+              {r.data.byJob.map((j) => (
+                <tr key={j.jobId}>
+                  <td className="px-3 py-2 font-mono"><Link href={`/uretim/is/${j.jobId}`} className="underline">{j.jobNo}</Link></td>
+                  <td className="px-3 py-2">{j.partyName}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{j.target.toLocaleString('tr-TR')}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{j.good.toLocaleString('tr-TR')}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{j.cutWaste.toLocaleString('tr-TR')}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{j.printWaste.toLocaleString('tr-TR')}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">%{Number(j.wasteRate).toLocaleString('tr-TR', { maximumFractionDigits: 2 })}</td>
+                </tr>
+              ))}
+              {!r.data.byJob.length && <tr><td colSpan={7} className="px-3 py-6 text-center text-stone-500">Bu aralıkta bitirilen aşama yok.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 }

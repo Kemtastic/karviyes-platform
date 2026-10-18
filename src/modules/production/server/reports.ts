@@ -1,8 +1,9 @@
 import { and, eq, gte, inArray, lte } from 'drizzle-orm';
 import { z } from 'zod';
 import { defineAction } from '@/core/action';
-import { staff } from '@/core/db/schema';
-import { jobEvents } from '../db/schema';
+import { parties, staff } from '@/core/db/schema';
+import { orderLines, orders } from '@/modules/orders/db/schema';
+import { jobEvents, jobs } from '../db/schema';
 
 export type ReportRow = { key: string; stage: string; jobs: number; good: number; cutWaste: number; printWaste: number };
 
@@ -39,8 +40,30 @@ export const machineStaffReport = defineAction({
       if (e.machine) add(byMachine, e.machine, e);
       for (const s of e.staffIds) add(byStaff, names.get(s) ?? 'Bilinmeyen personel', e);
     }
+    // İş özeti: son sağlam adet (en son bitirilen adet sayan aşama), kesim firesi adet, baskı firesi metre; fire oranı = kesim firesi / (sağlam + kesim firesi).
+    const jobIds = [...new Set(events.map((e) => e.jobId))];
+    const info = jobIds.length
+      ? await ctx.tx
+          .select({ id: jobs.id, no: jobs.no, target: orderLines.quantity, partyName: parties.name })
+          .from(jobs)
+          .innerJoin(orderLines, eq(orderLines.id, jobs.orderLineId))
+          .innerJoin(orders, eq(orders.id, jobs.orderId))
+          .innerJoin(parties, eq(parties.id, orders.partyId))
+          .where(inArray(jobs.id, jobIds))
+      : [];
+    const byJob = info
+      .map((j) => {
+        const mine = events.filter((e) => e.jobId === j.id).sort((a, b) => a.at.getTime() - b.at.getTime());
+        const goods = mine.filter((e) => e.stage !== 'printing' && e.stage !== 'slitting' && typeof e.data.good === 'number');
+        const good = goods.length ? num(goods[goods.length - 1]!.data.good) : 0;
+        const cutWaste = mine.filter((e) => e.stage !== 'printing').reduce((s, e) => s + num(e.data.cutWaste), 0);
+        const printWaste = mine.filter((e) => e.stage === 'printing').reduce((s, e) => s + num(e.data.printWaste), 0);
+        const wasteRate = good + cutWaste > 0 ? ((cutWaste / (good + cutWaste)) * 100).toFixed(2) : '0.00';
+        return { jobId: j.id, jobNo: j.no, partyName: j.partyName, target: j.target, good, cutWaste, printWaste, wasteRate };
+      })
+      .sort((a, b) => a.jobNo.localeCompare(b.jobNo));
     const finalize = (m: typeof byMachine): ReportRow[] =>
       [...m.values()].map(({ jobIds, ...r }) => ({ ...r, jobs: jobIds.size })).sort((a, b) => a.key.localeCompare(b.key, 'tr') || a.stage.localeCompare(b.stage));
-    return { byMachine: finalize(byMachine), byStaff: finalize(byStaff) };
+    return { byMachine: finalize(byMachine), byStaff: finalize(byStaff), byJob };
   },
 });
