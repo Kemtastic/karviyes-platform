@@ -5,6 +5,7 @@ import { Button } from '@/ui/button';
 import { DataTable } from '@/ui/data-table';
 import { fieldClass } from '@/ui/form-field';
 import { Modal } from '@/ui/modal';
+import { ImportDialog } from './import-dialog';
 import { PartyForm } from './party-form';
 
 type Row = { id: string; name: string; kind: string; city: string; district: string; contactName: string; phone: string; taxId: string };
@@ -14,12 +15,14 @@ export function PartiesScreen({ rows, initialQuery }: { rows: Row[]; initialQuer
   const router = useRouter();
   const [q, setQ] = useState(initialQuery);
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Cariler</h1>
         <div className="flex gap-2">
           <a href="/api/disa-aktar/cariler" className="inline-flex min-h-11 items-center rounded-lg border border-stone-300 bg-white px-4 text-sm font-semibold">Excel&apos;e aktar</a>
+          <Button variant="secondary" onClick={() => setImporting(true)}>Excel&apos;den aktar</Button>
           <Button onClick={() => setCreating(true)}>Yeni cari</Button>
         </div>
       </div>
@@ -48,6 +51,7 @@ export function PartiesScreen({ rows, initialQuery }: { rows: Row[]; initialQuer
           { key: 'tax', header: 'Vergi no', render: (r) => r.taxId || '—' },
         ]}
       />
+      {importing && <ImportDialog onClose={() => setImporting(false)} onDone={() => { setImporting(false); router.refresh(); }} />}
       <Modal open={creating} title="Yeni cari" onClose={() => setCreating(false)} wide>
         <PartyForm party={null} canArchive={false} onSaved={(id) => { setCreating(false); router.push(`/cariler/${id}`); }} />
       </Modal>

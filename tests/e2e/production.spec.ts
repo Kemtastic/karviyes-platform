@@ -239,3 +239,16 @@ test('ana sayfa özet kartları', async ({ page }) => {
   await expect(summary.getByText('Bugün aranacak')).toBeVisible();
   await expect(summary.getByText('Açık sipariş bakiyesi')).toBeVisible();
 });
+
+test('carileri CSV dosyasından içe aktarma', async ({ page }) => {
+  await login(page);
+  await page.goto('/cariler');
+  await page.getByRole('button', { name: "Excel'den aktar" }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Dosya').setInputFiles({ name: 'cariler.csv', mimeType: 'text/csv', buffer: Buffer.from(['FİRMA ADI;İL;İLÇE', 'İçe Aktarılan Ltd.;Antalya;Muratpaşa', 'E2E Gıda Ltd. Şti.;;'].join(String.fromCharCode(13, 10)), 'utf8') });
+  await expect(dialog.getByRole('status').first()).toContainText('1 cari eklenecek');
+  await dialog.getByRole('button', { name: '1 cariyi içe aktar' }).click();
+  await expect(dialog.getByText('cari eklendi')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Tamam' }).click();
+  await expect(page.getByRole('cell', { name: 'İçe Aktarılan Ltd.' })).toBeVisible();
+});

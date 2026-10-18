@@ -4,7 +4,8 @@ import { defineAction } from '@/core/action';
 import { parties } from '@/core/db/schema';
 import { AppError } from '@/core/errors';
 import type { Role } from '@/core/modules/types';
-import { isDistrictOf } from './locations';
+import { parseCsv } from '@/core/export/csv';
+import { PROVINCES, districtsOf, isDistrictOf } from './locations';
 import { normalizeSearch } from './search';
 import { validateTaxId } from './tax-id';
 
@@ -127,5 +128,95 @@ export const exportParties = defineAction({
     const out = rows.map((p) => [p.name, KIND_TEXT[p.kind], p.legalType === 'company' ? 'Şirket' : 'Şahıs', p.taxId, p.taxOffice, p.city, p.district, p.address, p.contactName, p.phone, p.email, p.notes]);
     await ctx.audit({ entity: 'party', entityId: ctx.companyId, after: { export: 'parties', rows: out.length } });
     return { headers, rows: out };
+  },
+});
+
+// ---- İçe aktarma (Excel → CSV) ------------------------------------------------------------------
+
+type ImportField = keyof Omit<PartyInput, 'legalType' | 'kind'> | 'kind' | 'legalType';
+
+// Başlık eşleştirme: bizim dışa aktarımımız ve eski Karviyes dışa aktarımı (harf/boşluk duyarsız).
+const HEADER_ALIASES: Record<string, ImportField> = {
+  ad: 'name', unvan: 'name', unvanadsoyad: 'name', firmaadi: 'name', firma: 'name', musteri: 'name', cariadi: 'name',
+  tur: 'kind', sahissirket: 'legalType',
+  vkntckn: 'taxId', vkn: 'taxId', tckn: 'taxId', vergino: 'taxId', vergikimlikno: 'taxId',
+  vergidairesi: 'taxOffice', il: 'city', sehir: 'city', ilce: 'district', adres: 'address',
+  yetkili: 'contactName', yetkilikisi: 'contactName', anayetkilikisi: 'contactName',
+  telefon: 'phone', tel: 'phone', gsm: 'phone', iletisimgsm: 'phone', iletisimsabit: 'phone',
+  eposta: 'email', email: 'email', mail: 'email', not: 'notes', notlar: 'notes', aciklama: 'notes',
+};
+const MAX_LEN: Partial<Record<ImportField, number>> = { name: 200, taxOffice: 120, city: 60, district: 60, address: 500, contactName: 120, phone: 40, notes: 2000 };
+const FIELD_LABELS: Partial<Record<ImportField, string>> = { name: 'Ad', taxOffice: 'Vergi dairesi', city: 'İl', district: 'İlçe', address: 'Adres', contactName: 'Yetkili', phone: 'Telefon', notes: 'Not' };
+const headerKey = (h: string) => normalizeSearch(h).replace(/[^a-z0-9]/g, '');
+
+export const importParties = defineAction({
+  name: 'parties.import',
+  roles: EDITORS,
+  input: z.object({ csv: z.string().max(3_000_000, 'Dosya en fazla 3 MB olabilir.'), dryRun: z.boolean() }),
+  run: async (ctx, i) => {
+    const [header, ...data] = parseCsv(i.csv);
+    if (!header) throw new AppError('VALIDATION', 'Dosya boş.');
+    if (data.length > 5000) throw new AppError('VALIDATION', 'Bir seferde en çok 5000 satır aktarılabilir.');
+    const columns = header.map((h) => HEADER_ALIASES[headerKey(h)]);
+    if (!columns.includes('name')) throw new AppError('VALIDATION', 'Ad (ünvan) sütunu bulunamadı. Başlık satırında "Ad" veya "Firma adı" olmalı.');
+
+    const existing = await ctx.tx.select({ name: parties.name, taxId: parties.taxId }).from(parties).where(eq(parties.archived, false));
+    const seenTax = new Set(existing.map((p) => p.taxId).filter(Boolean));
+    const seenName = new Set(existing.map((p) => normalizeSearch(p.name)));
+    const fileNames = new Set<string>();
+    const toInsert: PartyInput[] = [];
+    const skipped: { row: number; name: string; reason: string }[] = [];
+    const errors: { row: number; message: string }[] = [];
+    const warnings: { row: number; message: string }[] = [];
+
+    data.forEach((cells, n) => {
+      const row = n + 2;
+      const raw: Partial<Record<ImportField, string>> = {};
+      columns.forEach((field, c) => {
+        const v = (cells[c] ?? '').trim();
+        if (field && v && !raw[field]) raw[field] = v;
+      });
+      const warn = (message: string) => warnings.push({ row, message });
+      for (const [field, max] of Object.entries(MAX_LEN) as [ImportField, number][]) {
+        if (raw[field] && raw[field]!.length > max) {
+          raw[field] = raw[field]!.slice(0, max);
+          warn(`${FIELD_LABELS[field] ?? field} ${max} karaktere kısaltıldı.`);
+        }
+      }
+      if (!raw.name || raw.name.length < 2) return void errors.push({ row, message: 'Ad boş.' });
+      const kindText = normalizeSearch(raw.kind ?? '');
+      const kind = kindText.includes('ve') ? 'both' : kindText.startsWith('tedarik') ? 'supplier' : 'customer';
+      let taxId = (raw.taxId ?? '').replace(/\D/g, '');
+      const legalText = normalizeSearch(raw.legalType ?? '');
+      const legalType = legalText.startsWith('sahis') || (!legalText && taxId.length === 11) ? 'individual' : 'company';
+      if (taxId && !validateTaxId(taxId, legalType)) {
+        warn(`Geçersiz ${legalType === 'company' ? 'VKN' : 'TCKN'} boşaltıldı (${taxId}).`);
+        taxId = '';
+      }
+      const city = PROVINCES.find((p) => normalizeSearch(p) === normalizeSearch(raw.city ?? '')) ?? raw.city ?? '';
+      let district = raw.district ? (districtsOf(city).find((d) => normalizeSearch(d) === normalizeSearch(raw.district!)) ?? '') : '';
+      if (raw.district && !district) warn(`İlçe "${raw.district}" ${city || 'il'} ilçelerinde yok; boşaltıldı.`);
+      if (district && !isDistrictOf(city, district)) district = '';
+      let email = raw.email ?? '';
+      if (email && !z.string().email().safeParse(email).success) {
+        warn(`Geçersiz e-posta boşaltıldı (${email}).`);
+        email = '';
+      }
+      const key = normalizeSearch(raw.name);
+      if (taxId && seenTax.has(taxId)) return void skipped.push({ row, name: raw.name, reason: 'Aynı VKN ile kayıtlı cari var.' });
+      if (fileNames.has(key)) return void skipped.push({ row, name: raw.name, reason: 'Dosyada aynı ad daha önce geçiyor.' });
+      if (seenName.has(key)) return void skipped.push({ row, name: raw.name, reason: 'Aynı adla kayıtlı cari var.' });
+      const parsed = partyFields.safeParse({ ...raw, kind, legalType, taxId, city, district, email });
+      if (!parsed.success) return void errors.push({ row, message: parsed.error.issues.map((x) => x.message).join(' ') });
+      fileNames.add(key);
+      if (taxId) seenTax.add(taxId);
+      toInsert.push(parsed.data);
+    });
+
+    if (!i.dryRun && toInsert.length) {
+      await ctx.tx.insert(parties).values(toInsert.map((p) => ({ companyId: ctx.companyId, ...p, searchKey: searchKeyOf(p) })));
+      await ctx.audit({ entity: 'party', entityId: ctx.companyId, after: { import: toInsert.length, skipped: skipped.length, errors: errors.length } });
+    }
+    return { total: data.length, toAdd: toInsert.length, added: i.dryRun ? 0 : toInsert.length, skipped, errors, warnings, preview: toInsert.slice(0, 20).map((p) => ({ name: p.name, kind: p.kind, city: p.city, phone: p.phone })) };
   },
 });

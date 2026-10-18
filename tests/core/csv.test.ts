@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toCsv } from '@/core/export/csv';
+import { parseCsv, toCsv } from '@/core/export/csv';
 
 describe('Excel için CSV', () => {
   it('UTF-8 BOM, noktalı virgül ayraç ve CRLF satır sonu (Türkçe Excel doğrudan açar)', () => {
@@ -16,5 +16,22 @@ describe('Excel için CSV', () => {
 
   it('sayılar olduğu gibi, boş değerler boş hücre', () => {
     expect(toCsv(['A', 'B', 'C'], [[1234, null, -5]])).toBe('\uFEFFA;B;C\r\n1234;;-5\r\n');
+  });
+});
+
+describe('CSV okuma', () => {
+  it('BOM, ";" veya "," ayraç, tırnaklı hücre ve satır sonu', () => {
+    expect(parseCsv('\uFEFFAd;İl\r\n"Örnek; Gıda";İstanbul\r\n"Tırnak ""içi""";\r\n')).toEqual([['Ad', 'İl'], ['Örnek; Gıda', 'İstanbul'], ['Tırnak "içi"', '']]);
+    expect(parseCsv('Ad,İl\n"A, B",Antalya\n')).toEqual([['Ad', 'İl'], ['A, B', 'Antalya']]);
+    expect(parseCsv('Ad;Not\n"iki\nsatır";x\n')).toEqual([['Ad', 'Not'], ['iki\nsatır', 'x']]);
+  });
+
+  it('boş satırlar atlanır; bizim eklediğimiz formül önleme işareti geri alınır', () => {
+    expect(parseCsv('Ad\n\n\'=1+1\n')).toEqual([['Ad'], ['=1+1']]);
+  });
+
+  it('dışa aktardığımız CSV aynen geri okunur', () => {
+    const rows = [['Örnek; "Gıda"', '-5 indirim', 'iki\nsatır']];
+    expect(parseCsv(toCsv(['A', 'B', 'C'], rows))).toEqual([['A', 'B', 'C'], ...rows]);
   });
 });

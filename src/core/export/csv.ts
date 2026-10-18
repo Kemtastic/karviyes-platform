@@ -29,3 +29,41 @@ export function csvResponse(csv: string, filename: string): Response {
     },
   });
 }
+
+// CSV okur (Excel'in "CSV UTF-8" çıktısı ve bizim dışa aktarımımız): BOM, ";" veya "," ayraç (ilk satırdan), tırnaklı hücreler.
+// Boş satırlar atlanır; dışa aktarırken formül önlemek için eklenen baştaki ' kaldırılır.
+export function parseCsv(input: string): string[][] {
+  const text = input.replace(/^\uFEFF/, '');
+  const firstLine = text.slice(0, text.search(/\r?\n|$/));
+  const delimiter = (firstLine.match(/;/g)?.length ?? 0) >= (firstLine.match(/,/g)?.length ?? 0) ? ';' : ',';
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = '';
+  let quoted = false;
+  const endCell = () => {
+    row.push(/^'[=+\-@\t\r]/.test(cell) ? cell.slice(1) : cell);
+    cell = '';
+  };
+  const endRow = () => {
+    endCell();
+    if (row.some((c) => c.trim() !== '')) rows.push(row);
+    row = [];
+  };
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]!;
+    if (quoted) {
+      if (ch === '"' && text[i + 1] === '"') {
+        cell += '"';
+        i++;
+      } else if (ch === '"') quoted = false;
+      else cell += ch;
+    } else if (ch === '"' && cell === '') quoted = true;
+    else if (ch === delimiter) endCell();
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && text[i + 1] === '\n') i++;
+      endRow();
+    } else cell += ch;
+  }
+  if (cell !== '' || row.length) endRow();
+  return rows;
+}

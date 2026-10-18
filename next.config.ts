@@ -11,6 +11,8 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ['@electric-sql/pglite', 'pg'],
   // PDF uçları gömülü Türkçe yazı tipini okur; derlemeye dahil edilir.
   outputFileTracingIncludes: { '/api/pdf/**': ['./src/core/pdf/fonts/**'] },
+  // Cari içe aktarma CSV'yi sunucu eylemiyle gönderir (servis 3 MB'ı reddeder).
+  experimental: { serverActions: { bodySizeLimit: '4mb' } },
 };
 
 export default nextConfig;
