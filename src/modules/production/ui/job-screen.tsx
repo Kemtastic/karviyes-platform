@@ -19,6 +19,7 @@ type Job = {
   packaging: { type: string; capacity: number; packages: number }; departmentNotes: Record<string, string>;
   events: { id: string; stage: string; kind: string; at: string; machine: string; data: Record<string, unknown>; note: string; staff: string[] }[];
   shipments: { id: string; qty: number; shippedAt: string; note: string }[];
+  materials: { kind: string; label: string; widthCm: number; colour: string; gsm: number | null; rolls: number; reserved: number; used: number }[];
 };
 
 type Props = { job: Job; sector: string; canManage: boolean; fabric: { id: string; label: string }[]; staff: { id: string; name: string }[]; userRoles: Role[] };
@@ -66,6 +67,20 @@ export function JobScreen({ job, sector, canManage, fabric, staff, userRoles }: 
       ))}
       {job.reviewNote && job.stage !== 'review' && <p className="rounded-xl bg-orange-100 p-4">Kontrol notu: {job.reviewNote}</p>}
       {job.cancelReason && <p className="rounded-xl bg-red-50 p-4 text-red-800">İptal nedeni: {job.cancelReason}</p>}
+
+      {job.materials.length > 0 && (
+        <section aria-label="Malzeme" className="rounded-xl border border-stone-200 bg-white p-4">
+          <h2 className="mb-2 font-semibold">Malzeme</h2>
+          <ul className="space-y-1">
+            {job.materials.map((m) => (
+              <li key={m.kind}>
+                <strong>{m.label}</strong>: {m.rolls} bobin {m.widthCm.toLocaleString('tr-TR')} cm {m.colour} {m.gsm ? `${m.gsm} gr` : '(herhangi gramaj)'}
+                <span className="text-stone-600"> · ayrıldı {m.reserved} · kullanıldı {m.used}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="rounded-xl border border-stone-200 bg-white p-4">
         {job.stage === 'waiting' && canManage && !job.fabricReserved && <ReserveFabric job={job} fabric={fabric} onDone={refresh} />}

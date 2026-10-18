@@ -97,3 +97,10 @@ describe('malzeme ihtiyacı', () => {
     expect(bags.materials(bags.validateProduct({ ...kulplu, handle: 'El Geçme' }), 2700)).toHaveLength(1);
   });
 });
+
+describe('kayıtlı ürün', () => {
+  it('normalize edilmiş ürün yeniden doğrulanabilir (sap gramajı boş = 0)', () => {
+    const once = bags.validateProduct({ width: 45, height: 45, shape: 'Körüksüz', handle: 'Kulplu', handleLength: 60, gsm: 70, rolls: 1, noPrint: true });
+    expect(bags.validateProduct(once)).toEqual(once);
+  });
+});

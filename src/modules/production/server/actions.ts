@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { defineAction, type ActionCtx } from '@/core/action';
 import { istanbulToday } from '@/core/dates';
@@ -9,6 +9,7 @@ import { cancelFromProduction, getOrderForProduction, markInProduction, markRead
 import { getSector } from '@/sectors';
 import type { SectorPackage } from '@/sectors/types';
 import { fabricRolls, jobEvents, jobs, shipments } from '../db/schema';
+import { rollMatches } from '../domain/materials';
 import { transition, type JobEvent, type JobState } from '../domain/state-machine';
 
 const TRACKING: Role[] = ['admin', 'tracking'];
@@ -114,7 +115,7 @@ export const reserveFabric = defineAction({
     // Aynı anda başka iş aynı bobini ayırmış olabilir: yalnızca hâlâ boşta olanlar güncellenir, eksik varsa işlem geri alınır.
     const reserved = await ctx.tx
       .update(fabricRolls)
-      .set({ status: 'reserved', reservedJobId: i.jobId })
+      .set({ status: 'reserved', reservedJobId: i.jobId, reservedFor: 'fabric' })
       .where(and(inArray(fabricRolls.id, i.rollIds), eq(fabricRolls.status, 'available')))
       .returning({ id: fabricRolls.id });
     if (reserved.length !== i.rollIds.length) throw new AppError('INVALID_STATE', 'Seçilen bobinlerden biri artık kullanılabilir değil.');
@@ -134,6 +135,35 @@ export const sendToStage = defineAction({
   },
 });
 
+// Aşama başlarken o aşamada tüketilecek malzeme (ör. kesimde sap) boştaki stoktan ayrılır; eskiden yeniye.
+async function reserveStageMaterials(ctx: ActionCtx, loaded: Awaited<ReturnType<typeof load>>): Promise<void> {
+  const stage = loaded.job.stage;
+  const needs = loaded.sector.materials(loaded.product, loaded.order.quantity).filter((n) => n.consumeAt === stage && n.kind !== 'fabric');
+  for (const need of needs) {
+    const already = await ctx.tx.select({ id: fabricRolls.id }).from(fabricRolls).where(and(eq(fabricRolls.reservedJobId, loaded.job.id), eq(fabricRolls.reservedFor, need.kind)));
+    const missing = need.rolls - already.length;
+    if (missing <= 0) continue;
+    const candidates = (
+      await ctx.tx
+        .select()
+        .from(fabricRolls)
+        .where(and(eq(fabricRolls.status, 'available'), eq(fabricRolls.widthCm, String(need.widthCm)), need.gsm === null ? undefined : eq(fabricRolls.gsm, need.gsm)))
+        .orderBy(asc(fabricRolls.createdAt))
+    ).filter((r) => rollMatches(need, { widthCm: Number(r.widthCm), colour: r.colour, gsm: r.gsm }));
+    if (candidates.length < missing) {
+      const label = loaded.sector.stages.find((s) => s.id === stage)?.label ?? stage;
+      throw new AppError('INVALID_STATE', `${label} aşamasına başlamak için ${missing} bobin ${need.widthCm} cm ${need.colour} ${need.label.toLocaleLowerCase('tr')} gerekli (${need.gsm ? `${need.gsm} gr` : 'herhangi gramaj'}); boşta ${candidates.length} bobin var. Üretim takibe haber verin.`);
+    }
+    const ids = candidates.slice(0, missing).map((r) => r.id);
+    const taken = await ctx.tx
+      .update(fabricRolls)
+      .set({ status: 'reserved', reservedJobId: loaded.job.id, reservedFor: need.kind })
+      .where(and(inArray(fabricRolls.id, ids), eq(fabricRolls.status, 'available')))
+      .returning({ id: fabricRolls.id });
+    if (taken.length !== ids.length) throw conflict();
+  }
+}
+
 async function assertStaff(ctx: ActionCtx, staffIds: string[]) {
   if (!staffIds.length) return;
   const found = await ctx.tx.select({ id: staff.id }).from(staff).where(and(inArray(staff.id, staffIds), eq(staff.active, true)));
@@ -149,6 +179,7 @@ export const startStage = defineAction({
     const loaded = await load(ctx, i.jobId, i.version);
     assertStageRole(ctx, loaded.sector, loaded.job.stage);
     await assertStaff(ctx, i.staffIds);
+    await reserveStageMaterials(ctx, loaded);
     await apply(ctx, loaded, i.version, { type: 'start' }, { kind: 'started', staffIds: i.staffIds, machine: i.machine });
     return { id: i.jobId };
   },
@@ -197,7 +228,8 @@ export const finishStage = defineAction({
     const staffIds = i.staffIds.length ? i.staffIds : (started?.staffIds ?? []);
     const machine = i.machine || started?.machine || '';
     const next = await apply(ctx, loaded, i.version, { type: 'finish', good: i.good }, { kind: 'finished', data, staffIds, machine, note: i.note });
-    if (stage === 'slitting') await ctx.tx.update(fabricRolls).set({ status: 'used' }).where(and(eq(fabricRolls.reservedJobId, i.jobId), eq(fabricRolls.status, 'reserved')));
+    // Aşamayı bitiren bölüm işe ayrılmış malzemeyi tüketmiştir (ilk aşama kumaşı, kesim sapı).
+    await ctx.tx.update(fabricRolls).set({ status: 'used' }).where(and(eq(fabricRolls.reservedJobId, i.jobId), eq(fabricRolls.status, 'reserved')));
     if (stage === 'finishing') await onProductionProgress(ctx.tx, { orderId: loaded.order.id, producedQty: next.producedQty });
     return { id: i.jobId, stage: next.stage };
   },

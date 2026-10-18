@@ -59,7 +59,8 @@ function validate(input: Record<string, unknown>): BagProduct {
   const biye = biyeType === 'without' ? 0 : num('biye', { min: 0, max: 20, label: 'Biye payı' });
   const handleLength = handle === 'Kulplu' ? num('handleLength', { required: true, min: 1, max: 1000, label: 'Kulp uzunluğu' }) : 0;
   const gsm = num('gsm', { required: true, int: true, min: 10, max: 500, label: 'Gramaj' });
-  const handleGsm = handle === 'Kulplu' ? num('handleGsm', { int: true, min: 10, max: 500, label: 'Kulp gramajı' }) : 0;
+  // 0 = belirtilmemiş (kayıtlı ürün yeniden doğrulanırken de geçerli).
+  const handleGsm = handle === 'Kulplu' && Number(input.handleGsm) ? num('handleGsm', { int: true, min: 10, max: 500, label: 'Kulp gramajı' }) : 0;
   const rolls = num('rolls', { required: true, int: true, min: 1, max: 1000, label: 'Bobin sayısı' });
   const noPrint = input.noPrint === true || input.noPrint === 'true' || input.noPrint === 'on';
   const print = noPrint ? '' : text('print');

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, notInArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { defineAction } from '@/core/action';
 import { parties, staff } from '@/core/db/schema';
@@ -7,6 +7,7 @@ import type { Role } from '@/core/modules/types';
 import { orders } from '@/modules/orders/db/schema';
 import { getSector } from '@/sectors';
 import { fabricRolls, jobEvents, jobs, shipments } from '../db/schema';
+import { findShortages, type Demand } from '../domain/materials';
 
 const ALL: Role[] = ['admin', 'tracking', 'sales', 'slitting', 'printing', 'cutting', 'finishing', 'repair'];
 const OFFICE: Role[] = ['admin', 'tracking', 'sales'];
@@ -115,6 +116,12 @@ export const jobDetail = defineAction({
     const people = staffIds.length ? await ctx.tx.select({ id: staff.id, name: staff.name }).from(staff).where(inArray(staff.id, staffIds)) : [];
     const ships = await ctx.tx.select().from(shipments).where(eq(shipments.jobId, i.id)).orderBy(desc(shipments.shippedAt));
     const sector = getSector(ctx.cfg.sector);
+    const validated = sector.validateProduct(row.product);
+    const rolls = await ctx.tx.select({ reservedFor: fabricRolls.reservedFor, status: fabricRolls.status }).from(fabricRolls).where(eq(fabricRolls.reservedJobId, i.id));
+    const materials = sector.materials(validated, row.quantity).map((n) => {
+      const mine = rolls.filter((r) => (r.reservedFor ?? 'fabric') === n.kind);
+      return { kind: n.kind, label: n.label, widthCm: n.widthCm, colour: n.colour, gsm: n.gsm, rolls: n.rolls, reserved: mine.filter((r) => r.status === 'reserved').length, used: mine.filter((r) => r.status === 'used').length };
+    });
     const notes = isOffice ? row.departmentNotes : Object.fromEntries(Object.entries(row.departmentNotes).filter(([k]) => stagesForRoles(ctx.user.roles).includes(k)));
     return {
       id: row.job.id, no: row.job.no, orderId: row.job.orderId, stage: row.job.stage, stageStatus: row.job.stageStatus, fabricReserved: row.job.fabricReserved,
@@ -124,6 +131,7 @@ export const jobDetail = defineAction({
       firstStages: sector.firstStages(sector.validateProduct(row.product)),
       events: events.map((e) => ({ id: e.id, stage: e.stage, kind: e.kind, at: e.at.toISOString(), machine: e.machine, data: e.data, note: e.note, staff: e.staffIds.map((id) => people.find((p) => p.id === id)?.name ?? '?') })),
       shipments: ships.map((s) => ({ id: s.id, qty: s.qty, shippedAt: s.shippedAt, note: s.note })),
+      materials,
     };
   },
 });
@@ -154,5 +162,36 @@ export const listWorkshopStaff = defineAction({
     const rows = await ctx.tx.select({ id: staff.id, name: staff.name, departments: staff.departments, active: staff.active }).from(staff);
     const want = i.stage === 'turning' ? 'finishing' : i.stage;
     return rows.filter((s) => s.active && s.departments.includes(want)).map((s) => ({ id: s.id, name: s.name }));
+  },
+});
+
+// Bekleyen malzeme ihtiyacı (üretime alınmamış siparişler + ayrımı tamamlanmamış işler) ile boştaki stok karşılaştırması.
+export const materialShortages = defineAction({
+  name: 'production.shortages',
+  module: 'production',
+  roles: ['admin', 'tracking'],
+  rateLimit: false,
+  input: z.object({}),
+  run: async (ctx) => {
+    const sector = getSector(ctx.cfg.sector);
+    const demands: Demand[] = [];
+    const drafts = await ctx.tx.select({ no: orders.no, product: orders.product, quantity: orders.quantity }).from(orders).where(eq(orders.status, 'draft'));
+    for (const o of drafts) for (const n of sector.materials(sector.validateProduct(o.product), o.quantity)) demands.push({ ...n, ref: o.no });
+    const active = await ctx.tx
+      .select({ id: jobs.id, no: jobs.no, product: orders.product, quantity: orders.quantity })
+      .from(jobs)
+      .innerJoin(orders, eq(orders.id, jobs.orderId))
+      .where(notInArray(jobs.stage, ['review', 'completed', 'cancelled']));
+    const taken = active.length
+      ? await ctx.tx.select({ jobId: fabricRolls.reservedJobId, reservedFor: fabricRolls.reservedFor }).from(fabricRolls).where(inArray(fabricRolls.reservedJobId, active.map((j) => j.id)))
+      : [];
+    for (const j of active) {
+      for (const n of sector.materials(sector.validateProduct(j.product), j.quantity)) {
+        const have = taken.filter((r) => r.jobId === j.id && (r.reservedFor ?? 'fabric') === n.kind).length;
+        if (n.rolls > have) demands.push({ ...n, rolls: n.rolls - have, ref: j.no });
+      }
+    }
+    const free = await ctx.tx.select({ widthCm: fabricRolls.widthCm, colour: fabricRolls.colour, gsm: fabricRolls.gsm }).from(fabricRolls).where(eq(fabricRolls.status, 'available'));
+    return findShortages(demands, free.map((r) => ({ ...r, widthCm: Number(r.widthCm) })));
   },
 });

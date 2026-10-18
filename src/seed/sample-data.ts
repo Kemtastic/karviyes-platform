@@ -93,6 +93,10 @@ export async function seedSampleData({ db, companyId, cfg, auth, tabletPassword 
   // Kumaş stoğu
   const rolls = ok(await production.addFabricRolls({ widthCm: 100, colour: 'Beyaz', gsm: 70, metres: 1000, count: 8 }, rt), 'kumaş').ids;
   ok(await production.addFabricRolls({ widthCm: 110, colour: 'Krem', gsm: 80, metres: 1000, count: 4 }, rt), 'kumaş');
+  // Kulplu siparişlerin renklerinde 5 cm sap bobini (kesim başlarken otomatik ayrılır)
+  for (const colour of new Set(data.siparisler.filter((x) => x.tutma === 'Kulplu').map((x) => x.renk))) {
+    ok(await production.addFabricRolls({ widthCm: 5, colour, gsm: 80, metres: 1000, count: 6 }, rt), 'sap');
+  }
 
   // İlk beş sipariş farklı aşamalarda
   const v = async (jobId: string) => ok(await jobDetail({ id: jobId }, rt), 'iş').version;

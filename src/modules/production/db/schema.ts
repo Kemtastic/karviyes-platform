@@ -51,6 +51,8 @@ export const fabricRolls = pgTable(
     metres: integer('metres').notNull(),
     status: text('status', { enum: ['available', 'reserved', 'used'] }).notNull().default('available'),
     reservedJobId: uuid('reserved_job_id'),
+    /** Ayrılan bobinin işteki kullanımı: kumaş veya sap. */
+    reservedFor: text('reserved_for', { enum: ['fabric', 'handle'] }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('fabric_rolls_status_idx').on(t.companyId, t.status)],
