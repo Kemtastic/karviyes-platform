@@ -1,0 +1,329 @@
+{
+ "musteriler": [
+  {
+   "firma": "Denizli Tekstil Gıda Ltd. Şti.",
+   "yetkili": "Mehmet Yılmaz",
+   "il": "Denizli",
+   "ilce": "Acıpayam",
+   "adres": "Güzelkent Mahallesi 15 Sokak No:12",
+   "sektor": "Perakende"
+  },
+  {
+   "firma": "Ankara İlaç Eczanesi",
+   "yetkili": "Elif Demir",
+   "il": "Ankara",
+   "ilce": "Çankaya",
+   "adres": "Kızılay Cad. 45/3",
+   "sektor": "Sağlık"
+  },
+  {
+   "firma": "İstanbul Kırtasiye Mağazası",
+   "yetkili": "Ahmet Çelik",
+   "il": "İstanbul",
+   "ilce": "Kadıköy",
+   "adres": "Fener Mahallesi 8 Sokak No:7",
+   "sektor": "Eğitim"
+  },
+  {
+   "firma": "Bursa Tekstil Sanayi ve Ticaret A.Ş.",
+   "yetkili": "Fatma Özkan",
+   "il": "Bursa",
+   "ilce": "Nilüfer",
+   "adres": "Gümüşhane Mah. 12/2",
+   "sektor": "Sanayi"
+  },
+  {
+   "firma": "Mersin Gıda Üreticileri Ltd. Şti.",
+   "yetkili": "İbrahim Koç",
+   "il": "Mersin",
+   "ilce": "Mezitli",
+   "adres": "Körfez Sokak 34",
+   "sektor": "Gıda İşleme"
+  },
+  {
+   "firma": "Gaziantep Tekstil Atölyesi",
+   "yetkili": "Süleyman Yıldız",
+   "il": "Gaziantep",
+   "ilce": "Şahinbey",
+   "adres": "Mekik Mah. 9/1",
+   "sektor": "El Sanatları"
+  },
+  {
+   "firma": "Antalya Turizm Ağı Ltd. Şti.",
+   "yetkili": "Ayşe Kılıç",
+   "il": "Antalya",
+   "ilce": "Muratpaşa",
+   "adres": "Sırtkaya Sokak No:3",
+   "sektor": "Turizm"
+  },
+  {
+   "firma": "Eskişehir Çanta Üreticileri",
+   "yetkili": "Hüseyin Karaca",
+   "il": "Eskişehir",
+   "ilce": "Odunpazarı",
+   "adres": "Erdem Mah. 4/5",
+   "sektor": "Perakende"
+  },
+  {
+   "firma": "Trabzon Kışlık Tekstil Ltd.",
+   "yetkili": "Zeynep Şahin",
+   "il": "Trabzon",
+   "ilce": "Akçaabat",
+   "adres": "Güneş Sokak 22",
+   "sektor": "Moda"
+  },
+  {
+   "firma": "Adana Çanta Sanayi A.Ş.",
+   "yetkili": "Ömer Güçlü",
+   "il": "Adana",
+   "ilce": "Seyhan",
+   "adres": "İnönü Mah. 18/2",
+   "sektor": "Sanayi"
+  }
+ ],
+ "tedarikciler": [
+  {
+   "firma": "Kumaş Sağlayıcıları Ltd. Şti.",
+   "tedarik": "Kumaş ve Nonwoven"
+  },
+  {
+   "firma": "Baskı Boyası Teknopark",
+   "tedarik": "Baskı boyaları"
+  },
+  {
+   "firma": "İp Kulp Çelik Sanayi",
+   "tedarik": "İp ve Kulp"
+  },
+  {
+   "firma": "Koli Tedarik A.Ş.",
+   "tedarik": "Koli"
+  }
+ ],
+ "siparisler": [
+  {
+   "musteri": "Denizli Tekstil Gıda Ltd. Şti.",
+   "tarih": "2026-09-02",
+   "en": 45,
+   "boy": 55,
+   "koruk": 0,
+   "model": "Körüksüz",
+   "tutma": "El Geçme",
+   "renk": "Beyaz",
+   "gramaj": 70,
+   "baski": "siyah · kırmızı",
+   "birimFiyat": 8.75,
+   "bobin": 3,
+   "not": "Önceki siparişten farklı renk"
+  },
+  {
+   "musteri": "Ankara İlaç Eczanesi",
+   "tarih": "2026-09-10",
+   "en": 30,
+   "boy": 50,
+   "koruk": 10,
+   "model": "Alt Körüklü",
+   "tutma": "Kulplu",
+   "renk": "Krem",
+   "gramaj": 60,
+   "baski": "mavi · yeşil",
+   "birimFiyat": 12.4,
+   "bobin": 2,
+   "not": "İlk kez 3D model"
+  },
+  {
+   "musteri": "Ankara İlaç Eczanesi",
+   "tarih": "2026-09-25",
+   "en": 55,
+   "boy": 65,
+   "koruk": 14,
+   "model": "3D",
+   "tutma": "İpli",
+   "renk": "Siyah",
+   "gramaj": 80,
+   "baski": "turuncu · mor",
+   "birimFiyat": 10.2,
+   "bobin": 4,
+   "not": "Ağırlık testine uygun"
+  },
+  {
+   "musteri": "İstanbul Kırtasiye Mağazası",
+   "tarih": "2026-09-18",
+   "en": 38,
+   "boy": 58,
+   "koruk": 0,
+   "model": "Körüksüz",
+   "tutma": "El Geçme",
+   "renk": "Lacivert",
+   "gramaj": 50,
+   "baski": "siyah",
+   "birimFiyat": 7.6,
+   "bobin": 1,
+   "not": "Renk değişikliği"
+  },
+  {
+   "musteri": "Bursa Tekstil Sanayi ve Ticaret A.Ş.",
+   "tarih": "2026-10-01",
+   "en": 42,
+   "boy": 62,
+   "koruk": 12,
+   "model": "Alt Körüklü",
+   "tutma": "Kulplu",
+   "renk": "Kırmızı",
+   "gramaj": 100,
+   "baski": "sarı · yeşil",
+   "birimFiyat": 13.9,
+   "bobin": 5,
+   "not": "Ağırlık 0,8 kg"
+  },
+  {
+   "musteri": "Mersin Gıda Üreticileri Ltd. Şti.",
+   "tarih": "2026-10-05",
+   "en": 50,
+   "boy": 70,
+   "koruk": 0,
+   "model": "Körüksüz",
+   "tutma": "El Geçme",
+   "renk": "Beyaz",
+   "gramaj": 60,
+   "baski": "turuncu",
+   "birimFiyat": 9.3,
+   "bobin": 2,
+   "not": "Yeni ambalaj"
+  },
+  {
+   "musteri": "Gaziantep Tekstil Atölyesi",
+   "tarih": "2026-09-27",
+   "en": 33,
+   "boy": 57,
+   "koruk": 8,
+   "model": "Alt Körüklü",
+   "tutma": "İpli",
+   "renk": "Yeşil",
+   "gramaj": 70,
+   "baski": "mavi · siyah",
+   "birimFiyat": 11.25,
+   "bobin": 3,
+   "not": "Kullanım süresi 12 ay"
+  },
+  {
+   "musteri": "Gaziantep Tekstil Atölyesi",
+   "tarih": "2026-10-15",
+   "en": 48,
+   "boy": 68,
+   "koruk": 16,
+   "model": "3D",
+   "tutma": "Kulplu",
+   "renk": "Siyah",
+   "gramaj": 80,
+   "baski": "sarı · kırmızı",
+   "birimFiyat": 14,
+   "bobin": 6,
+   "not": "Ağırlık 1,2 kg"
+  },
+  {
+   "musteri": "Antalya Turizm Ağı Ltd. Şti.",
+   "tarih": "2026-09-12",
+   "en": 36,
+   "boy": 56,
+   "koruk": 0,
+   "model": "Körüksüz",
+   "tutma": "El Geçme",
+   "renk": "Krem",
+   "gramaj": 50,
+   "baski": "turuncu",
+   "birimFiyat": 7.8,
+   "bobin": 1,
+   "not": "Hızlı teslimat"
+  },
+  {
+   "musteri": "Eskişehir Çanta Üreticileri",
+   "tarih": "2026-10-08",
+   "en": 44,
+   "boy": 64,
+   "koruk": 9,
+   "model": "Alt Körüklü",
+   "tutma": "Kulplu",
+   "renk": "Lacivert",
+   "gramaj": 60,
+   "baski": "mavi · yeşil",
+   "birimFiyat": 12.1,
+   "bobin": 4,
+   "not": "Özel tasarım"
+  },
+  {
+   "musteri": "Trabzon Kışlık Tekstil Ltd.",
+   "tarih": "2026-09-30",
+   "en": 41,
+   "boy": 61,
+   "koruk": 15,
+   "model": "3D",
+   "tutma": "İpli",
+   "renk": "Kırmızı",
+   "gramaj": 70,
+   "baski": "siyah · mor",
+   "birimFiyat": 13.5,
+   "bobin": 5,
+   "not": "Ağırlık 0,9 kg"
+  },
+  {
+   "musteri": "Adana Çanta Sanayi A.Ş.",
+   "tarih": "2026-10-12",
+   "en": 47,
+   "boy": 67,
+   "koruk": 0,
+   "model": "Körüksüz",
+   "tutma": "El Geçme",
+   "renk": "Beyaz",
+   "gramaj": 50,
+   "baski": "sarı",
+   "birimFiyat": 8.2,
+   "bobin": 2,
+   "not": "Yeni logo"
+  },
+  {
+   "musteri": "Denizli Tekstil Gıda Ltd. Şti.",
+   "tarih": "2026-10-04",
+   "en": 52,
+   "boy": 70,
+   "koruk": 11,
+   "model": "Alt Körüklü",
+   "tutma": "Kulplu",
+   "renk": "Yeşil",
+   "gramaj": 80,
+   "baski": "turuncu · kırmızı",
+   "birimFiyat": 13,
+   "bobin": 5,
+   "not": "Ağırlık 1,0 kg"
+  },
+  {
+   "musteri": "Mersin Gıda Üreticileri Ltd. Şti.",
+   "tarih": "2026-09-22",
+   "en": 39,
+   "boy": 59,
+   "koruk": 7,
+   "model": "Alt Körüklü",
+   "tutma": "İpli",
+   "renk": "Kırmızı",
+   "gramaj": 70,
+   "baski": "sarı · yeşil",
+   "birimFiyat": 11.8,
+   "bobin": 3,
+   "not": "Renk kombinasyonu"
+  },
+  {
+   "musteri": "Ankara İlaç Eczanesi",
+   "tarih": "2026-10-16",
+   "en": 43,
+   "boy": 63,
+   "koruk": 0,
+   "model": "Körüksüz",
+   "tutma": "El Geçme",
+   "renk": "Siyah",
+   "gramaj": 60,
+   "baski": "mavi · kırmızı",
+   "birimFiyat": 9.9,
+   "bobin": 2,
+   "not": "Ağırlık 0,7 kg"
+  }
+ ]
+}
