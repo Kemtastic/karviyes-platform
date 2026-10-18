@@ -14,7 +14,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   repair: 'Tamir',
 };
 
-export const MODULE_IDS = ['orders', 'production'] as const;
+export const MODULE_IDS = ['orders', 'production', 'sales'] as const;
 export type ModuleId = (typeof MODULE_IDS)[number];
 
 export type NavItem = { href: string; label: string; roles: Role[]; icon: string };
