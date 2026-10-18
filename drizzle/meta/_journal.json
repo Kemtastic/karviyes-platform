@@ -183,6 +183,13 @@
       "when": 1792350027475,
       "tag": "0025_finance",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792351276171,
+      "tag": "0026_reconciliation",
+      "breakpoints": true
     }
   ]
 }

@@ -36,4 +36,9 @@ Bağımsız kod incelemesi (alt ajan), güvenlik kontrolü, örnek veriye yeni m
 
 ## Kayıt (ilerleme ve kararlar)
 
-- (fazlar bittikçe buraya eklenir)
+- **F1 bitti** (566614a): `finance` modülü, göç 0025, Muhasebe rolü (2FA varsayılan listesinde). 26 servis + 8 hesap testi, e2e.
+  - Ruling: Fatura **kesilmez**, kaydedilir (mali müşavir görüşü, I17) — maliyet: entegratör gelince taslak→resmî akış eklenecek.
+  - Ruling: Sipariş tahsilatları (orders modülü) ile ön muhasebe tahsilatları ayrı kayıt; cari bakiye yalnız ön muhasebeden — maliyet: aynı tahsilat iki ekrana girilebilir; sonraki adımda "siparişe de işle" bağlantısı.
+  - Ruling: Stok/ürün kartı, irsaliye, personel cari, tekrarlayan fatura, UBL içe aktarma eski sistemde vardı; ilk sürüme alınmadı (üretim stoğu zaten ayrı) — maliyet: muhasebeci isterse ek faz.
+- **F2 bitti**: mutabakat ön muhasebe modülünün parçası (ayrı modül değil), göç 0026; bağlantı firma~kayıt~256 bit anahtar, yalnız SHA-256 özeti saklanır, 30 gün; karşı taraf oturumsuz cevaplar (bir kez), PDF mektup + ekstre. 5 servis testi + e2e.
+  - Ruling: E-posta gönderilemezse bağlantı yine verilir (kopyala-ilet) — maliyet: yok.

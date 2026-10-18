@@ -5,6 +5,7 @@ import {
   ClipboardList,
   Factory,
   Hammer,
+  Handshake,
   Landmark,
   Receipt,
   ScrollText,
@@ -42,6 +43,7 @@ const ICONS: Record<string, LucideIcon> = {
   landmark: Landmark,
   receipt: Receipt,
   scroll: ScrollText,
+  handshake: Handshake,
 };
 
 export function NavIcon({ name, className = 'h-[18px] w-[18px]' }: { name: string; className?: string }) {

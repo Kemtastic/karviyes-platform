@@ -330,3 +330,35 @@ test('ön muhasebe: hesap aç, satış faturası kaydet, tahsilat al, ekstre ve 
   await expect(page.getByRole('region', { name: 'TRY hesabı' }).getByText('10.000,00 ₺').first()).toBeVisible();
   await expect(page.getByText('Cari bize borçlu')).toBeVisible();
 });
+
+test('mutabakat: bakiye dondurulur, bağlantı oturumsuz açılır, karşı taraf bir kez cevaplar', async ({ page, browser }) => {
+  await login(page);
+  await page.goto('/muhasebe/cariler');
+  await page.getByRole('cell', { name: 'E2E Gıda Ltd. Şti.' }).click();
+  await page.waitForURL(/\/muhasebe\/cariler\/[0-9a-f-]{36}$/);
+  await page.getByRole('main').getByRole('link', { name: 'Mutabakat' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByText('E2E Gıda Ltd. Şti.')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Bakiyeyi dondur' }).click();
+  await page.waitForURL(/\/muhasebe\/mutabakat\/[0-9a-f-]{36}$/);
+  await expect(page.getByText('10.000,00 ₺').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Bağlantı oluştur' }).click();
+  const link = (await page.getByRole('status').locator('p.font-mono').textContent())!.trim();
+  expect(link).toContain('/mutabakat/');
+
+  const guest = await browser.newContext();
+  const g = await guest.newPage();
+  await g.goto(link.replace(/^https?:\/\/[^/]+/, ''));
+  await expect(g.getByRole('heading', { name: 'Cari hesap mutabakatı' })).toBeVisible();
+  await g.getByRole('radio', { name: 'Mutabık değiliz' }).click();
+  await g.getByLabel('Adınız soyadınız').fill('Deniz Muhasebe');
+  await g.getByLabel('Farkın nedeni').fill('Son ödememiz görünmüyor');
+  await g.getByRole('button', { name: 'Cevabı gönder' }).click();
+  await expect(g.getByText('Mutabık olmadığınızı bildirdiniz.')).toBeVisible();
+  const pdf = await g.request.get(link.replace(/^https?:\/\/[^/]+/, '').replace('/mutabakat/', '/api/mutabakat/'));
+  expect(pdf.headers()['content-type']).toBe('application/pdf');
+  await guest.close();
+
+  await page.reload();
+  await expect(page.getByText('Son ödememiz görünmüyor')).toBeVisible();
+});

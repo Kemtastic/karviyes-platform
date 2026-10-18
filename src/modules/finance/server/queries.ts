@@ -14,7 +14,7 @@ const isoDate = z.string().date();
 type Key = `${string}|${Currency}`;
 
 /** Carilerin defter kayıtları (açılış, fatura, para hareketi) cari × para birimi başına. */
-async function ledgerEntries(ctx: ActionCtx, partyId?: string): Promise<Map<Key, LedgerEntry[]>> {
+export async function ledgerEntries(ctx: ActionCtx, partyId?: string): Promise<Map<Key, LedgerEntry[]>> {
   const [openings, invoices, moves] = await Promise.all([
     ctx.tx.select().from(finOpenings).where(partyId ? eq(finOpenings.partyId, partyId) : undefined),
     ctx.tx.select().from(finInvoices).where(and(eq(finInvoices.status, 'recorded'), partyId ? eq(finInvoices.partyId, partyId) : undefined)),

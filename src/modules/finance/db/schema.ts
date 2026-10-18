@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { bigint, boolean, date, index, integer, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { bigint, boolean, date, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 export const ACCOUNT_KINDS = ['cash', 'bank'] as const;
 export const INVOICE_KINDS = ['sales', 'purchase'] as const;
@@ -117,4 +117,46 @@ export const finOpenings = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.companyId, t.partyId, t.currency] })],
+);
+
+export const RECONCILIATION_STATUSES = ['draft', 'pending', 'agreed', 'disputed', 'cancelled'] as const;
+
+export type ReconciliationSnapshot = {
+  company: string;
+  partyName: string;
+  taxId: string;
+  rows: { date: string; text: string; debit: string; credit: string; balance: string }[];
+  truncated: boolean;
+};
+
+export type ReconciliationResponse = { name: string; title: string; note: string; counterBalance: string | null; at: string; external: boolean };
+
+// Cari mutabakat: belirli tarihteki bakiyenin dondurulmuş hâli ve karşı tarafın cevabı.
+// Bağlantı gizli anahtarının yalnızca SHA-256 özeti saklanır; bağlantı yenilenince eskisi geçersiz olur.
+export const finReconciliations = pgTable(
+  'fin_reconciliations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    companyId: uuid('company_id').notNull(),
+    no: text('no').notNull(),
+    partyId: uuid('party_id').notNull(),
+    currency: text('currency').notNull(),
+    asOf: date('as_of').notNull(),
+    balanceMinor: bigint('balance_minor', { mode: 'bigint' }).notNull(),
+    snapshot: jsonb('snapshot').$type<ReconciliationSnapshot>().notNull(),
+    email: text('email').notNull().default(''),
+    contactName: text('contact_name').notNull().default(''),
+    message: text('message').notNull().default(''),
+    status: text('status', { enum: RECONCILIATION_STATUSES }).notNull().default('draft'),
+    tokenHash: text('token_hash'),
+    tokenExpiresAt: timestamp('token_expires_at', { withTimezone: true }),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+    response: jsonb('response').$type<ReconciliationResponse>(),
+    respondedAt: timestamp('responded_at', { withTimezone: true }),
+    cancelReason: text('cancel_reason'),
+    createdBy: text('created_by').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    version: integer('version').notNull().default(1),
+  },
+  (t) => [index('fin_reconciliations_party_idx').on(t.companyId, t.partyId, t.asOf), index('fin_reconciliations_status_idx').on(t.companyId, t.status)],
 );

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getSessionCookie } from 'better-auth/cookies';
 
-const PUBLIC = ['/giris', '/iki-adim', '/parola-sifirla', '/davet', '/api/auth', '/api/saglik'];
+const PUBLIC = ['/giris', '/iki-adim', '/parola-sifirla', '/davet', '/mutabakat', '/api/auth', '/api/saglik', '/api/mutabakat'];
 
 function contentSecurityPolicy(nonce: string): string {
   const dev = process.env.NODE_ENV === 'development';

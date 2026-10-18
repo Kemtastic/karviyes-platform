@@ -1,6 +1,7 @@
 'use server';
 import { searchParties } from '@/core/parties/service';
 import * as a from '@/modules/finance/server/actions';
+import * as rec from '@/modules/finance/server/reconciliation';
 
 export async function createAccountAction(input: unknown) { return a.createAccount(input); }
 export async function archiveAccountAction(input: unknown) { return a.archiveAccount(input); }
@@ -22,3 +23,8 @@ export async function findPartiesAction(input: { q: string; kind?: 'customer' | 
   const r = await searchParties({ q: input.q, kind: input.kind, limit: 20 });
   return r.ok ? r.data.map((p) => ({ id: p.id, name: p.name, kind: p.kind })) : [];
 }
+
+export async function createReconciliationAction(input: unknown) { return rec.createReconciliation(input); }
+export async function issueReconciliationLinkAction(input: unknown) { return rec.issueReconciliationLink(input); }
+export async function cancelReconciliationAction(input: unknown) { return rec.cancelReconciliation(input); }
+export async function recordReconciliationAnswerAction(input: unknown) { return rec.recordReconciliationAnswer(input); }

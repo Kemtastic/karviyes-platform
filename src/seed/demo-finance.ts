@@ -4,6 +4,7 @@ import type { ActionResult, ActionRuntime } from '@/core/action';
 import { istanbulToday } from '@/core/dates';
 import { searchParties } from '@/core/parties/service';
 import * as fin from '@/modules/finance/server/actions';
+import * as rec from '@/modules/finance/server/reconciliation';
 
 function ok<T>(r: ActionResult<T>, what: string): T {
   if (!r.ok) throw new Error(`Örnek veri (${what}): ${r.message} ${JSON.stringify(r.fieldErrors ?? {})}`);
@@ -71,4 +72,10 @@ export async function seedDemoFinance(rt: ActionRuntime): Promise<void> {
   ok(await fin.settleCheck({ id: checks[0]!.id, version: 1, accountId: ziraat, date: shift(-2) }, rt), 'çek tahsil');
   ok(await fin.endorseCheck({ id: checks[1]!.id, version: 1, partyId: suppliers[0]!.id, date: shift(-10) }, rt), 'ciro');
   ok(await fin.issueCheck({ partyId: suppliers[suppliers.length - 1]!.id, checkNo: 'KRV-0012', bank: 'Ziraat Bankası', date: shift(-7), due: shift(21), amount: '30.000,00', currency: 'TRY' }, rt), 'verilen çek');
+
+  // Mutabakatlar: biri cevaplanmış, biri cevap bekliyor.
+  const done = ok(await rec.createReconciliation({ partyId: customers[0]!.id, currency: 'TRY', asOf: shift(-31), email: 'muhasebe@example.com', contactName: 'Muhasebe birimi' }, rt), 'mutabakat');
+  ok(await rec.recordReconciliationAnswer({ id: done.id, version: 1, status: 'agreed', name: 'Selin Kaya', title: 'Muhasebe sorumlusu', note: 'Kaşeli yazıyla teyit edildi.' }, rt), 'mutabakat cevabı');
+  const waiting = ok(await rec.createReconciliation({ partyId: customers[2]!.id, currency: 'TRY', asOf: shift(-1), message: 'Ay sonu kapanışı için bakiyenizi teyit etmenizi rica ederiz.' }, rt), 'mutabakat');
+  ok(await rec.issueReconciliationLink({ id: waiting.id, version: 1, send: false }, rt), 'mutabakat bağlantısı');
 }

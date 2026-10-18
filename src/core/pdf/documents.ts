@@ -138,3 +138,43 @@ export async function renderOrderPdf(o: OrderPdfInput, stageLabels: Record<strin
   w.text('Bu belge bilgi amaçlıdır; resmî fatura yerine geçmez.', 8, rgb(0.5, 0.5, 0.5));
   return doc.save();
 }
+
+export type ReconciliationPdfInput = {
+  no: string; company: string; partyName: string; taxId: string; asOf: string; balance: string; side: string; contactName: string; message: string;
+  rows: { date: string; text: string; debit: string; credit: string; balance: string }[]; truncated: boolean;
+  response: { status: string; name: string; title: string; note: string; counterBalance: string | null; at: string } | null;
+};
+
+// Cari hesap mutabakat mektubu ve ekstresi.
+export async function renderReconciliationPdf(r: ReconciliationPdfInput): Promise<Uint8Array> {
+  const { doc, w } = await start(`Mutabakat ${r.no}`);
+  w.text(r.company, 10, rgb(0.4, 0.4, 0.4));
+  w.text(`Cari hesap mutabakatı · ${r.no}`, 18);
+  w.gap();
+  w.row('Sayın', `${r.partyName}${r.contactName ? ` · ${r.contactName}` : ''}`);
+  if (r.taxId) w.row('Vergi / T.C. no', r.taxId);
+  w.row('Mutabakat tarihi', formatDate(r.asOf));
+  w.box('BAKİYE', `${r.balance} · ${r.side}`);
+  w.text(`Kayıtlarımıza göre ${formatDate(r.asOf)} tarihi itibarıyla cari hesap bakiyeniz yukarıdaki gibidir. Mutabık olup olmadığınızı bildirmenizi rica ederiz. Cevap verilmemesi mutabakat sayılmaz.`, 10);
+  if (r.message) {
+    w.gap(6);
+    w.text(r.message, 10);
+  }
+  w.gap(12);
+  w.text('Ekstre', 13);
+  if (r.truncated) w.text('Yalnızca son 500 hareket gösterilmektedir.', 8, rgb(0.5, 0.5, 0.5));
+  for (const x of r.rows) w.row(formatDate(x.date), `${x.text} · ${x.debit ? `borç ${x.debit}` : `alacak ${x.credit}`} · bakiye ${x.balance}`);
+  if (!r.rows.length) w.text('Bu tarihe kadar hareket yok.', 10);
+  if (r.response) {
+    w.gap(12);
+    w.text('Cevap', 13);
+    w.row('Durum', r.response.status);
+    w.row('Cevaplayan', `${r.response.name}${r.response.title ? ` · ${r.response.title}` : ''}`);
+    w.row('Tarih', formatDateTime(new Date(r.response.at)));
+    if (r.response.counterBalance) w.row('Karşı tarafın bakiyesi', r.response.counterBalance);
+    if (r.response.note) w.row('Not', r.response.note);
+  }
+  w.gap(16);
+  w.text('Bu belge bilgi amaçlıdır; yasal defter kayıtları esastır.', 8, rgb(0.5, 0.5, 0.5));
+  return doc.save();
+}
