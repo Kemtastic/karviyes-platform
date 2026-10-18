@@ -1,5 +1,5 @@
 // Sipariş modülünün diğer modüllere (üretim) açık yüzü. Başka modül sipariş tablolarına doğrudan yazmaz.
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { Tx } from '@/core/db/client';
 import { parties } from '@/core/db/schema';
 import { AppError } from '@/core/errors';
@@ -19,7 +19,13 @@ async function transition(tx: Tx, id: string, from: (typeof orders.$inferSelect)
   const [o] = await tx.select({ status: orders.status }).from(orders).where(eq(orders.id, id));
   if (!o) throw new AppError('NOT_FOUND', 'Sipariş bulunamadı.');
   if (!from.includes(o.status)) throw new AppError('INVALID_STATE', 'Sipariş bu işlem için uygun durumda değil.');
-  await tx.update(orders).set({ status: to, version: sql`${orders.version} + 1`, ...extra }).where(eq(orders.id, id));
+  // Okuma ile yazma arasında durum değişmiş olabilir: güncelleme yalnızca beklenen durumdaysa uygulanır.
+  const updated = await tx
+    .update(orders)
+    .set({ status: to, version: sql`${orders.version} + 1`, ...extra })
+    .where(and(eq(orders.id, id), inArray(orders.status, from)))
+    .returning({ id: orders.id });
+  if (!updated.length) throw new AppError('INVALID_STATE', 'Sipariş bu işlem için uygun durumda değil.');
 }
 
 export const markInProduction = (tx: Tx, id: string) => transition(tx, id, ['draft'], 'in_production');

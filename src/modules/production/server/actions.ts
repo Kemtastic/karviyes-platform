@@ -111,7 +111,13 @@ export const reserveFabric = defineAction({
     const rolls = await ctx.tx.select().from(fabricRolls).where(inArray(fabricRolls.id, i.rollIds));
     if (rolls.length !== i.rollIds.length || rolls.some((r) => r.status !== 'available')) throw new AppError('INVALID_STATE', 'Seçilen bobinlerden biri artık kullanılabilir değil.');
     await apply(ctx, loaded, i.version, { type: 'reserveFabric' }, { kind: 'fabric_reserved', data: { rolls: rolls.length } });
-    await ctx.tx.update(fabricRolls).set({ status: 'reserved', reservedJobId: i.jobId }).where(inArray(fabricRolls.id, i.rollIds));
+    // Aynı anda başka iş aynı bobini ayırmış olabilir: yalnızca hâlâ boşta olanlar güncellenir, eksik varsa işlem geri alınır.
+    const reserved = await ctx.tx
+      .update(fabricRolls)
+      .set({ status: 'reserved', reservedJobId: i.jobId })
+      .where(and(inArray(fabricRolls.id, i.rollIds), eq(fabricRolls.status, 'available')))
+      .returning({ id: fabricRolls.id });
+    if (reserved.length !== i.rollIds.length) throw new AppError('INVALID_STATE', 'Seçilen bobinlerden biri artık kullanılabilir değil.');
     return { id: i.jobId };
   },
 });

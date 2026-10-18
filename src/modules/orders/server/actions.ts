@@ -216,7 +216,8 @@ export const correctPayment = defineAction({
   roles: OFFICE,
   input: z.object({ paymentId: z.string().uuid(), amount: z.string().min(1), note: z.string().trim().min(3).max(300) }),
   run: async (ctx, i) => {
-    const [orig] = await ctx.tx.select().from(orderPayments).where(eq(orderPayments.id, i.paymentId));
+    // Asıl ödeme satırı kilitlenir: aynı ödemeye eşzamanlı iki düzeltme sırayla hesaplanır.
+    const [orig] = await ctx.tx.select().from(orderPayments).where(eq(orderPayments.id, i.paymentId)).for('update');
     if (!orig || orig.kind === 'correction') throw new AppError('NOT_FOUND', 'Ödeme bulunamadı.');
     const o = await loadOrder(ctx, orig.orderId);
     if (o.status === 'cancelled') throw new AppError('INVALID_STATE', 'İptal edilmiş siparişin ödemesi düzeltilemez.');
