@@ -41,3 +41,26 @@ describe('firma kapsamı (RLS)', () => {
     }
   });
 });
+
+describe('Supabase Data API koruması', () => {
+  it('istisnasız her tabloda RLS açık (politikası olmayan roller hiçbir satır göremez)', async () => {
+    const rows = rowsOf<{ table_name: string; rls: boolean }>(await t.db.execute(sql`
+      select c.relname as table_name, c.relrowsecurity as rls
+      from pg_class c join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public' and c.relkind = 'r'`));
+    expect(rows.filter((r) => !r.rls).map((r) => r.table_name)).toEqual([]);
+  });
+});
+
+describe('Supabase anon rolü', () => {
+  it('varsayılan yetki verilmiş anon rolü bile kullanıcı ve oturum tablolarını okuyamaz', async () => {
+    await t.db.execute(sql`create role anon nologin`);
+    await t.db.execute(sql`grant usage on schema public to anon`);
+    await t.db.execute(sql`grant select on all tables in schema public to anon`);
+    await t.db.execute(sql`select app_secure_tables()`);
+    const read = (table: string) => dbError(t.db.transaction(async (tx) => { await tx.execute(sql`set local role anon`); await tx.execute(sql.raw(`select * from "${table}"`)); }));
+    expect(await read('user')).toMatch(/permission denied/);
+    expect(await read('session')).toMatch(/permission denied/);
+    expect(await read('orders')).toMatch(/permission denied/);
+  });
+});

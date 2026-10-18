@@ -127,6 +127,13 @@
       "when": 1792293166417,
       "tag": "0017_plates_secure",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792294468875,
+      "tag": "0018_rls_all_tables",
+      "breakpoints": true
     }
   ]
 }
