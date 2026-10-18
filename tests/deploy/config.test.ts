@@ -70,7 +70,14 @@ describe('sağlık ucu', () => {
   beforeAll(async () => { t = await createTestDb(); });
   afterAll(async () => { await t.close(); });
 
-  it('yalnızca ok ve db alanlarını döner', async () => {
-    expect(await healthCheck(t.db)).toEqual({ ok: true, db: true });
+  it('yalnızca ok, db ve config alanlarını döner', async () => {
+    expect(await healthCheck(t.db, () => undefined)).toEqual({ ok: true, db: true, config: true });
+  });
+
+  it('kurulum ayarı okunamıyorsa sağlık kontrolü bunu söyler (giriş "parola hatalı" diye yanıltmasın)', async () => {
+    const broken = () => {
+      throw new Error('INSTALL_CONFIG_JSON yok');
+    };
+    expect(await healthCheck(t.db, broken)).toEqual({ ok: false, db: true, config: false });
   });
 });

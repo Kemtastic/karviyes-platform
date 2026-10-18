@@ -23,7 +23,7 @@ docker compose build
 docker compose up -d db
 docker compose run --rm tools pnpm kurulum      # göçler + firma + ilk yönetici
 docker compose up -d app caddy backup
-curl https://$DOMAIN/api/saglik                 # {"ok":true,"db":true}
+curl https://$DOMAIN/api/saglik                 # {"ok":true,"db":true,"config":true}
 ```
 
 İlk yönetici giriş yapınca iki adımlı doğrulamayı kurmak zorundadır.
