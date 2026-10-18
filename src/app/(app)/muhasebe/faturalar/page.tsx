@@ -1,4 +1,7 @@
 import { notFound } from 'next/navigation';
+import { FileSpreadsheet } from 'lucide-react';
+import { buttonClasses } from '@/ui/button';
+
 import { istanbulToday } from '@/core/dates';
 import { accountOptions, invoicesList } from '@/modules/finance/server/queries';
 import { requireFinancePage } from '@/modules/finance/ui/guard';
@@ -26,7 +29,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
       <PageHeader
         title="Fatura kayıtları"
         description="e-Fatura, e-Arşiv ya da kâğıt olarak kesilmiş faturaların cariye işlenmiş kayıtları. Bu sistem resmî fatura kesmez."
-        actions={<FinanceToolbar actions={['sales', 'purchase', 'sales_return', 'purchase_return']} accounts={accounts.ok ? accounts.data : []} />}
+        actions={<><FinanceToolbar actions={['sales', 'purchase', 'sales_return', 'purchase_return']} accounts={accounts.ok ? accounts.data : []} /><a href={`/api/disa-aktar/muhasebe?tur=faturalar&bas=${from}&bit=${to}`} className={buttonClasses('secondary')}><FileSpreadsheet aria-hidden className="h-4 w-4" /> Excel&apos;e aktar</a></>}
       />
       <LinkTabs label="Fatura türü" items={[{ href: q(), label: 'Tümü', active: !kind }, { href: q('satis'), label: 'Satış', active: kind === 'sales' }, { href: q('alis'), label: 'Alış', active: kind === 'purchase' }, { href: q('satis-iade'), label: 'Satış iadesi', active: kind === 'sales_return' }, { href: q('alis-iade'), label: 'Alış iadesi', active: kind === 'purchase_return' }]} />
       <FilterBar>

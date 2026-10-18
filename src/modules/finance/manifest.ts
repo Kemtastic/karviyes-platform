@@ -14,5 +14,6 @@ export const financeManifest: ModuleManifest = {
     { href: '/muhasebe/hesaplar', label: 'Kasa ve Banka', roles: [...FIN], icon: 'landmark' },
     { href: '/muhasebe/cekler', label: 'Çekler', roles: [...FIN], icon: 'scroll' },
     { href: '/muhasebe/mutabakat', label: 'Mutabakat', roles: [...FIN], icon: 'handshake' },
+    { href: '/muhasebe/ba-bs', label: 'Ba-Bs Hazırlık', roles: [...FIN], icon: 'receipt' },
   ],
 };

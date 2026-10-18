@@ -1,4 +1,7 @@
 import { notFound } from 'next/navigation';
+import { FileSpreadsheet } from 'lucide-react';
+import { buttonClasses } from '@/ui/button';
+
 import { istanbulToday } from '@/core/dates';
 import { accountOptions, movementsList } from '@/modules/finance/server/queries';
 import { requireFinancePage } from '@/modules/finance/ui/guard';
@@ -27,7 +30,7 @@ export default async function MovementsPage({ searchParams }: { searchParams: Pr
       <PageHeader
         title="Tahsilat ve ödemeler"
         description="Kasa ve bankaya giren çıkan her hareket. Yanlış kayıt silinmez; iptal edilir ve bakiyeden düşer."
-        actions={<FinanceToolbar actions={['collection', 'payment', 'expense', 'income', 'transfer']} accounts={accounts.ok ? accounts.data : []} />}
+        actions={<><FinanceToolbar actions={['collection', 'payment', 'expense', 'income', 'transfer']} accounts={accounts.ok ? accounts.data : []} /><a href={`/api/disa-aktar/muhasebe?tur=hareketler&bas=${from}&bit=${to}`} className={buttonClasses('secondary')}><FileSpreadsheet aria-hidden className="h-4 w-4" /> Excel&apos;e aktar</a></>}
       />
       <LinkTabs label="Hareket türü" items={[{ href: q(), label: 'Tümü', active: !key }, ...Object.keys(KINDS).map((k) => ({ href: q(k), label: LABELS[k]!, active: key === k }))]} />
       <FilterBar>

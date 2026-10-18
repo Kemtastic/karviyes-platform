@@ -329,6 +329,9 @@ test('ön muhasebe: hesap aç, satış faturası kaydet, tahsilat al, ekstre ve 
   await expect(dialog).toBeHidden();
   await expect(page.getByRole('region', { name: 'TRY hesabı' }).getByText('10.000,00 ₺').first()).toBeVisible();
   await expect(page.getByText('Cari bize borçlu')).toBeVisible();
+  const csv = await page.request.get('/api/disa-aktar/muhasebe?tur=faturalar');
+  expect(csv.headers()['content-type']).toContain('text/csv');
+  expect(await csv.text()).toContain('E2E2026000000001');
 });
 
 test('mutabakat: bakiye dondurulur, bağlantı oturumsuz açılır, karşı taraf bir kez cevaplar', async ({ page, browser }) => {

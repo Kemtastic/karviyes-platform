@@ -1,5 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { FileSpreadsheet } from 'lucide-react';
+import { buttonClasses } from '@/ui/button';
+
 import { formatMoney, money } from '@/core/money';
 import { accountOptions, accountStatement } from '@/modules/finance/server/queries';
 import { requireFinancePage } from '@/modules/finance/ui/guard';
@@ -25,7 +28,7 @@ export default async function AccountStatementPage({ params, searchParams }: { p
         eyebrow={<Link href="/muhasebe/hesaplar" className="hover:underline">Kasa ve banka</Link>}
         title={a.name}
         description={<>{a.kind === 'cash' ? 'Kasa' : a.bank || 'Banka'} · {a.currency}{a.iban && <span className="ml-2 font-mono text-xs">{a.iban}</span>} · açılış {fm(a.opening)} (<DateText value={a.openingDate} />)</>}
-        actions={<FinanceToolbar actions={['collection', 'payment', 'expense', 'transfer']} accounts={accounts.ok ? accounts.data : []} />}
+        actions={<><FinanceToolbar actions={['collection', 'payment', 'expense', 'transfer']} accounts={accounts.ok ? accounts.data : []} /><a href={`/api/disa-aktar/muhasebe?tur=hesap&hesap=${id}${from ? `&bas=${from}` : ''}`} className={buttonClasses('secondary')}><FileSpreadsheet aria-hidden className="h-4 w-4" /> Excel&apos;e aktar</a></>}
       />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="rounded-2xl border border-[color-mix(in_srgb,var(--brand)_30%,white)] bg-[var(--brand-softer)] px-5 py-4 shadow-[var(--shadow-card)]">

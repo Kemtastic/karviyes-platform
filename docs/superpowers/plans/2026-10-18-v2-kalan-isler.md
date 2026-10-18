@@ -60,4 +60,6 @@ Bağımsız kod incelemesi (alt ajan), güvenlik kontrolü, örnek veriye yeni m
   - Ruling: `tracking` rolü siparişin faturasını işaretlerken ön muhasebeye satış faturası yazabilir (tutar sipariş satırlarından, serbest değil) — maliyet: muhasebe isterse rol daraltılır.
   - Ruling: mutabakat belirteci URL yolunda kalır (e-postadan açılabilmesi için); riskler kısa ömür, hız sınırı, tek cevap ve no-referrer ile azaltıldı — maliyet: kayıtlara erişen biri 30 gün içinde cevap verebilir.
   - Ertelenen (mali müşavir): çok oranlı/satır bazlı fatura, tevkifat kodları, Ba-Bs raporu, hesap planı/yevmiye aktarımı, Excel dışa aktarım, fatura-tahsilat eşleştirme, kur farkı, senet.
+- **F8 bitti**: muhasebeci için Excel (CSV) dışa aktarımları (fatura kayıtları, tahsilat/ödemeler, cari bakiyeler, cari ekstre, hesap ekstresi, Ba-Bs) ve Ba-Bs hazırlık listesi (ay, eşik ayarlanabilir, VKN eksik uyarısı, dövizliler ayrı).
+  - Ruling: Ba-Bs varsayılan eşiği 5.000 TL (ekranda değiştirilebilir); iade ve dövizli faturalar otomatik girmez — maliyet: güncel eşik/kural farklıysa mali müşavir düzeltir (ekranda uyarı var).
 
