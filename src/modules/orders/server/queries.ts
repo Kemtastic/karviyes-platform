@@ -192,27 +192,48 @@ export const receivables = defineAction({
   roles: OFFICE,
   rateLimit: false,
   input: z.object({}),
+  run: (ctx) => openReceivables(ctx),
+});
+
+// Ana sayfa özeti: durum başına sipariş sayısı ve para birimi başına açık sipariş bakiyesi toplamı.
+export const ordersSummary = defineAction({
+  name: 'orders.summary',
+  module: 'orders',
+  roles: OFFICE,
+  rateLimit: false,
+  input: z.object({}),
   run: async (ctx) => {
-    const totals = await ctx.tx
-      .select({ partyId: orders.partyId, currency: orders.currency, total: sql<string>`coalesce(sum(case when ${orders.status} <> 'cancelled' then ${orders.totalMinor} else 0 end), 0)::text`, count: sql<number>`count(*)::int` })
-      .from(orders)
-      .groupBy(orders.partyId, orders.currency);
-    const paid = await ctx.tx
-      .select({ partyId: orders.partyId, currency: orderPayments.currency, paid: sql<string>`coalesce(sum(${orderPayments.amountMinor}), 0)::text` })
-      .from(orderPayments)
-      .innerJoin(orders, eq(orders.id, orderPayments.orderId))
-      .groupBy(orders.partyId, orderPayments.currency);
-    const paidOf = new Map(paid.map((p) => [`${p.partyId}:${p.currency}`, BigInt(p.paid)]));
-    const open = totals
-      .map((t) => ({ ...t, balance: BigInt(t.total) - (paidOf.get(`${t.partyId}:${t.currency}`) ?? 0n) }))
-      .filter((t) => t.balance > 0n);
-    const names = open.length ? await ctx.tx.select({ id: parties.id, name: parties.name, phone: parties.phone }).from(parties).where(inArray(parties.id, [...new Set(open.map((t) => t.partyId))])) : [];
-    const nameOf = new Map(names.map((n) => [n.id, n]));
-    return open
-      .sort((a, b) => CURRENCIES.indexOf(a.currency as Currency) - CURRENCIES.indexOf(b.currency as Currency) || (b.balance > a.balance ? 1 : b.balance < a.balance ? -1 : 0))
-      .map((t) => ({ partyId: t.partyId, partyName: nameOf.get(t.partyId)?.name ?? '', phone: nameOf.get(t.partyId)?.phone ?? '', currency: t.currency as Currency, orderCount: t.count, balance: moneyToJSON(money(t.balance, t.currency as Currency)) }));
+    const counts = await ctx.tx.select({ status: orders.status, n: sql<number>`count(*)::int` }).from(orders).groupBy(orders.status);
+    const open = await openReceivables(ctx);
+    const sums = new Map<Currency, bigint>();
+    for (const r of open) sums.set(r.currency, (sums.get(r.currency) ?? 0n) + BigInt(r.balance.minor));
+    return {
+      counts: Object.fromEntries(counts.map((c) => [c.status, c.n])) as Partial<Record<(typeof ORDER_STATUSES)[number], number>>,
+      openBalances: CURRENCIES.filter((c) => sums.has(c)).map((c) => moneyToJSON(money(sums.get(c)!, c))),
+    };
   },
 });
+
+async function openReceivables(ctx: ActionCtx) {
+  const totals = await ctx.tx
+    .select({ partyId: orders.partyId, currency: orders.currency, total: sql<string>`coalesce(sum(case when ${orders.status} <> 'cancelled' then ${orders.totalMinor} else 0 end), 0)::text`, count: sql<number>`count(*)::int` })
+    .from(orders)
+    .groupBy(orders.partyId, orders.currency);
+  const paid = await ctx.tx
+    .select({ partyId: orders.partyId, currency: orderPayments.currency, paid: sql<string>`coalesce(sum(${orderPayments.amountMinor}), 0)::text` })
+    .from(orderPayments)
+    .innerJoin(orders, eq(orders.id, orderPayments.orderId))
+    .groupBy(orders.partyId, orderPayments.currency);
+  const paidOf = new Map(paid.map((p) => [`${p.partyId}:${p.currency}`, BigInt(p.paid)]));
+  const open = totals
+    .map((t) => ({ ...t, balance: BigInt(t.total) - (paidOf.get(`${t.partyId}:${t.currency}`) ?? 0n) }))
+    .filter((t) => t.balance > 0n);
+  const names = open.length ? await ctx.tx.select({ id: parties.id, name: parties.name, phone: parties.phone }).from(parties).where(inArray(parties.id, [...new Set(open.map((t) => t.partyId))])) : [];
+  const nameOf = new Map(names.map((n) => [n.id, n]));
+  return open
+    .sort((a, b) => CURRENCIES.indexOf(a.currency as Currency) - CURRENCIES.indexOf(b.currency as Currency) || (b.balance > a.balance ? 1 : b.balance < a.balance ? -1 : 0))
+    .map((t) => ({ partyId: t.partyId, partyName: nameOf.get(t.partyId)?.name ?? '', phone: nameOf.get(t.partyId)?.phone ?? '', currency: t.currency as Currency, orderCount: t.count, balance: moneyToJSON(money(t.balance, t.currency as Currency)) }));
+}
 
 const decimalText = (v: string | null) => (v ? v.replace('.', ',') : '');
 

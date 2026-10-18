@@ -17,7 +17,7 @@ import {
   startProduction,
   startStage,
 } from '@/modules/production/server/actions';
-import { departmentQueue, jobDetail } from '@/modules/production/server/queries';
+import { departmentQueue, jobDetail, productionSummary } from '@/modules/production/server/queries';
 
 let t: TestDb;
 let partyId: string;
@@ -159,5 +159,17 @@ describe('tamir yetkisi (v1.1)', () => {
     await finishStage({ jobId, good: 2180, cutWaste: 20, sacks: 3, version: await version(jobId) }, device('finishing'));
     expect(await sendToRepair({ jobId, version: await version(jobId) }, device('finishing'))).toMatchObject({ ok: false, code: 'FORBIDDEN' });
     expect(await sendToRepair({ jobId, version: await version(jobId) }, tracking())).toMatchObject({ ok: true });
+  });
+});
+
+describe('ana sayfa özeti', () => {
+  it('iş sayıları aşama gruplarına göre', async () => {
+    const before = await productionSummary({}, tracking());
+    if (!before.ok) throw new Error(before.message);
+    await newJob();
+    const after = await productionSummary({}, tracking());
+    if (!after.ok) throw new Error(after.message);
+    expect(after.data.waitingFabric).toBe(before.data.waitingFabric + 1);
+    expect(Object.keys(after.data).sort()).toEqual(['inProduction', 'readyToShip', 'review', 'waitingFabric']);
   });
 });

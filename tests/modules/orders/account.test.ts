@@ -4,7 +4,7 @@ import { runtime, testUser } from '../../helpers/runtime';
 import { createParty } from '@/core/parties/service';
 import { createStaff } from '@/core/users/service';
 import { addPayment, cancelOrder, createOrder } from '@/modules/orders/server/actions';
-import { customerAccount, listOrders, receivables } from '@/modules/orders/server/queries';
+import { customerAccount, listOrders, ordersSummary, receivables } from '@/modules/orders/server/queries';
 
 let t: TestDb;
 let customer: string;
@@ -70,5 +70,14 @@ describe('cari hesap (sipariş bazlı)', () => {
     const other = await receivables({}, runtime(t, testUser(t.companyB, ['sales'])));
     expect(other.ok && other.data).toEqual([]);
     expect(await customerAccount({ partyId: customer }, runtime(t, testUser(t.companyA, ['cutting'], { kind: 'device' })))).toMatchObject({ ok: false, code: 'FORBIDDEN' });
+  });
+});
+
+describe('ana sayfa özeti (sipariş)', () => {
+  it('durum sayıları ve para birimi başına açık bakiye', async () => {
+    const r = await ordersSummary({}, sales());
+    if (!r.ok) throw new Error(r.message);
+    expect(r.data.counts).toMatchObject({ draft: 4, cancelled: 1 });
+    expect(r.data.openBalances).toEqual([{ minor: '2140000', currency: 'TRY' }, { minor: '1200000', currency: 'USD' }]);
   });
 });

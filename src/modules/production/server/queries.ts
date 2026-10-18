@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, notInArray } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, notInArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { defineAction } from '@/core/action';
 import { parties, staff } from '@/core/db/schema';
@@ -209,5 +209,24 @@ export const materialShortages = defineAction({
     }
     const free = await ctx.tx.select({ widthCm: fabricRolls.widthCm, colour: fabricRolls.colour, gsm: fabricRolls.gsm }).from(fabricRolls).where(eq(fabricRolls.status, 'available'));
     return findShortages(demands, free.map((r) => ({ ...r, widthCm: Number(r.widthCm) })));
+  },
+});
+
+// Ana sayfa özeti: işler aşama gruplarına göre.
+export const productionSummary = defineAction({
+  name: 'production.summary',
+  module: 'production',
+  roles: OFFICE,
+  rateLimit: false,
+  input: z.object({}),
+  run: async (ctx) => {
+    const rows = await ctx.tx.select({ stage: jobs.stage, fabricReserved: jobs.fabricReserved, n: count() }).from(jobs).groupBy(jobs.stage, jobs.fabricReserved);
+    const sum = (pred: (r: (typeof rows)[number]) => boolean) => rows.filter(pred).reduce((s, r) => s + Number(r.n), 0);
+    return {
+      waitingFabric: sum((r) => r.stage === 'waiting' && !r.fabricReserved),
+      inProduction: sum((r) => (r.stage === 'waiting' && r.fabricReserved) || PRODUCTION_STAGES.includes(r.stage)),
+      review: sum((r) => r.stage === 'review'),
+      readyToShip: sum((r) => r.stage === 'completed'),
+    };
   },
 });

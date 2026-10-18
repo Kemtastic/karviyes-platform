@@ -230,3 +230,12 @@ test('satış raporu: satışçı ve ürün kırılımı', async ({ page }) => {
   await expect(page.getByRole('columnheader', { name: 'Ort. birim fiyat' })).toBeVisible();
   await expect(page.getByRole('cell', { name: /^45×45 cm/ }).first()).toBeVisible();
 });
+
+test('ana sayfa özet kartları', async ({ page }) => {
+  await login(page);
+  await page.goto('/');
+  const summary = page.getByRole('region', { name: 'Özet' });
+  await expect(summary.getByText('Faturaya hazır')).toBeVisible();
+  await expect(summary.getByText('Bugün aranacak')).toBeVisible();
+  await expect(summary.getByText('Açık sipariş bakiyesi')).toBeVisible();
+});
