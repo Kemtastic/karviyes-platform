@@ -117,3 +117,13 @@ describe('var olan hesapla davet kabulü (v1.1)', () => {
     expect(logs.map((l) => l.action)).toContain('users.acceptInvite');
   });
 });
+
+describe('davette parola deneme sınırı (inceleme)', () => {
+  it('var olan hesaba 5 yanlış parola denemesinden sonra davet geçersiz olur', async () => {
+    const r = await inviteUser({ email: 'admin-a@example.com', name: 'Yönetici A', roles: ['tracking'] }, admin());
+    if (!r.ok) throw new Error(r.message);
+    const token = new URL(r.data.link).pathname.split('/').pop()!;
+    for (let n = 0; n < 5; n++) expect(await acceptInvite({ token, password: `Yanlis-Parola-${n}` }, deps())).toMatchObject({ ok: false, code: 'VALIDATION' });
+    expect(await acceptInvite({ token, password: 'GucluParola-2026!' }, deps())).toMatchObject({ ok: false, code: 'INVALID_STATE' });
+  });
+});

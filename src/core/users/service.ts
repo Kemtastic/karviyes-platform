@@ -53,6 +53,8 @@ export const inviteUser = defineAction({
 export type AcceptDeps = { auth: Auth; db: Db; companyId: string; now?: Date };
 
 // Oturumsuz çalışır: token tek başına yetkidir. Kullanıcı, firma işleminden önce oluşturulur (PGlite tek bağlantılı).
+const MAX_INVITE_ATTEMPTS = 5;
+
 export async function acceptInvite(raw: unknown, deps: AcceptDeps): Promise<ActionResult<{ email: string }>> {
   try {
     const input = z.object({ token: z.string().min(20), password: z.string().min(MIN_PASSWORD_LENGTH).max(128) }).parse(raw);
@@ -72,6 +74,16 @@ export async function acceptInvite(raw: unknown, deps: AcceptDeps): Promise<Acti
       const accounts = await ctx.internalAdapter.findAccounts(existing.user.id);
       const hash = accounts.find((a) => a.providerId === 'credential')?.password;
       if (!hash || !(await ctx.password.verify({ hash, password: input.password }))) {
+        // Parola tahmini sınırlı: her yanlış deneme sayılır, sınıra ulaşınca davet kullanılmış sayılır.
+        await withCompany(
+          deps.companyId,
+          (tx) =>
+            tx
+              .update(invites)
+              .set({ failedAttempts: sql`${invites.failedAttempts} + 1`, usedAt: sql`case when ${invites.failedAttempts} + 1 >= ${MAX_INVITE_ATTEMPTS} then now() else ${invites.usedAt} end` })
+              .where(eq(invites.id, inv.id)),
+          deps.db,
+        );
         throw new AppError('VALIDATION', 'Bu e-postayla zaten bir hesabınız var; mevcut parolanızı girin.', { password: 'Mevcut parolanızı girin.' });
       }
     }

@@ -169,6 +169,13 @@
       "when": 1792326117076,
       "tag": "0023_line_plate",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792326956200,
+      "tag": "0024_invite_attempts",
+      "breakpoints": true
     }
   ]
 }
