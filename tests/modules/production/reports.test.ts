@@ -5,20 +5,30 @@ import { withCompany } from '@/core/db/scope';
 import { createStaff } from '@/core/users/service';
 import { jobEvents } from '@/modules/production/db/schema';
 import { machineStaffReport } from '@/modules/production/server/reports';
+import { createParty } from '@/core/parties/service';
+import { createOrder } from '@/modules/orders/server/actions';
+import { startProduction } from '@/modules/production/server/actions';
 
 let t: TestDb;
 let printer: string;
 let cutter: string;
-const jobId = '11111111-1111-4111-8111-111111111111';
+let jobId: string;
 
 beforeAll(async () => {
   t = await createTestDb();
-  const admin = runtime(t, testUser(t.companyA, ['admin']));
+  const admin = runtime(t, testUser(t.companyA, ['admin', 'tracking', 'sales']));
   const p = await createStaff({ name: 'Zeynep Baskı', kind: 'operator', departments: ['printing'] }, admin);
   const c = await createStaff({ name: 'Emre Kesim', kind: 'master', departments: ['cutting'] }, admin);
-  if (!p.ok || !c.ok) throw new Error('personel');
+  const s = await createStaff({ name: 'Satışçı', kind: 'sales', departments: ['sales'] }, admin);
+  const party = await createParty({ kind: 'customer', name: 'Rapor Müşterisi', legalType: 'company' }, admin);
+  if (!p.ok || !c.ok || !s.ok || !party.ok) throw new Error('kurulum');
   printer = p.data.id;
   cutter = c.data.id;
+  const order = await createOrder({ partyId: party.data.id, salespersonStaffId: s.data.id, orderDate: '2026-10-18', product: { width: 45, height: 45, shape: 'Körüksüz', handle: 'El Geçme', gsm: 70, rolls: 1, noPrint: true, biye: 5 }, unitPrice: '5', vatRate: '10', currency: 'TRY', packaging: { type: 'sack', capacity: 1000 } }, admin);
+  if (!order.ok) throw new Error(order.message);
+  const job = await startProduction({ orderId: order.data.id }, admin);
+  if (!job.ok) throw new Error(job.message);
+  jobId = job.data.id;
   await withCompany(t.companyA, (tx) => tx.insert(jobEvents).values([
     // 18 Ekim 10:00 İstanbul
     { companyId: t.companyA, jobId, stage: 'printing', kind: 'finished', userId: 'u', staffIds: [printer], machine: 'Baskı 1', data: { printWaste: 30, cutWaste: 0 }, at: new Date('2026-10-18T07:00:00Z') },
