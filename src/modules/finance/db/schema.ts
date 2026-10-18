@@ -2,7 +2,8 @@ import { sql } from 'drizzle-orm';
 import { bigint, boolean, date, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 export const ACCOUNT_KINDS = ['cash', 'bank'] as const;
-export const INVOICE_KINDS = ['sales', 'purchase'] as const;
+// İade faturası (satış iadesi müşteriden gelir, alış iadesi tedarikçiye kesilir) cariyi ters yönde etkiler.
+export const INVOICE_KINDS = ['sales', 'purchase', 'sales_return', 'purchase_return'] as const;
 export const MOVEMENT_KINDS = ['collection', 'payment', 'expense', 'income', 'transfer', 'check'] as const;
 export const CHECK_STATUSES = ['portfolio', 'collected', 'endorsed', 'returned', 'issued', 'paid', 'cancelled'] as const;
 
@@ -45,6 +46,8 @@ export const finInvoices = pgTable(
     note: text('note').notNull().default(''),
     status: text('status', { enum: ['recorded', 'cancelled'] }).notNull().default('recorded'),
     cancelNote: text('cancel_note'),
+    /** Siparişten işlenen fatura: iptal edilince sipariş yeniden "faturaya hazır" olur. */
+    orderId: uuid('order_id'),
     createdBy: text('created_by').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -131,7 +134,7 @@ export type ReconciliationSnapshot = {
   truncated: boolean;
 };
 
-export type ReconciliationResponse = { name: string; title: string; note: string; counterBalance: string | null; at: string; external: boolean };
+export type ReconciliationResponse = { name: string; title: string; note: string; counterBalance: string | null; at: string; external: boolean; ip?: string; userAgent?: string };
 
 // Cari mutabakat: belirli tarihteki bakiyenin dondurulmuş hâli ve karşı tarafın cevabı.
 // Bağlantı gizli anahtarının yalnızca SHA-256 özeti saklanır; bağlantı yenilenince eskisi geçersiz olur.
@@ -162,3 +165,11 @@ export const finReconciliations = pgTable(
   },
   (t) => [index('fin_reconciliations_party_idx').on(t.companyId, t.partyId, t.asOf), index('fin_reconciliations_status_idx').on(t.companyId, t.status)],
 );
+
+// Ön muhasebe ayarları: dönem kilidi (bu tarih dahil öncesine kayıt, iptal ve iade yapılamaz; KDV beyanından sonra kilitlenir).
+export const finSettings = pgTable('fin_settings', {
+  companyId: uuid('company_id').primaryKey(),
+  lockedUntil: date('locked_until'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: text('updated_by'),
+});

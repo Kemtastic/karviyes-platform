@@ -155,7 +155,8 @@ export async function renderReconciliationPdf(r: ReconciliationPdfInput): Promis
   if (r.taxId) w.row('Vergi / T.C. no', r.taxId);
   w.row('Mutabakat tarihi', formatDate(r.asOf));
   w.box('BAKİYE', `${r.balance} · ${r.side}`);
-  w.text(`Kayıtlarımıza göre ${formatDate(r.asOf)} tarihi itibarıyla cari hesap bakiyeniz yukarıdaki gibidir. Mutabık olup olmadığınızı bildirmenizi rica ederiz. Cevap verilmemesi mutabakat sayılmaz.`, 10);
+  w.text(`Kayıtlarımıza göre ${formatDate(r.asOf)} tarihi itibarıyla cari hesap bakiyeniz yukarıdaki gibidir (KDV dahil). Kendi kayıtlarınızla karşılaştırarak mutabık olup olmadığınızı bildirmenizi rica ederiz. Cevap verilmemesi mutabakat sayılmaz.`, 10);
+  w.text('Ekstredeki borç ve alacak sütunları firmamızın kayıtlarına göredir. Bu belge cari hesap mutabakatıdır; Form Ba/Bs bildirimi değildir.', 9, rgb(0.4, 0.4, 0.4));
   if (r.message) {
     w.gap(6);
     w.text(r.message, 10);

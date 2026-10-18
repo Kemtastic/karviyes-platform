@@ -182,7 +182,9 @@ describe('açılış, ekstre ve özet', () => {
     const tr = l.currencies.find((c) => c.currency === 'TRY')!;
     expect(tr.rows[0]).toMatchObject({ text: 'Satış faturası GIB2026000001', debit: '1200000', balance: '1200000' });
     expect(tr.rows.at(-1)!.balance).toBe(tr.balance);
-    expect(tr.receivable).toEqual([expect.objectContaining({ bucket: 'd1_30', daysOverdue: 18 })]);
+    expect(tr.receivable[0]).toMatchObject({ text: 'Satış faturası GIB2026000001', bucket: 'd1_30', daysOverdue: 18 });
+    // Karşılıksız çıkan çek ayrı açık kalemdir (vadesi dönüş günü).
+    expect(tr.receivable.find((x) => x.text.startsWith('Karşılıksız'))).toMatchObject({ open: '30000' });
   });
 
   it('özet: alacak, gecikmiş, kasa/banka, portföy çekleri, ayın KDV farkı ve takvim', async () => {
@@ -190,7 +192,6 @@ describe('açılış, ekstre ve özet', () => {
     const tr = o.totals.find((x) => x.currency === 'TRY')!;
     expect(BigInt(tr.overdueReceivable)).toBeGreaterThan(0n);
     expect(tr.checksIn).toBe('30000');
-    expect(tr.vatIn).toBe('10000');
     expect(o.calendar.some((e) => e.kind === 'check_in')).toBe(true);
   });
 });

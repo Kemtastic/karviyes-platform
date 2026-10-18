@@ -50,7 +50,7 @@ export function DepartmentScreen({ stage, title, sector, initial, staff }: { sta
       const r = await queueAction({ stage });
       if (r.ok) {
         const added = newJobIds(known.current, r.data);
-        for (const j of r.data) known.current.add(j.id);
+        known.current = new Set(r.data.map((j) => j.id));
         if (added.length) {
           setFresh((f) => [...f, ...added]);
           if (sound) beep();

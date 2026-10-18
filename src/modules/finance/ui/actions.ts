@@ -33,3 +33,4 @@ export async function partyOpenOrdersAction(input: { partyId: string }) {
   return r.ok ? r.data : [];
 }
 export async function recordOrderInvoiceAction(input: unknown) { return a.recordOrderInvoice(input); }
+export async function setPeriodLockAction(input: unknown) { return a.setPeriodLock(input); }

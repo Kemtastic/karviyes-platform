@@ -13,6 +13,7 @@ import { EndorseCheckDialog, ReasonDialog, SettleCheckDialog, type AccountOption
 import { CHECK_LABELS, CHECK_TONES, MOVEMENT_LABELS, MOVEMENT_TONES } from './labels';
 
 const small = 'min-h-9 px-3';
+const KIND_LABELS: Record<string, string> = { sales: 'Satış', purchase: 'Alış', sales_return: 'Satış iadesi', purchase_return: 'Alış iadesi' };
 
 export type InvoiceRow = { id: string; kind: string; partyId: string; partyName: string; docNo: string; date: string; due: string | null; currency: Currency; base: string; vat: string; withholding: string; total: string; note: string; status: string; cancelNote: string | null };
 
@@ -29,7 +30,7 @@ export function InvoicesTable({ rows }: { rows: InvoiceRow[] }) {
           { key: 'date', header: 'Tarih', render: (r) => <DateText value={r.date} />, sortValue: (r) => r.date },
           { key: 'party', header: 'Cari', mobile: 'title', render: (r) => <Link href={`/muhasebe/cariler/${r.partyId}`} className="font-medium text-stone-900 hover:underline">{r.partyName}</Link>, sortValue: (r) => r.partyName },
           { key: 'no', header: 'Fatura no', render: (r) => <span className="whitespace-nowrap font-mono text-xs text-stone-700">{r.docNo}</span> },
-          { key: 'kind', header: 'Tür', render: (r) => <Badge tone={r.kind === 'sales' ? 'brand' : 'neutral'} dot={false}>{r.kind === 'sales' ? 'Satış' : 'Alış'}</Badge> },
+          { key: 'kind', header: 'Tür', render: (r) => <Badge tone={r.kind === 'sales' ? 'brand' : r.kind.endsWith('_return') ? 'warning' : 'neutral'} dot={false}>{KIND_LABELS[r.kind] ?? r.kind}</Badge> },
           { key: 'due', header: 'Vade', render: (r) => (r.due ? <DateText value={r.due} /> : <span className="text-stone-400">—</span>), sortValue: (r) => r.due ?? '' },
           { key: 'base', header: 'Matrah', align: 'right', mobile: 'hide', render: (r) => <Money value={money(r.base, r.currency)} /> },
           { key: 'vat', header: 'KDV', align: 'right', mobile: 'hide', render: (r) => <span className="block text-right"><Money value={money(r.vat, r.currency)} />{r.withholding !== '0' && <span className="block text-xs text-stone-500">tevkifat −{formatMoney(money(r.withholding, r.currency))}</span>}</span> },
@@ -126,7 +127,7 @@ export function ChecksTable({ rows, accounts, today }: { rows: CheckRow[]; accou
                 {r.status === 'portfolio' && <Button variant="secondary" className={small} onClick={() => setAct({ kind: 'settle', row: r })}>Tahsil et</Button>}
                 {r.status === 'portfolio' && <Button variant="ghost" className={small} onClick={() => setAct({ kind: 'endorse', row: r })}>Ciro et</Button>}
                 {r.status === 'issued' && <Button variant="secondary" className={small} onClick={() => setAct({ kind: 'settle', row: r })}>Ödendi</Button>}
-                {(r.status === 'portfolio' || r.status === 'issued') && <Button variant="ghost" className={`${small} text-red-700 hover:bg-red-50`} onClick={() => setAct({ kind: 'return', row: r })}>{r.status === 'portfolio' ? 'İade / karşılıksız' : 'Geri alındı'}</Button>}
+                {(r.status === 'portfolio' || r.status === 'issued' || r.status === 'endorsed') && <Button variant="ghost" className={`${small} text-red-700 hover:bg-red-50`} onClick={() => setAct({ kind: 'return', row: r })}>{r.status === 'portfolio' ? 'İade / karşılıksız' : r.status === 'endorsed' ? 'Karşılıksız döndü' : 'Geri alındı'}</Button>}
               </span>
             ),
           },
@@ -137,7 +138,7 @@ export function ChecksTable({ rows, accounts, today }: { rows: CheckRow[]; accou
       {act?.kind === 'return' && (
         <ReasonDialog
           title={act.row.direction === 'received' ? 'Çek iade / karşılıksız' : 'Verilen çek geri alındı'}
-          text={`${label(act.row)}. Carideki çek kaydı iptal edilir; borç/alacak geri gelir.`}
+          text={`${label(act.row)}. Carilere ters kayıt yazılır; borç/alacak geri gelir${act.row.status === 'endorsed' ? ' (müşterinin ve ciro edilen tedarikçinin carisi)' : ''}.`}
           label="Kaydet"
           run={(reason) => returnCheckAction({ id: act.row.id, version: act.row.version, reason })}
           onClose={() => setAct(null)}

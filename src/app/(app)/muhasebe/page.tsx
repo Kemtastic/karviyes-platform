@@ -1,9 +1,10 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AlertTriangle, ArrowDownLeft, ArrowUpRight, CalendarClock, Landmark, ScrollText, Wallet } from 'lucide-react';
-import { formatDate } from '@/core/dates';
+import { formatDate, istanbulToday } from '@/core/dates';
 import { formatMoney, money, type Currency } from '@/core/money';
-import { accountOptions, financeOverview } from '@/modules/finance/server/queries';
+import { accountOptions, financeOverview, periodLock, vatSummary } from '@/modules/finance/server/queries';
+import { PeriodLockCard } from '@/modules/finance/ui/period-lock';
 import { requireFinancePage } from '@/modules/finance/ui/guard';
 import { FinanceToolbar } from '@/modules/finance/ui/toolbar';
 import { Badge } from '@/ui/badge';
@@ -18,9 +19,11 @@ const EVENT: Record<string, { label: string; tone: 'success' | 'warning' | 'info
   check_out: { label: 'Verilen çek', tone: 'brand' },
 };
 
-export default async function FinanceHomePage() {
+export default async function FinanceHomePage({ searchParams }: { searchParams: Promise<{ ay?: string }> }) {
   await requireFinancePage();
-  const [r, accounts] = await Promise.all([financeOverview({}), accountOptions({})]);
+  const { ay } = await searchParams;
+  const month = ay && /^\d{4}-\d{2}$/.test(ay) ? ay : istanbulToday().slice(0, 7);
+  const [r, accounts, vat, lock] = await Promise.all([financeOverview({}), accountOptions({}), vatSummary({ month }), periodLock({})]);
   if (!r.ok) notFound();
   const o = r.data;
   const m = (v: string, c: Currency) => formatMoney(money(v, c));
@@ -47,15 +50,40 @@ export default async function FinanceHomePage() {
               <Tile icon={<Wallet className="h-5 w-5" />} label="Kasa + banka" value={m((BigInt(t.cash) + BigInt(t.bank)).toString(), t.currency)} sub={`Kasa ${m(t.cash, t.currency)}`} href="/muhasebe/hesaplar" />
               <Tile icon={<ScrollText className="h-5 w-5" />} label="Portföydeki çek" value={m(t.checksIn, t.currency)} sub={BigInt(t.checksOut) > 0n ? `Verilen ${m(t.checksOut, t.currency)}` : 'Verilen çek yok'} href="/muhasebe/cekler" />
             </div>
-            <p className="text-sm text-stone-600">
-              Bu ay KDV: hesaplanan <strong className="tabular-nums">{m(t.vatOut, t.currency)}</strong> · indirilecek <strong className="tabular-nums">{m(t.vatIn, t.currency)}</strong> · fark{' '}
-              <strong className="tabular-nums">{m((BigInt(t.vatOut) - BigInt(t.vatIn)).toString(), t.currency)}</strong> <span className="text-stone-400">(fatura kayıtlarından, tevkifat düşülmüş; beyan için mali müşavir kontrolü gerekir)</span>
-            </p>
           </section>
         ))
       ) : (
         <EmptyState title="Henüz muhasebe kaydı yok." hint="Fatura kaydı, tahsilat ya da ödeme girdikçe özet burada oluşur." />
       )}
+      <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
+        <Card
+          title="KDV özeti"
+          description="Fatura kayıtları ve belgeli masraflardan; bilgi amaçlıdır, beyan mali müşavirce hazırlanır."
+          actions={
+            <form className="flex items-center gap-2">
+              <input type="month" name="ay" defaultValue={month} aria-label="Ay" className="min-h-9 rounded-lg border border-stone-300 bg-white px-2 text-sm" />
+              <button className="min-h-9 rounded-lg bg-stone-900 px-3 text-sm font-semibold text-white">Göster</button>
+            </form>
+          }
+        >
+          {vat.ok && vat.data.rows.length ? (
+            <div className="space-y-4">
+              {vat.data.rows.map((v) => (
+                <dl key={v.currency} className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
+                  <Vat label="Hesaplanan KDV" value={m(v.output, v.currency)} sub={`matrah ${m(v.salesBase, v.currency)}`} />
+                  <Vat label="İndirilecek KDV" value={m(v.deductible, v.currency)} sub={`alış ${m(v.purchaseVat, v.currency)} + masraf ${m(v.expenseVat, v.currency)}`} />
+                  <Vat label={BigInt(v.difference) >= 0n ? 'Ödenecek (fark)' : 'Devreden (fark)'} value={m(v.difference.replace('-', ''), v.currency)} strong />
+                  {v.responsible !== '0' && <Vat label="Sorumlu sıfatıyla (2 No'lu)" value={m(v.responsible, v.currency)} sub="tevkifatlı alışlar" />}
+                  {v.salesWithholding !== '0' && <Vat label="Satışta tevkif edilen" value={m(v.salesWithholding, v.currency)} sub="alıcı beyan eder" />}
+                </dl>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-stone-500">Bu ay için fatura ya da masraf kaydı yok.</p>
+          )}
+        </Card>
+        <PeriodLockCard lockedUntil={lock.ok ? lock.data.lockedUntil : null} />
+      </div>
       <Card title={<span className="inline-flex items-center gap-2"><CalendarClock aria-hidden className="h-4 w-4 text-stone-400" />Ödeme takvimi</span>} description={`${formatDate(o.today)} – ${formatDate(o.until)} arası vadeler ve gecikmişler`} padded={false}>
         {o.calendar.length ? (
           <ul className="divide-y divide-stone-100">
@@ -93,5 +121,15 @@ function Tile({ icon, label, value, sub, warn, href }: { icon: React.ReactNode; 
       <span className="mt-0.5 block break-words text-xl font-semibold tabular-nums tracking-tight text-stone-900">{value}</span>
       <span className={`mt-1 block text-xs ${warn ? 'font-medium text-amber-800' : 'text-stone-500'}`}>{sub}</span>
     </Link>
+  );
+}
+
+function Vat({ label, value, sub, strong }: { label: string; value: string; sub?: string; strong?: boolean }) {
+  return (
+    <div>
+      <dt className="text-xs font-medium uppercase tracking-wide text-stone-500">{label}</dt>
+      <dd className={`tabular-nums ${strong ? 'text-lg font-semibold' : 'font-medium'}`}>{value}</dd>
+      {sub && <dd className="text-xs text-stone-500">{sub}</dd>}
+    </div>
   );
 }

@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import { CircleCheck, FileDown, ShieldCheck, TriangleAlert } from 'lucide-react';
 import { formatDate, formatDateTime } from '@/core/dates';
 import { formatMoney, money } from '@/core/money';
+import { headers } from 'next/headers';
+import { publicRateLimited } from '@/core/rate-limit';
 import { publicReconciliation } from '@/modules/finance/server/reconciliation';
 import { AnswerForm } from './answer-form';
 
@@ -9,7 +11,8 @@ export const metadata: Metadata = { title: 'Cari hesap mutabakatı', robots: { i
 
 export default async function PublicReconciliationPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const r = await publicReconciliation(token);
+  const ip = ((await headers()).get('x-forwarded-for') ?? '').split(',')[0]!.trim() || 'bilinmiyor';
+  const r = (await publicRateLimited(`mutabakat-sayfa:${ip}`, 60)) ? null : await publicReconciliation(token);
   if (!r) {
     return (
       <main className="grid min-h-dvh place-items-center bg-[var(--color-canvas)] px-4">

@@ -106,7 +106,11 @@ export function AccountDialog({ onClose, onDone }: Done) {
   );
 }
 
-export function InvoiceDialog({ kind, party: fixed, onClose, onDone }: Done & { kind: 'sales' | 'purchase'; party?: PartyRef }) {
+export type InvoiceKind = 'sales' | 'purchase' | 'sales_return' | 'purchase_return';
+const INVOICE_TITLES: Record<InvoiceKind, string> = { sales: 'Satış faturası kaydet', purchase: 'Alış faturası kaydet', sales_return: 'Satış iade faturası kaydet', purchase_return: 'Alış iade faturası kaydet' };
+
+export function InvoiceDialog({ kind, party: fixed, onClose, onDone }: Done & { kind: InvoiceKind; party?: PartyRef }) {
+  const customerSide = kind === 'sales' || kind === 'sales_return';
   const save = useAction(recordInvoiceAction);
   const [party, setParty] = useState<PartyRef | null>(fixed ?? null);
   const [base, setBase] = useState('');
@@ -118,10 +122,11 @@ export function InvoiceDialog({ kind, party: fixed, onClose, onDone }: Done & { 
   const wh = Math.round(vat * Number(withholding) * 10) / 100;
   const fmt = (n: number) => n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return (
-    <Modal open title={kind === 'sales' ? 'Satış faturası kaydet' : 'Alış faturası kaydet'} onClose={onClose} dirty={Boolean(base)}>
+    <Modal open title={INVOICE_TITLES[kind]} onClose={onClose} dirty={Boolean(base)}>
       <form className="space-y-4" onSubmit={(e) => save.run({ ...formData(e), kind, partyId: party?.id ?? '', due: (e.currentTarget.elements.namedItem('due') as HTMLInputElement).value || null }, onDone)}>
         <p className="rounded-xl bg-stone-100 px-3 py-2 text-xs text-stone-600">Bu ekran fatura <strong>kesmez</strong>; e-Fatura, e-Arşiv ya da kâğıt olarak kesilmiş faturayı cariye işler.</p>
-        {!fixed && <PartyPicker value={party} onChange={setParty} kind={kind === 'sales' ? 'customer' : 'supplier'} error={f.partyId} label={kind === 'sales' ? 'Müşteri' : 'Tedarikçi'} />}
+        {kind.endsWith('_return') && <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900">İade faturası cariyi ters yönde etkiler ve KDV özetinde düşülür.</p>}
+        {!fixed && <PartyPicker value={party} onChange={setParty} kind={customerSide ? 'customer' : 'supplier'} error={f.partyId} label={customerSide ? 'Müşteri' : 'Tedarikçi'} />}
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField label="Fatura no" required error={f.docNo}><input name="docNo" className={`${fieldClass} font-mono`} placeholder="GIB2026000000001" /></FormField>
           <FormField label="Para birimi" required error={f.currency}><select name="currency" className={fieldClass}>{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</select></FormField>

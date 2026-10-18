@@ -5,9 +5,9 @@ import { istanbulToday } from '@/core/dates';
 import { parties } from '@/core/db/schema';
 import { CURRENCIES, type Currency } from '@/core/money';
 import { finAccounts, finChecks, finInvoices, finMovements, finOpenings } from '../db/schema';
-import { aging, openItems, statement, type Aging, type LedgerEntry, type OpenItem } from '../domain/ledger';
+import { aging, INVOICE_KIND_LABELS, openItems, statement, type Aging, type LedgerEntry, type OpenItem } from '../domain/ledger';
 import { openOrdersOf } from '@/modules/orders/server/api';
-import { FIN } from './actions';
+import { FIN, lockedUntil } from './actions';
 
 const s = (v: bigint) => v.toString();
 const isoDate = z.string().date();
@@ -15,7 +15,8 @@ const isoDate = z.string().date();
 type Key = `${string}|${Currency}`;
 
 /** Carilerin defter kayıtları (açılış, fatura, para hareketi) cari × para birimi başına. */
-export async function ledgerEntries(ctx: ActionCtx, partyId?: string): Promise<Map<Key, LedgerEntry[]>> {
+/** external: karşı tarafa giden ekstre (mutabakat) — personelin iç notları yazılmaz. */
+export async function ledgerEntries(ctx: ActionCtx, partyId?: string, external = false): Promise<Map<Key, LedgerEntry[]>> {
   const [openings, invoices, moves] = await Promise.all([
     ctx.tx.select().from(finOpenings).where(partyId ? eq(finOpenings.partyId, partyId) : undefined),
     ctx.tx.select().from(finInvoices).where(and(eq(finInvoices.status, 'recorded'), partyId ? eq(finInvoices.partyId, partyId) : undefined)),
@@ -31,10 +32,12 @@ export async function ledgerEntries(ctx: ActionCtx, partyId?: string): Promise<M
   };
   for (const o of openings) push(o.partyId, o.currency, { id: `acilis-${o.currency}`, kind: 'opening', amount: o.amountMinor, date: o.date, due: null, text: 'Açılış bakiyesi' });
   for (const f of invoices)
-    push(f.partyId, f.currency, { id: f.id, kind: f.kind, amount: f.totalMinor, date: f.date, due: f.due, text: `${f.kind === 'sales' ? 'Satış' : 'Alış'} faturası ${f.docNo}` });
+    push(f.partyId, f.currency, { id: f.id, kind: f.kind, amount: f.totalMinor, date: f.date, due: f.due, text: `${INVOICE_KIND_LABELS[f.kind]} ${f.docNo}` });
   for (const m of moves) {
-    const label = m.kind === 'check' ? m.note : m.kind === 'collection' ? `Tahsilat${m.note ? ` · ${m.note}` : ''}` : `Ödeme${m.note ? ` · ${m.note}` : ''}`;
-    push(m.partyId!, m.currency, { id: m.id, kind: m.direction, amount: m.amountMinor, date: m.date, due: null, text: label });
+    const note = external ? '' : m.note;
+    const label = m.kind === 'check' ? (external ? (m.note.split(' · ')[0] ?? 'Çek') : m.note) : m.kind === 'collection' ? `Tahsilat${note ? ` · ${note}` : ''}` : `Ödeme${note ? ` · ${note}` : ''}`;
+    // Karşılıksız/geri dönen çekin doğurduğu borç dönüş gününden itibaren vadesi gelmiş sayılır.
+    push(m.partyId!, m.currency, { id: m.id, kind: m.direction, amount: m.amountMinor, date: m.date, due: m.kind === 'check' && m.direction === 'out' ? m.date : null, text: label });
   }
   return map;
 }
@@ -171,7 +174,7 @@ export const invoicesList = defineAction({
   module: 'finance',
   roles: FIN,
   rateLimit: false,
-  input: z.object({ kind: z.enum(['sales', 'purchase']).optional(), from: isoDate.optional(), to: isoDate.optional(), status: z.enum(['recorded', 'cancelled']).optional() }),
+  input: z.object({ kind: z.enum(['sales', 'purchase', 'sales_return', 'purchase_return']).optional(), from: isoDate.optional(), to: isoDate.optional(), status: z.enum(['recorded', 'cancelled']).optional() }),
   run: async (ctx, i) => {
     const rows = await ctx.tx
       .select({ f: finInvoices, partyName: parties.name })
@@ -234,7 +237,7 @@ export const checksList = defineAction({
   },
 });
 
-/** Muhasebe özeti: para birimi başına alacak, borç, gecikmiş tutarlar, kasa/banka, çekler; önümüzdeki 30 günün ödeme takvimi; bu ayın KDV'si. */
+/** Muhasebe özeti: para birimi başına alacak, borç, gecikmiş tutarlar, kasa/banka, çekler; önümüzdeki 30 günün ödeme takvimi. */
 export const financeOverview = defineAction({
   name: 'finance.overview',
   module: 'finance',
@@ -246,18 +249,13 @@ export const financeOverview = defineAction({
     const horizon = new Date(`${today}T12:00:00Z`);
     horizon.setUTCDate(horizon.getUTCDate() + 30);
     const until = horizon.toISOString().slice(0, 10);
-    const [map, accounts, balances, checks, vatRows] = await Promise.all([
+    const [map, accounts, balances, checks] = await Promise.all([
       ledgerEntries(ctx),
       ctx.tx.select().from(finAccounts).where(eq(finAccounts.archived, false)),
       accountBalances(ctx),
       ctx.tx.select({ c: finChecks, partyName: parties.name }).from(finChecks).innerJoin(parties, eq(parties.id, finChecks.partyId)).where(inArray(finChecks.status, ['portfolio', 'issued'])),
-      ctx.tx
-        .select({ kind: finInvoices.kind, currency: finInvoices.currency, vat: sql<string>`sum(${finInvoices.vatMinor} - ${finInvoices.withholdingMinor})` })
-        .from(finInvoices)
-        .where(and(eq(finInvoices.status, 'recorded'), gte(finInvoices.date, `${today.slice(0, 7)}-01`), lte(finInvoices.date, today)))
-        .groupBy(finInvoices.kind, finInvoices.currency),
     ]);
-    const z0 = () => ({ receivable: 0n, overdueReceivable: 0n, payable: 0n, overduePayable: 0n, cash: 0n, bank: 0n, checksIn: 0n, checksOut: 0n, vatOut: 0n, vatIn: 0n });
+    const z0 = () => ({ receivable: 0n, overdueReceivable: 0n, payable: 0n, overduePayable: 0n, cash: 0n, bank: 0n, checksIn: 0n, checksOut: 0n });
     const per = new Map<Currency, ReturnType<typeof z0>>();
     const get = (c: Currency) => per.get(c) ?? (per.set(c, z0()), per.get(c)!);
     const ids = [...new Set([...map.keys()].map((k) => k.split('|')[0]!))];
@@ -287,10 +285,6 @@ export const financeOverview = defineAction({
       if (c.direction === 'received') t.checksIn += c.amountMinor; else t.checksOut += c.amountMinor;
       if (c.due <= until) events.push({ date: c.due, kind: c.direction === 'received' ? 'check_in' : 'check_out', partyId: c.partyId, partyName, text: `Çek ${c.bank} ${c.checkNo}`, amount: s(c.amountMinor), currency: c.currency as Currency, overdue: c.due < today });
     }
-    for (const v of vatRows) {
-      const t = get(v.currency as Currency);
-      if (v.kind === 'sales') t.vatOut += BigInt(v.vat); else t.vatIn += BigInt(v.vat);
-    }
     const totals = CURRENCIES.filter((c) => per.has(c)).map((c) => ({ currency: c, ...Object.fromEntries(Object.entries(per.get(c)!).map(([k, v]) => [k, s(v)])) })) as ({ currency: Currency } & Record<keyof ReturnType<typeof z0>, string>)[];
     return { today, until, totals, calendar: events.sort((a, b) => a.date.localeCompare(b.date) || a.partyName.localeCompare(b.partyName, 'tr')).slice(0, 200), accounts: accounts.length };
   },
@@ -314,4 +308,69 @@ export const partyOpenOrders = defineAction({
   rateLimit: false,
   input: z.object({ partyId: z.string().uuid() }),
   run: async (ctx, i) => (ctx.cfg.modules.includes('orders') ? openOrdersOf(ctx, i.partyId) : []),
+});
+
+/**
+ * Aylık KDV özeti (bilgi amaçlı; beyan mali müşavirce hazırlanır). KDV tam tutarıyla, tevkifat ayrı gösterilir:
+ * - hesaplanan: satış faturası KDV'si − satış iadesi KDV'si (tevkifatlı satışta tevkif edilen kısım alıcının 2 No'lu beyanındadır)
+ * - indirilecek: alış faturası KDV'si − alış iadesi KDV'si + belgeli masraf KDV'si
+ * - sorumlu sıfatıyla (2 No'lu): tevkifatlı alışlarda tevkif edilen KDV
+ */
+export const vatSummary = defineAction({
+  name: 'finance.vatSummary',
+  module: 'finance',
+  roles: FIN,
+  rateLimit: false,
+  input: z.object({ month: z.string().regex(/^\d{4}-\d{2}$/) }),
+  run: async (ctx, i) => {
+    const from = `${i.month}-01`;
+    const end = new Date(`${from}T12:00:00Z`);
+    end.setUTCMonth(end.getUTCMonth() + 1, 0);
+    const to = end.toISOString().slice(0, 10);
+    const [inv, exp] = await Promise.all([
+      ctx.tx
+        .select({ kind: finInvoices.kind, currency: finInvoices.currency, base: sql<string>`sum(${finInvoices.baseMinor})`, vat: sql<string>`sum(${finInvoices.vatMinor})`, wh: sql<string>`sum(${finInvoices.withholdingMinor})`, n: sql<number>`count(*)` })
+        .from(finInvoices)
+        .where(and(eq(finInvoices.status, 'recorded'), gte(finInvoices.date, from), lte(finInvoices.date, to)))
+        .groupBy(finInvoices.kind, finInvoices.currency),
+      ctx.tx
+        .select({ currency: finMovements.currency, vat: sql<string>`sum(${finMovements.vatMinor})` })
+        .from(finMovements)
+        .where(and(eq(finMovements.kind, 'expense'), isNull(finMovements.reversedAt), gte(finMovements.date, from), lte(finMovements.date, to)))
+        .groupBy(finMovements.currency),
+    ]);
+    const z0 = () => ({ salesBase: 0n, salesVat: 0n, salesWithholding: 0n, purchaseBase: 0n, purchaseVat: 0n, purchaseWithholding: 0n, expenseVat: 0n, invoices: 0 });
+    const per = new Map<Currency, ReturnType<typeof z0>>();
+    const get = (c: Currency) => per.get(c) ?? (per.set(c, z0()), per.get(c)!);
+    for (const r of inv) {
+      const t = get(r.currency as Currency);
+      const sign = r.kind.endsWith('_return') ? -1n : 1n;
+      t.invoices += Number(r.n);
+      if (r.kind.startsWith('sales')) { t.salesBase += sign * BigInt(r.base); t.salesVat += sign * BigInt(r.vat); t.salesWithholding += sign * BigInt(r.wh); }
+      else { t.purchaseBase += sign * BigInt(r.base); t.purchaseVat += sign * BigInt(r.vat); t.purchaseWithholding += sign * BigInt(r.wh); }
+    }
+    for (const r of exp) get(r.currency as Currency).expenseVat += BigInt(r.vat);
+    return {
+      month: i.month, from, to,
+      rows: CURRENCIES.filter((c) => per.has(c)).map((c) => {
+        const t = per.get(c)!;
+        const deductible = t.purchaseVat + t.expenseVat;
+        return {
+          currency: c, invoices: t.invoices,
+          salesBase: s(t.salesBase), output: s(t.salesVat), salesWithholding: s(t.salesWithholding),
+          purchaseBase: s(t.purchaseBase), purchaseVat: s(t.purchaseVat), expenseVat: s(t.expenseVat), deductible: s(deductible), responsible: s(t.purchaseWithholding),
+          difference: s(t.salesVat - deductible),
+        };
+      }),
+    };
+  },
+});
+
+export const periodLock = defineAction({
+  name: 'finance.periodLock',
+  module: 'finance',
+  roles: FIN,
+  rateLimit: false,
+  input: z.object({}),
+  run: async (ctx) => ({ lockedUntil: await lockedUntil(ctx) }),
 });

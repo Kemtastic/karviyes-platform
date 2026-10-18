@@ -51,4 +51,13 @@ Bağımsız kod incelemesi (alt ajan), güvenlik kontrolü, örnek veriye yeni m
   - Ruling: Granül stoğu yok; `materials()` boş — maliyet: hammadde açığı uyarısı yok, pilotla eklenecek.
 - **F5 bitti (karar beklemeyen kısmı)**: siparişte "Fatura kesildi" ön muhasebe açıksa aynı işlemde cariye satış faturası işler (`recordOrderInvoice`, matrah/KDV sipariş satırlarından). Entegratör tasarım notu: `docs/e-fatura-entegrasyonu.md`.
   - Ruling: Entegratör seçilmeden sağlayıcı arayüzü kodu yazılmadı (kullanılmayan kod olurdu) — maliyet: yok; seçim gelince eklenir.
+- **F6/F7 — bağımsız inceleme ve düzeltmeler**: üç inceleme (kod, güvenlik, mali müşavir). Düzeltilenler (her biri testli):
+  - Kritik: borç tarafı yaşlandırmada alacaklı açılış kayboluyordu (FIFO işaretli tutar + açılış vadesi) — ledger testi RED→GREEN.
+  - Önemli: ön muhasebeden gelen sipariş tahsilatı sipariş ekranından düzeltilemez (`order_payments.source`); siparişli fatura ön muhasebede iptal edilince sipariş yeniden faturaya hazır olur (`fin_invoices.order_id`).
+  - Mali müşavir: KDV özeti tam KDV + tevkifat ayrı (2 No'lu sorumlu sıfatıyla), masraf KDV'si indirilecekte, ay seçimi; iade faturaları; dönem kilidi (açmak yalnız yönetici); kasa eksiye düşemez; karşılıksız çek görünür ters kayıt ve ciro edilmiş çek dönüşü; mutabakat mektubunda KDV dahil / Ba-Bs değildir notu.
+  - Güvenlik: göç yalnız `VERCEL_ENV=production` derlemesinde; herkese açık mutabakat uçlarında IP başına hız sınırı; dışa giden ekstrede iç notlar yok; cevapta IP/tarayıcı kaydı, cevap sonrası bağlantı en çok 7 gün; sıkı UUID; günlük e-posta sınırı ve e-posta kayıttan sonra; herkese açık PDF için yazı tipi derlemeye dahil.
+  - Küçükler: mutabakat numarasında danışma kilidi; sürüm kontrolleri; sıfır bakiye metni; teslim tarihi sürüm artırır; bölüm ekranında geri dönen iş yeniden "yeni".
+  - Ruling: `tracking` rolü siparişin faturasını işaretlerken ön muhasebeye satış faturası yazabilir (tutar sipariş satırlarından, serbest değil) — maliyet: muhasebe isterse rol daraltılır.
+  - Ruling: mutabakat belirteci URL yolunda kalır (e-postadan açılabilmesi için); riskler kısa ömür, hız sınırı, tek cevap ve no-referrer ile azaltıldı — maliyet: kayıtlara erişen biri 30 gün içinde cevap verebilir.
+  - Ertelenen (mali müşavir): çok oranlı/satır bazlı fatura, tevkifat kodları, Ba-Bs raporu, hesap planı/yevmiye aktarımı, Excel dışa aktarım, fatura-tahsilat eşleştirme, kur farkı, senet.
 

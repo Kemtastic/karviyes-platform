@@ -30,9 +30,10 @@ describe('teslim tarihi', () => {
     expect(await createOrder({ ...base, deliveryDate: '2026-09-30' }, admin())).toMatchObject({ ok: false, fieldErrors: { deliveryDate: expect.any(String) } });
     const o = ok(await createOrder({ ...base, deliveryDate: '2026-10-10' }, admin()));
     expect(ok(await orderForOffice({ id: o.id }, admin())).deliveryDate).toBe('2026-10-10');
-    ok(await setDeliveryDate({ id: o.id, deliveryDate: '2026-10-20' }, admin()));
+    ok(await setDeliveryDate({ id: o.id, version: 1, deliveryDate: '2026-10-20' }, admin()));
     expect(ok(await orderForOffice({ id: o.id }, admin())).deliveryDate).toBe('2026-10-20');
-    ok(await setDeliveryDate({ id: o.id, deliveryDate: null }, admin()));
+    expect(await setDeliveryDate({ id: o.id, version: 1, deliveryDate: null }, admin())).toMatchObject({ ok: false, code: 'CONFLICT' });
+    ok(await setDeliveryDate({ id: o.id, version: 2, deliveryDate: null }, admin()));
     expect(ok(await orderForOffice({ id: o.id }, admin())).deliveryDate).toBeNull();
   });
 

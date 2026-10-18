@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { defineAction, type ActionCtx } from '@/core/action';
 import { istanbulToday } from '@/core/dates';
@@ -8,8 +8,8 @@ import { AppError } from '@/core/errors';
 import { CURRENCIES, parseMoney, type Currency } from '@/core/money';
 import { requireModule } from '@/core/modules/registry';
 import type { Role } from '@/core/modules/types';
-import { invoiceBreakdown, markOrderInvoiced, recordOrderPayment, reverseOrderPayment } from '@/modules/orders/server/api';
-import { finAccounts, finChecks, finInvoices, finMovements, finOpenings } from '../db/schema';
+import { invoiceBreakdown, markOrderInvoiced, recordOrderPayment, revertOrderInvoiced, reverseOrderPayment } from '@/modules/orders/server/api';
+import { finAccounts, finChecks, finInvoices, finMovements, finOpenings, finSettings } from '../db/schema';
 import { invoiceTotals } from '../domain/ledger';
 
 export const FIN: Role[] = ['admin', 'accounting'];
@@ -48,6 +48,31 @@ async function account(ctx: ActionCtx, id: string, field = 'accountId') {
   const [a] = await ctx.tx.select().from(finAccounts).where(eq(finAccounts.id, id));
   if (!a || a.archived) throw new AppError('VALIDATION', 'Listeden açık bir kasa veya banka hesabı seçin.', { [field]: 'Hesap seçin.' });
   return { ...a, currency: a.currency as Currency };
+}
+
+/** Dönem kilidi: kilit tarihine (dahil) kadar kayıt, iptal ve iade yapılamaz. */
+export async function lockedUntil(ctx: ActionCtx): Promise<string | null> {
+  const [s] = await ctx.tx.select({ lockedUntil: finSettings.lockedUntil }).from(finSettings).where(eq(finSettings.companyId, ctx.companyId));
+  return s?.lockedUntil ?? null;
+}
+
+async function assertOpen(ctx: ActionCtx, date: string, field = 'date') {
+  const lock = await lockedUntil(ctx);
+  if (lock && date <= lock) {
+    const d = lock.split('-').reverse().join('.');
+    throw new AppError('INVALID_STATE', `${d} tarihine kadarki dönem kilitli (KDV beyanı verilmiş). Kilitli döneme kayıt, iptal ya da iade yapılamaz.`, { [field]: `${d} sonrası bir tarih seçin.` });
+  }
+}
+
+/** Kasa eksiye düşemez (bankada eksi bakiye kredili mevduatla mümkün olduğu için yalnız kasa denetlenir). */
+async function assertCashCovers(ctx: ActionCtx, a: { id: string; kind: string; openingMinor: bigint; name: string; currency: Currency }, out: bigint, field = 'accountId') {
+  if (a.kind !== 'cash') return;
+  const [r] = await ctx.tx
+    .select({ net: sql<string>`coalesce(sum(case when ${finMovements.direction} = 'in' then ${finMovements.amountMinor} else -${finMovements.amountMinor} end), 0)` })
+    .from(finMovements)
+    .where(and(eq(finMovements.accountId, a.id), isNull(finMovements.reversedAt)));
+  const balance = a.openingMinor + BigInt(r?.net ?? '0');
+  if (balance - out < 0n) throw new AppError('VALIDATION', `${a.name} bakiyesi yetersiz (kasa eksiye düşemez).`, { [field]: 'Kasa bakiyesi yetmiyor.' });
 }
 
 // ── Kasa ve banka hesapları ────────────────────────────────────────────────
@@ -109,7 +134,7 @@ export const recordInvoice = defineAction({
   module: 'finance',
   roles: FIN,
   input: z.object({
-    kind: z.enum(['sales', 'purchase']),
+    kind: z.enum(['sales', 'purchase', 'sales_return', 'purchase_return']),
     partyId: z.string().uuid('Cari seçin.'),
     docNo: z.string().trim().min(1, 'Fatura numarasını yazın.').max(40),
     date: isoDate,
@@ -121,8 +146,9 @@ export const recordInvoice = defineAction({
     note,
   }),
   run: async (ctx, i) => {
-    await party(ctx, i.partyId, i.kind === 'sales' ? 'customer' : 'supplier');
+    await party(ctx, i.partyId, i.kind === 'sales' || i.kind === 'sales_return' ? 'customer' : 'supplier');
     notFuture('date')(i.date);
+    await assertOpen(ctx, i.date);
     if (i.due && i.due < i.date) throw new AppError('VALIDATION', 'Vade fatura tarihinden önce olamaz.', { due: 'Fatura tarihi veya sonrası.' });
     const base = positive(i.base, i.currency, 'base');
     const t = invoiceTotals(base, i.vatRate, i.withholding);
@@ -149,12 +175,16 @@ export const cancelInvoice = defineAction({
   roles: FIN,
   input: z.object({ id: z.string().uuid(), reason: z.string().trim().min(3, 'İptal nedenini yazın.').max(500) }),
   run: async (ctx, i) => {
+    const [inv] = await ctx.tx.select({ date: finInvoices.date, orderId: finInvoices.orderId }).from(finInvoices).where(eq(finInvoices.id, i.id));
+    if (inv) await assertOpen(ctx, inv.date, 'reason');
     const [row] = await ctx.tx
       .update(finInvoices)
       .set({ status: 'cancelled', cancelNote: i.reason })
       .where(and(eq(finInvoices.id, i.id), eq(finInvoices.status, 'recorded')))
       .returning({ id: finInvoices.id });
     if (!row) throw new AppError('INVALID_STATE', 'Fatura kaydı bulunamadı ya da zaten iptal edilmiş.');
+    // Siparişten işlenen fatura iptal edilirse sipariş yeniden faturalanabilir olur.
+    if (inv?.orderId) await revertOrderInvoiced(ctx, inv.orderId, i.reason);
     await ctx.audit({ entity: 'fin_invoice', entityId: i.id, after: { status: 'cancelled', reason: i.reason } });
     return { id: i.id };
   },
@@ -172,7 +202,9 @@ export const recordPayment = defineAction({
     await party(ctx, i.partyId);
     const a = await account(ctx, i.accountId);
     notFuture('date')(i.date);
+    await assertOpen(ctx, i.date);
     const amount = positive(i.amount, a.currency, 'amount');
+    if (i.kind === 'payment') await assertCashCovers(ctx, a, amount);
     const [row] = await ctx.tx
       .insert(finMovements)
       .values({ companyId: ctx.companyId, kind: i.kind, direction: i.kind === 'collection' ? 'in' : 'out', partyId: i.partyId, accountId: a.id, amountMinor: amount, currency: a.currency, date: i.date, note: i.note, createdBy: ctx.user.userId })
@@ -210,7 +242,9 @@ export const recordExpense = defineAction({
   run: async (ctx, i) => {
     const a = await account(ctx, i.accountId);
     notFuture('date')(i.date);
+    await assertOpen(ctx, i.date);
     const amount = positive(i.amount, a.currency, 'amount');
+    if (i.direction === 'out') await assertCashCovers(ctx, a, amount);
     // KDV dahil tutardan KDV: tutar × oran / (100 + oran), kuruşa yuvarlanır.
     const rate = BigInt(Math.round(i.vatRate * 100));
     const vat = rate > 0n ? (amount * rate * 2n + (10000n + rate)) / ((10000n + rate) * 2n) : 0n;
@@ -235,7 +269,9 @@ export const transfer = defineAction({
     const to = await account(ctx, i.toAccountId, 'toAccountId');
     if (from.currency !== to.currency) throw new AppError('VALIDATION', 'Virman yalnızca aynı para birimindeki hesaplar arasında yapılır.', { toAccountId: `${from.currency} hesabı seçin.` });
     notFuture('date')(i.date);
+    await assertOpen(ctx, i.date);
     const amount = positive(i.amount, from.currency, 'amount');
+    await assertCashCovers(ctx, from, amount, 'fromAccountId');
     const group = randomUUID();
     const base = { companyId: ctx.companyId, kind: 'transfer' as const, amountMinor: amount, currency: from.currency, date: i.date, note: i.note, transferGroup: group, createdBy: ctx.user.userId };
     await ctx.tx.insert(finMovements).values([
@@ -257,6 +293,7 @@ export const reverseMovement = defineAction({
     const [m] = await ctx.tx.select().from(finMovements).where(eq(finMovements.id, i.id));
     if (!m || m.reversedAt) throw new AppError('INVALID_STATE', 'Hareket bulunamadı ya da zaten iptal edilmiş.');
     if (m.checkId) throw new AppError('INVALID_STATE', 'Çek hareketleri Çekler ekranından iade veya iptal edilir.');
+    await assertOpen(ctx, m.date, 'reason');
     const where = m.transferGroup ? eq(finMovements.transferGroup, m.transferGroup) : eq(finMovements.id, m.id);
     await ctx.tx.update(finMovements).set({ reversedAt: new Date(), reverseReason: i.reason }).where(and(where, isNull(finMovements.reversedAt)));
     if (m.orderPaymentId) await reverseOrderPayment(ctx, m.orderPaymentId, i.reason);
@@ -273,6 +310,7 @@ export const setOpening = defineAction({
   input: z.object({ partyId: z.string().uuid(), currency, amount: z.string().trim().min(1).max(30), side: z.enum(['debit', 'credit']), date: isoDate }),
   run: async (ctx, i) => {
     await party(ctx, i.partyId);
+    await assertOpen(ctx, i.date);
     let minor: bigint;
     try {
       minor = parseMoney(i.amount, i.currency).minor;
@@ -310,6 +348,7 @@ const checkInput = z.object({
 async function newCheck(ctx: ActionCtx, i: z.infer<typeof checkInput>, direction: 'received' | 'issued') {
   await party(ctx, i.partyId, direction === 'received' ? undefined : 'supplier');
   notFuture('date')(i.date);
+  await assertOpen(ctx, i.date);
   if (i.due < i.date) throw new AppError('VALIDATION', 'Vade alış tarihinden önce olamaz.', { due: 'Tarih veya sonrası.' });
   const amount = positive(i.amount, i.currency, 'amount');
   const [dup] = await ctx.tx
@@ -359,7 +398,9 @@ export const settleCheck = defineAction({
     const a = await account(ctx, i.accountId);
     if (a.currency !== c.currency) throw new AppError('VALIDATION', `Çek ${c.currency}; aynı para biriminde hesap seçin.`, { accountId: `${c.currency} hesabı seçin.` });
     notFuture('date')(i.date);
+    await assertOpen(ctx, i.date);
     const received = c.direction === 'received';
+    if (!received) await assertCashCovers(ctx, a, c.amountMinor);
     await ctx.tx.insert(finMovements).values({
       companyId: ctx.companyId, kind: 'check', direction: received ? 'in' : 'out', accountId: a.id, amountMinor: c.amountMinor, currency: c.currency,
       date: i.date, note: `Çek ${received ? 'tahsilatı' : 'ödemesi'} ${c.bank} ${c.checkNo}`, checkId: c.id, createdBy: ctx.user.userId,
@@ -381,6 +422,7 @@ export const endorseCheck = defineAction({
     if (i.partyId === c.partyId) throw new AppError('VALIDATION', 'Çek, alındığı cariye ciro edilemez. İade için "İade / karşılıksız" kullanın.', { partyId: 'Başka bir cari seçin.' });
     await party(ctx, i.partyId, 'supplier');
     notFuture('date')(i.date);
+    await assertOpen(ctx, i.date);
     await ctx.tx.insert(finMovements).values({
       companyId: ctx.companyId, kind: 'check', direction: 'out', partyId: i.partyId, amountMinor: c.amountMinor, currency: c.currency,
       date: i.date, note: `Ciro edilen çek ${c.bank} ${c.checkNo}`, checkId: c.id, createdBy: ctx.user.userId,
@@ -392,21 +434,56 @@ export const endorseCheck = defineAction({
 });
 
 /** Alınan çek iade/karşılıksız ya da verilen çek geri alındı: cari kaydı iptal edilir, borç geri gelir. */
+/**
+ * Alınan çek iade/karşılıksız (portföyde ya da ciro edildikten sonra geri döndü) ya da verilen çek geri alındı.
+ * Kayıt silinmez: carilere görünür ters hareket yazılır (ekstrede "çek alındı" ve "karşılıksız" satırları birlikte durur).
+ */
 export const returnCheck = defineAction({
   name: 'finance.returnCheck',
   module: 'finance',
   roles: FIN,
   input: z.object({ ...checkRef, reason: z.string().trim().min(3, 'Nedeni yazın.').max(500) }),
   run: async (ctx, i) => {
-    const c = await loadCheck(ctx, i.id, i.version, ['portfolio', 'issued']);
-    await ctx.tx
-      .update(finMovements)
-      .set({ reversedAt: new Date(), reverseReason: i.reason })
-      .where(and(eq(finMovements.checkId, c.id), eq(finMovements.partyId, c.partyId), isNull(finMovements.reversedAt)));
+    const c = await loadCheck(ctx, i.id, i.version, ['portfolio', 'issued', 'endorsed']);
+    const date = istanbulToday();
+    await assertOpen(ctx, date, 'reason');
+    const back = (partyId: string, direction: 'in' | 'out', text: string) =>
+      ctx.tx.insert(finMovements).values({
+        companyId: ctx.companyId, kind: 'check', direction, partyId, amountMinor: c.amountMinor, currency: c.currency, date,
+        note: `${text} ${c.bank} ${c.checkNo} · ${i.reason}`, checkId: c.id, createdBy: ctx.user.userId,
+      });
+    if (c.direction === 'received') {
+      // Müşterinin borcu geri gelir.
+      await back(c.partyId, 'out', 'Karşılıksız / iade çek');
+      // Ciro edildiyse tedarikçi çeki bize geri verdi: tedarikçiye ödeme sayılmaz, borcumuz geri gelir.
+      if (c.status === 'endorsed' && c.endorsedPartyId) await back(c.endorsedPartyId, 'in', 'Ciro edilen çek geri döndü');
+    } else {
+      await back(c.partyId, 'in', 'Verilen çek geri alındı');
+    }
     const status = c.direction === 'received' ? 'returned' : 'cancelled';
     await setCheck(ctx, c.id, c.version, { status, note: c.note ? `${c.note} · ${i.reason}` : i.reason });
-    await ctx.audit({ entity: 'fin_check', entityId: c.id, after: { status, reason: i.reason } });
+    await ctx.audit({ entity: 'fin_check', entityId: c.id, after: { status, reason: i.reason, from: c.status } });
     return { id: c.id };
+  },
+});
+
+/** Dönem kilidi: KDV beyanından sonra o tarihe kadarki kayıtlar kilitlenir. Kilidi geri almak yalnızca yöneticidir. */
+export const setPeriodLock = defineAction({
+  name: 'finance.setPeriodLock',
+  module: 'finance',
+  roles: FIN,
+  input: z.object({ lockedUntil: isoDate.nullable() }),
+  run: async (ctx, i) => {
+    const current = await lockedUntil(ctx);
+    if (i.lockedUntil && i.lockedUntil >= istanbulToday()) throw new AppError('VALIDATION', 'Bugün ve sonrası kilitlenemez.', { lockedUntil: 'Geçmiş bir tarih seçin.' });
+    const loosening = current && (!i.lockedUntil || i.lockedUntil < current);
+    if (loosening && !ctx.user.roles.includes('admin')) throw new AppError('FORBIDDEN', 'Kilitli dönemi yalnızca yönetici açabilir.');
+    await ctx.tx
+      .insert(finSettings)
+      .values({ companyId: ctx.companyId, lockedUntil: i.lockedUntil, updatedBy: ctx.user.userId })
+      .onConflictDoUpdate({ target: finSettings.companyId, set: { lockedUntil: i.lockedUntil, updatedAt: new Date(), updatedBy: ctx.user.userId } });
+    await ctx.audit({ entity: 'fin_settings', entityId: ctx.companyId, before: { lockedUntil: current }, after: { lockedUntil: i.lockedUntil } });
+    return { lockedUntil: i.lockedUntil };
   },
 });
 
@@ -422,6 +499,7 @@ export const recordOrderInvoice = defineAction({
   run: async (ctx, i) => {
     requireModule('orders', ctx.cfg);
     notFuture('date')(i.date);
+    await assertOpen(ctx, i.date);
     if (i.due && i.due < i.date) throw new AppError('VALIDATION', 'Vade fatura tarihinden önce olamaz.', { due: 'Fatura tarihi veya sonrası.' });
     const b = await invoiceBreakdown(ctx, i.orderId);
     if (b.base <= 0n) throw new AppError('INVALID_STATE', 'Faturalanacak tutar yok.');
@@ -435,7 +513,7 @@ export const recordOrderInvoice = defineAction({
       .insert(finInvoices)
       .values({
         companyId: ctx.companyId, kind: 'sales', partyId: b.order.partyId, docNo: i.docNo, date: i.date, due: i.due, currency: b.currency,
-        baseMinor: b.base, vatMinor: b.vat, totalMinor: b.base + b.vat, note: `Sipariş ${b.order.no}`, createdBy: ctx.user.userId,
+        baseMinor: b.base, vatMinor: b.vat, totalMinor: b.base + b.vat, note: `Sipariş ${b.order.no}`, orderId: i.orderId, createdBy: ctx.user.userId,
       })
       .returning({ id: finInvoices.id });
     await ctx.audit({ entity: 'fin_invoice', entityId: row!.id, after: { kind: 'sales', orderId: i.orderId, docNo: i.docNo, total: (b.base + b.vat).toString() } });

@@ -31,7 +31,7 @@ export async function recordOrderPayment(ctx: ActionCtx, i: { orderId: string; p
   if (o.currency !== i.currency) throw new AppError('VALIDATION', `Sipariş ${o.currency}; aynı para biriminde hesap seçin.`, { orderId: `Sipariş ${o.currency}.` });
   const [row] = await ctx.tx
     .insert(orderPayments)
-    .values({ companyId: ctx.companyId, orderId: o.id, kind: 'payment', amountMinor: i.amountMinor, currency: o.currency, paidAt: i.paidAt ?? istanbulToday(), note: i.note, createdBy: ctx.user.userId })
+    .values({ companyId: ctx.companyId, orderId: o.id, kind: 'payment', amountMinor: i.amountMinor, currency: o.currency, paidAt: i.paidAt ?? istanbulToday(), note: i.note, source: 'finance', createdBy: ctx.user.userId })
     .returning({ id: orderPayments.id });
   await ctx.audit({ entity: 'order_payment', entityId: row!.id, after: { orderId: o.id, amount: moneyToJSON(money(i.amountMinor, o.currency as Currency)), via: 'finance' } });
   return { id: row!.id, no: o.no };
@@ -45,7 +45,7 @@ export async function reverseOrderPayment(ctx: ActionCtx, paymentId: string, rea
   const current = corrections.reduce((s, c) => s + c.amountMinor, orig.amountMinor);
   if (current === 0n) return;
   await ctx.tx.insert(orderPayments).values({
-    companyId: ctx.companyId, orderId: orig.orderId, kind: 'correction', amountMinor: -current, currency: orig.currency, paidAt: istanbulToday(), note: `Ön muhasebede iptal: ${reason}`, correctsPaymentId: orig.id, createdBy: ctx.user.userId,
+    companyId: ctx.companyId, orderId: orig.orderId, kind: 'correction', amountMinor: -current, currency: orig.currency, paidAt: istanbulToday(), note: `Ön muhasebede iptal: ${reason}`, correctsPaymentId: orig.id, source: 'finance', createdBy: ctx.user.userId,
   });
   await ctx.audit({ entity: 'order_payment', entityId: orig.id, before: { amount: current.toString() }, after: { amount: '0', via: 'finance' } });
 }
@@ -79,4 +79,12 @@ export async function markOrderInvoiced(ctx: ActionCtx, i: { orderId: string; ve
   if (!updated.length) throw new AppError('CONFLICT', 'Bu kayıt başka biri tarafından değiştirildi, sayfayı yenileyin.');
   await ctx.audit({ entity: 'order', entityId: i.orderId, before: { status: o.status }, after: { status: 'invoiced', invoice: mark } });
   return { id: i.orderId };
+}
+
+/** Ön muhasebede iptal edilen siparişli fatura: sipariş yeniden "faturaya hazır" olur, fatura işareti kaldırılır. */
+export async function revertOrderInvoiced(ctx: ActionCtx, orderId: string, reason: string) {
+  const [o] = await ctx.tx.select().from(orders).where(eq(orders.id, orderId)).for('update');
+  if (!o || o.status !== 'invoiced') return;
+  await ctx.tx.update(orders).set({ status: 'ready_to_invoice', invoiceMark: null, version: o.version + 1 }).where(eq(orders.id, orderId));
+  await ctx.audit({ entity: 'order', entityId: orderId, before: { status: 'invoiced', invoice: o.invoiceMark }, after: { status: 'ready_to_invoice', reason } });
 }

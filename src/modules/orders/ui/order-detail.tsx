@@ -236,7 +236,7 @@ function DeliveryDate({ order: o, onDone }: { order: Order; onDone: () => void }
   const late = o.deliveryDate && o.deliveryDate < istanbulToday() && o.status !== 'cancelled' && o.status !== 'invoiced' && o.shippedQty < o.quantity;
   if (editing) {
     return (
-      <form className="inline-flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); const v = String(new FormData(e.currentTarget).get('deliveryDate') ?? ''); save.run({ id: o.id, deliveryDate: v || null }, () => { setEditing(false); onDone(); }); }}>
+      <form className="inline-flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); const v = String(new FormData(e.currentTarget).get('deliveryDate') ?? ''); save.run({ id: o.id, version: o.version, deliveryDate: v || null }, () => { setEditing(false); onDone(); }); }}>
         <input type="date" name="deliveryDate" aria-label="Teslim tarihi" defaultValue={o.deliveryDate ?? ''} min={o.orderDate} className={`${fieldClass} min-h-9 w-auto py-1 text-sm`} />
         <Button className="min-h-9 px-3" disabled={save.pending}>Kaydet</Button>
         <Button type="button" variant="ghost" className="min-h-9 px-2" onClick={() => setEditing(false)}>Vazgeç</Button>

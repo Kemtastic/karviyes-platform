@@ -83,6 +83,16 @@ describe('açık kalemler ve yaşlandırma', () => {
     expect(items).toMatchObject([{ id: 'al', open: 3000n, bucket: 'current' }]);
   });
 
+  it('borç tarafı: alacaklı açılış (biz borçluyuz) açık kalem olur ve ödemeler önce onu kapatır', () => {
+    const items = openItems([e('acilis', 'opening', -10000n, '2026-01-01'), e('od', 'out', 4000n, '2026-02-01'), e('al', 'purchase', 5000n, '2026-03-01', '2026-11-01')], '2026-10-18', 'payable');
+    expect(items.map((i) => [i.id, i.open, i.total])).toEqual([['acilis', 6000n, 10000n], ['al', 5000n, 5000n]]);
+  });
+
+  it('iade faturaları: satış iadesi müşteriyi alacaklandırır, alış iadesi tedarikçiyi borçlandırır', () => {
+    expect(statement([e('s', 'sales', 1000n, '2026-10-01'), e('si', 'sales_return', 300n, '2026-10-02')]).balance).toBe(700n);
+    expect(statement([e('a', 'purchase', 1000n, '2026-10-01'), e('ai', 'purchase_return', 200n, '2026-10-02')]).balance).toBe(-800n);
+  });
+
   it('fazla tahsilat açık kalem bırakmaz', () => {
     expect(openItems([e('f', 'sales', 1000n, '2026-10-01'), e('t', 'in', 5000n, '2026-10-02')], '2026-10-18')).toEqual([]);
   });

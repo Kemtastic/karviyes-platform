@@ -5,11 +5,11 @@ import { createParty } from '@/core/parties/service';
 import { createStaff } from '@/core/users/service';
 import { eq } from 'drizzle-orm';
 import { withCompany } from '@/core/db/scope';
-import { createAccount, recordOrderInvoice, recordPayment, reverseMovement } from '@/modules/finance/server/actions';
+import { cancelInvoice, createAccount, recordOrderInvoice, recordPayment, reverseMovement } from '@/modules/finance/server/actions';
 import { orders } from '@/modules/orders/db/schema';
 import { orderForOffice } from '@/modules/orders/server/queries';
 import { partyBalances, partyOpenOrders } from '@/modules/finance/server/queries';
-import { createOrder } from '@/modules/orders/server/actions';
+import { correctPayment, createOrder } from '@/modules/orders/server/actions';
 import { customerAccount } from '@/modules/orders/server/queries';
 
 let t: TestDb;
@@ -46,6 +46,12 @@ describe('tahsilatı siparişe de işleme', () => {
     ids.hareket = r.id;
   });
 
+  it('ön muhasebeden gelen sipariş tahsilatı sipariş ekranından düzeltilemez', async () => {
+    const o = ok(await orderForOffice({ id: ids.siparis! }, admin()));
+    const p = o.payments.find((x) => x.kind === 'payment')!;
+    expect(await correctPayment({ paymentId: p.id, amount: '1.000', note: 'deneme düzeltme' }, admin())).toMatchObject({ ok: false, code: 'INVALID_STATE' });
+  });
+
   it('hareket iptal edilince sipariş tahsilatı düzeltmeyle sıfırlanır', async () => {
     ok(await reverseMovement({ id: ids.hareket, reason: 'Yanlış tutar' }, acc()));
     expect(await orderBalance(ids.siparis!)).toBe('1200000');
@@ -71,5 +77,10 @@ describe('siparişin faturası ön muhasebeye', () => {
     expect(o).toMatchObject({ status: 'invoiced', invoiceMark: { no: 'GIB1' } });
     expect(ok(await partyBalances({}, acc())).find((b) => b.partyId === ids.musteri)?.balance).toBe('1200000');
     expect(await recordOrderInvoice({ orderId: ids.siparis, version: o.version, docNo: 'GIB2', date: '2026-10-15' }, acc())).toMatchObject({ ok: false, code: 'INVALID_STATE' });
+    // Yanlış numarayla işlenen fatura iptal edilince sipariş yeniden faturalanabilir.
+    ok(await cancelInvoice({ id: r.id, reason: 'Yanlış fatura no' }, acc()));
+    const back = ok(await orderForOffice({ id: ids.siparis! }, admin()));
+    expect(back).toMatchObject({ status: 'ready_to_invoice', invoiceMark: null });
+    ok(await recordOrderInvoice({ orderId: ids.siparis, version: back.version, docNo: 'GIB3', date: '2026-10-16' }, acc()));
   });
 });

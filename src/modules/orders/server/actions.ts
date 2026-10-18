@@ -170,12 +170,13 @@ export const setDeliveryDate = defineAction({
   name: 'orders.setDeliveryDate',
   module: 'orders',
   roles: OFFICE,
-  input: z.object({ id: z.string().uuid(), deliveryDate: z.string().date().nullable() }),
+  input: z.object({ id: z.string().uuid(), version: z.number().int(), deliveryDate: z.string().date().nullable() }),
   run: async (ctx, i) => {
     const o = await loadOrder(ctx, i.id);
     if (o.status === 'cancelled') throw new AppError('INVALID_STATE', 'İptal edilmiş siparişin teslim tarihi değiştirilemez.');
     const deliveryDate = deliveryOf({ orderDate: o.orderDate, deliveryDate: i.deliveryDate });
-    await ctx.tx.update(orders).set({ deliveryDate }).where(eq(orders.id, o.id));
+    const updated = await ctx.tx.update(orders).set({ deliveryDate, version: o.version + 1 }).where(and(eq(orders.id, o.id), eq(orders.version, i.version))).returning({ id: orders.id });
+    if (!updated.length) throw conflict();
     await ctx.audit({ entity: 'order', entityId: o.id, before: { deliveryDate: o.deliveryDate }, after: { deliveryDate } });
     return { id: o.id };
   },
@@ -294,6 +295,7 @@ export const correctPayment = defineAction({
     // Asıl ödeme satırı kilitlenir: aynı ödemeye eşzamanlı iki düzeltme sırayla hesaplanır.
     const [orig] = await ctx.tx.select().from(orderPayments).where(eq(orderPayments.id, i.paymentId)).for('update');
     if (!orig || orig.kind === 'correction') throw new AppError('NOT_FOUND', 'Ödeme bulunamadı.');
+    if (orig.source === 'finance') throw new AppError('INVALID_STATE', 'Bu tahsilat ön muhasebeden girildi; düzeltme için ön muhasebede hareketi iptal edip yeniden girin.');
     const o = await loadOrder(ctx, orig.orderId);
     if (o.status === 'cancelled') throw new AppError('INVALID_STATE', 'İptal edilmiş siparişin ödemesi düzeltilemez.');
     const corrections = await ctx.tx.select().from(orderPayments).where(eq(orderPayments.correctsPaymentId, orig.id));

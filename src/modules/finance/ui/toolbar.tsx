@@ -5,10 +5,10 @@ import { ArrowDownLeft, ArrowUpRight, Plus, Receipt, Repeat, ScrollText } from '
 import { Button } from '@/ui/button';
 import { CheckDialog, ExpenseDialog, InvoiceDialog, PaymentDialog, TransferDialog, type AccountOption } from './dialogs';
 
-export type QuickAction = 'collection' | 'payment' | 'sales' | 'purchase' | 'expense' | 'income' | 'transfer' | 'checkIn' | 'checkOut';
+export type QuickAction = 'collection' | 'payment' | 'sales' | 'purchase' | 'sales_return' | 'purchase_return' | 'expense' | 'income' | 'transfer' | 'checkIn' | 'checkOut';
 
 const LABELS: Record<QuickAction, string> = {
-  collection: 'Tahsilat al', payment: 'Ödeme yap', sales: 'Satış faturası', purchase: 'Alış faturası', expense: 'Masraf gir', income: 'Diğer gelir',
+  collection: 'Tahsilat al', payment: 'Ödeme yap', sales: 'Satış faturası', purchase: 'Alış faturası', sales_return: 'Satış iadesi', purchase_return: 'Alış iadesi', expense: 'Masraf gir', income: 'Diğer gelir',
   transfer: 'Virman', checkIn: 'Çek al', checkOut: 'Çek ver',
 };
 const ICONS: Partial<Record<QuickAction, React.ReactNode>> = {
@@ -28,7 +28,7 @@ export function FinanceToolbar({ actions, accounts }: { actions: QuickAction[]; 
         <Button key={a} variant={i === 0 ? 'primary' : 'secondary'} onClick={() => setOpen(a)}>{ICONS[a]} {LABELS[a]}</Button>
       ))}
       {(open === 'collection' || open === 'payment') && <PaymentDialog kind={open} accounts={accounts} onClose={close} onDone={done} />}
-      {(open === 'sales' || open === 'purchase') && <InvoiceDialog kind={open} onClose={close} onDone={done} />}
+      {(open === 'sales' || open === 'purchase' || open === 'sales_return' || open === 'purchase_return') && <InvoiceDialog kind={open} onClose={close} onDone={done} />}
       {open === 'expense' && <ExpenseDialog direction="out" accounts={accounts} onClose={close} onDone={done} />}
       {open === 'income' && <ExpenseDialog direction="in" accounts={accounts} onClose={close} onDone={done} />}
       {open === 'transfer' && <TransferDialog accounts={accounts} onClose={close} onDone={done} />}

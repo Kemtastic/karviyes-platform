@@ -16,6 +16,7 @@ import { ledgerEntries } from './queries';
 
 export const LINK_DAYS = 30;
 const MAX_ROWS = 500;
+const DAILY_MAILS = 100;
 
 const hash = (secret: string) => createHash('sha256').update(secret).digest('hex');
 
@@ -26,7 +27,8 @@ export function makeToken(companyId: string, id: string): { token: string; token
 }
 
 export function parseToken(token: string): { companyId: string; id: string; secret: string } | null {
-  const m = /^([0-9a-f-]{36})~([0-9a-f-]{36})~([A-Za-z0-9_-]{43})$/.exec(token);
+  const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+  const m = new RegExp(`^(${uuid})~(${uuid})~([A-Za-z0-9_-]{43})$`).exec(token);
   return m ? { companyId: m[1]!, id: m[2]!, secret: m[3]! } : null;
 }
 
@@ -49,6 +51,8 @@ export function publicLink(token: string): string {
 
 async function nextNo(ctx: ActionCtx, asOf: string): Promise<string> {
   const prefix = `MUT-${asOf.replace(/-/g, '')}-`;
+  // Aynı gün için eşzamanlı iki mutabakat aynı numarayı almasın: firma + gün kilidi (işlem sonunda bırakılır).
+  await ctx.tx.execute(sql`select pg_advisory_xact_lock(hashtext(${ctx.companyId + prefix}))`);
   const [row] = await ctx.tx
     .select({ n: sql<number>`count(*)` })
     .from(finReconciliations)
@@ -74,7 +78,7 @@ export const createReconciliation = defineAction({
     const [p] = await ctx.tx.select({ name: parties.name, taxId: parties.taxId, archived: parties.archived }).from(parties).where(eq(parties.id, i.partyId));
     if (!p || p.archived) throw new AppError('VALIDATION', 'Listeden aktif bir cari seçin.', { partyId: 'Listeden aktif bir cari seçin.' });
     const [c] = await ctx.tx.select({ name: companies.name }).from(companies).where(eq(companies.id, ctx.companyId));
-    const entries = ((await ledgerEntries(ctx, i.partyId)).get(`${i.partyId}|${i.currency}`) ?? []).filter((e) => e.date <= i.asOf);
+    const entries = ((await ledgerEntries(ctx, i.partyId, true)).get(`${i.partyId}|${i.currency}`) ?? []).filter((e) => e.date <= i.asOf);
     const st = statement(entries);
     const rows = st.rows.map((r) => ({ date: r.date, text: r.text, debit: r.debit.toString(), credit: r.credit.toString(), balance: r.balance.toString() }));
     const snapshot: ReconciliationSnapshot = { company: c?.name ?? '', partyName: p.name, taxId: p.taxId, rows: rows.slice(-MAX_ROWS), truncated: rows.length > MAX_ROWS };
@@ -112,28 +116,43 @@ export const issueReconciliationLink = defineAction({
     const { token, tokenHash } = makeToken(ctx.companyId, r.id);
     const expires = new Date(Date.now() + LINK_DAYS * 86_400_000);
     const link = publicLink(token);
-    let mailed = false;
-    if (i.send && r.email) {
+    const send = i.send && Boolean(r.email);
+    if (send) {
       if (r.sentAt && Date.now() - r.sentAt.getTime() < 60 * 60 * 1000) throw new AppError('RATE_LIMITED', 'Bu mutabakat son bir saat içinde gönderildi. Bağlantıyı kopyalayıp iletebilirsiniz.');
+      const [d] = await ctx.tx
+        .select({ n: sql<number>`count(*)` })
+        .from(finReconciliations)
+        .where(sql`${finReconciliations.sentAt} > now() - interval '1 day'`);
+      if (Number(d?.n ?? 0) >= DAILY_MAILS) throw new AppError('RATE_LIMITED', `Günlük mutabakat e-postası sınırına (${DAILY_MAILS}) ulaşıldı. Bağlantıyı kopyalayıp iletebilirsiniz.`);
+    }
+    // Önce kayıt (sürüm kilidiyle); e-posta ancak bağlantı kaydedildiyse gider.
+    const saved = await ctx.tx
+      .update(finReconciliations)
+      .set({ tokenHash, tokenExpiresAt: expires, status: 'pending', ...(send ? { sentAt: new Date() } : {}), version: r.version + 1 })
+      .where(and(eq(finReconciliations.id, r.id), eq(finReconciliations.version, r.version)))
+      .returning({ id: finReconciliations.id });
+    if (!saved.length) throw new AppError('CONFLICT', 'Mutabakat başka biri tarafından değiştirildi. Sayfayı yenileyin.');
+    let mailed = false;
+    if (send) {
       const { sendMail } = await import('@/core/mail');
-      const balance = formatMoney(money(r.balanceMinor, r.currency as Currency));
+      const b = r.balanceMinor;
+      const balance = formatMoney(money(b < 0n ? -b : b, r.currency as Currency));
+      const side = b > 0n ? 'firmamıza borçlu' : b < 0n ? 'firmamızdan alacaklı' : 'bakiyesiz';
       const text = [
         `Sayın ${r.contactName || r.snapshot.partyName},`,
         '',
-        `${r.snapshot.company} kayıtlarına göre ${r.asOf.split('-').reverse().join('.')} tarihi itibarıyla cari hesap bakiyeniz ${balance} (${Number(r.balanceMinor) >= 0 ? 'firmamıza borçlu' : 'firmamızdan alacaklı'}) görünmektedir.`,
+        b === 0n
+          ? `${r.snapshot.company} kayıtlarına göre ${r.asOf.split('-').reverse().join('.')} tarihi itibarıyla cari hesabınızda bakiye bulunmamaktadır.`
+          : `${r.snapshot.company} kayıtlarına göre ${r.asOf.split('-').reverse().join('.')} tarihi itibarıyla cari hesap bakiyeniz ${balance} (${side}, KDV dahil) görünmektedir.`,
         r.message ? `\n${r.message}\n` : '',
-        'Ekstreyi görmek ve mutabık olup olmadığınızı bildirmek için aşağıdaki bağlantıyı kullanın (30 gün geçerlidir):',
+        'Ekstreyi görmek ve mutabık olup olmadığınızı bildirmek için aşağıdaki bağlantıyı kullanın (30 gün geçerlidir; bağlantıyı başkalarıyla paylaşmayın):',
         link,
         '',
-        'Cevap verilmemesi mutabakat sayılmaz.',
+        'Cevap verilmemesi mutabakat sayılmaz. Bu bildirim cari hesap mutabakatıdır; Form Ba/Bs bildirimi değildir.',
       ].join('\n');
-      // Gönderilemezse bağlantı yine verilir; ekranda kopyalanıp iletilir.
+      // Gönderilemezse bağlantı yine geçerlidir; ekranda kopyalanıp iletilir.
       mailed = await sendMail(r.email, `${r.snapshot.company} · Cari hesap mutabakatı ${r.no}`, text).then(() => true, () => false);
     }
-    await ctx.tx
-      .update(finReconciliations)
-      .set({ tokenHash, tokenExpiresAt: expires, status: 'pending', ...(mailed ? { sentAt: new Date() } : {}), version: r.version + 1 })
-      .where(and(eq(finReconciliations.id, r.id), eq(finReconciliations.version, r.version)));
     await ctx.audit({ entity: 'fin_reconciliation', entityId: r.id, after: { status: 'pending', mailed, expires: expires.toISOString() } });
     return { link, mailed, expiresAt: expires.toISOString() };
   },
@@ -147,7 +166,8 @@ export const cancelReconciliation = defineAction({
   run: async (ctx, i) => {
     const r = await load(ctx, i.id, i.version);
     if (r.status !== 'draft' && r.status !== 'pending') throw new AppError('INVALID_STATE', 'Cevaplanmış mutabakat iptal edilemez.');
-    await ctx.tx.update(finReconciliations).set({ status: 'cancelled', cancelReason: i.reason, tokenHash: null, version: r.version + 1 }).where(eq(finReconciliations.id, r.id));
+    const done = await ctx.tx.update(finReconciliations).set({ status: 'cancelled', cancelReason: i.reason, tokenHash: null, version: r.version + 1 }).where(and(eq(finReconciliations.id, r.id), eq(finReconciliations.version, r.version))).returning({ id: finReconciliations.id });
+    if (!done.length) throw new AppError('CONFLICT', 'Mutabakat başka biri tarafından değiştirildi. Sayfayı yenileyin.');
     await ctx.audit({ entity: 'fin_reconciliation', entityId: r.id, after: { status: 'cancelled', reason: i.reason } });
     return { id: r.id };
   },
@@ -182,7 +202,8 @@ export const recordReconciliationAnswer = defineAction({
     if (r.status !== 'draft' && r.status !== 'pending') throw new AppError('INVALID_STATE', 'Bu mutabakat zaten cevaplanmış ya da iptal edilmiş.');
     const { counter } = checkAnswer(i, r.currency as Currency);
     const response: ReconciliationResponse = { name: i.name, title: i.title, note: i.note, counterBalance: counter, at: new Date().toISOString(), external: true };
-    await ctx.tx.update(finReconciliations).set({ status: i.status, response, respondedAt: new Date(), tokenHash: null, version: r.version + 1 }).where(eq(finReconciliations.id, r.id));
+    const done = await ctx.tx.update(finReconciliations).set({ status: i.status, response, respondedAt: new Date(), tokenHash: null, version: r.version + 1 }).where(and(eq(finReconciliations.id, r.id), eq(finReconciliations.version, r.version))).returning({ id: finReconciliations.id });
+    if (!done.length) throw new AppError('CONFLICT', 'Mutabakat başka biri tarafından değiştirildi. Sayfayı yenileyin.');
     await ctx.audit({ entity: 'fin_reconciliation', entityId: r.id, after: { status: i.status, external: true } });
     return { id: r.id };
   },
@@ -236,7 +257,7 @@ export type PublicReconciliation = {
 async function byToken(token: string, db: Db) {
   const t = parseToken(token);
   if (!t) return null;
-  const [r] = await withCompany(t.companyId, (tx) => tx.select().from(finReconciliations).where(eq(finReconciliations.id, t.id)), db);
+  const [r] = await withCompany(t.companyId, (tx) => tx.select().from(finReconciliations).where(eq(finReconciliations.id, t.id)), db).catch(() => []);
   if (!r) return null;
   // İptal edilen ya da sistem dışı cevaplanan kayıtta özet silinir; bağlantı da geçersiz olur.
   if (!sameHash(t.secret, r.tokenHash) || !r.tokenExpiresAt || r.tokenExpiresAt < new Date()) return null;
@@ -254,7 +275,7 @@ export async function publicReconciliation(token: string, db?: Db): Promise<Publ
 }
 
 /** Karşı tarafın cevabı: bir kez verilir, sonra kesinleşir. Sessizlik mutabakat sayılmaz. */
-export async function answerReconciliation(token: string, raw: unknown, db?: Db): Promise<{ ok: true } | { ok: false; message: string; fieldErrors?: Record<string, string> }> {
+export async function answerReconciliation(token: string, raw: unknown, db?: Db, meta: { ip?: string; userAgent?: string } = {}): Promise<{ ok: true } | { ok: false; message: string; fieldErrors?: Record<string, string> }> {
   const database = db ?? (await getDb());
   const found = await byToken(token, database);
   if (!found) return { ok: false, message: 'Bağlantı geçersiz ya da süresi dolmuş.' };
@@ -273,14 +294,17 @@ export async function answerReconciliation(token: string, raw: unknown, db?: Db)
     return { ok: false, message: err.message, fieldErrors: err.fieldErrors };
   }
   const a = parsed.data;
-  const response: ReconciliationResponse = { name: a.name, title: a.title, note: a.note, counterBalance: counter, at: new Date().toISOString(), external: false };
+  // Delil için cevabın geldiği IP ve tarayıcı saklanır.
+  const response: ReconciliationResponse = { name: a.name, title: a.title, note: a.note, counterBalance: counter, at: new Date().toISOString(), external: false, ip: meta.ip?.slice(0, 64), userAgent: meta.userAgent?.slice(0, 300) };
+  // Cevaptan sonra bağlantı yalnızca sonucu göstermek için en çok 7 gün daha açık kalır.
+  const shortened = new Date(Math.min(r.tokenExpiresAt!.getTime(), Date.now() + 7 * 86_400_000));
   const done = await withCompany(
     t.companyId,
     async (tx) => {
       // Aynı anda iki cevap gelirse yalnızca ilki yazılır.
       const rows = await tx
         .update(finReconciliations)
-        .set({ status: a.status, response, respondedAt: new Date(), version: r.version + 1 })
+        .set({ status: a.status, response, respondedAt: new Date(), tokenExpiresAt: shortened, version: r.version + 1 })
         .where(and(eq(finReconciliations.id, r.id), eq(finReconciliations.status, 'pending'), eq(finReconciliations.version, r.version)))
         .returning({ id: finReconciliations.id });
       if (rows.length) {

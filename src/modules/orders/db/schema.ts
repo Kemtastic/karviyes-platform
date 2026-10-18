@@ -80,6 +80,8 @@ export const orderPayments = pgTable(
     paidAt: date('paid_at').notNull(),
     note: text('note').notNull().default(''),
     correctsPaymentId: uuid('corrects_payment_id'),
+    /** 'finance': ön muhasebe tahsilatından gelir; yalnızca ön muhasebeden iptal edilir. */
+    source: text('source').notNull().default(''),
     createdBy: text('created_by').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

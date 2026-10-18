@@ -6,8 +6,8 @@ export type LedgerEntry = {
   date: string;
   /** Vade (fatura); yoksa null. */
   due: string | null;
-  kind: 'opening' | 'sales' | 'purchase' | 'in' | 'out';
-  /** Her zaman artı tutar; yön `kind`'dan gelir. */
+  kind: 'opening' | 'sales' | 'purchase' | 'sales_return' | 'purchase_return' | 'in' | 'out';
+  /** Artı tutar (açılışta işaretli); yön `kind`'dan gelir. */
   amount: bigint;
   text: string;
 };
@@ -18,15 +18,17 @@ export function signed(e: LedgerEntry): bigint {
     case 'opening':
       return e.amount;
     case 'sales':
+    case 'purchase_return':
     case 'out':
       return e.amount;
     case 'purchase':
+    case 'sales_return':
     case 'in':
       return -e.amount;
   }
 }
 
-const ORDER: Record<LedgerEntry['kind'], number> = { opening: 0, sales: 1, purchase: 1, in: 2, out: 2 };
+const ORDER: Record<LedgerEntry['kind'], number> = { opening: 0, sales: 1, purchase: 1, sales_return: 1, purchase_return: 1, in: 2, out: 2 };
 
 export function sortEntries(entries: LedgerEntry[]): LedgerEntry[] {
   return [...entries].sort((a, b) => a.date.localeCompare(b.date) || ORDER[a.kind] - ORDER[b.kind] || a.id.localeCompare(b.id));
@@ -77,22 +79,25 @@ export function bucketOf(due: string | null, today: string): { bucket: AgingBuck
  */
 export function openItems(entries: LedgerEntry[], today: string, side: 'receivable' | 'payable' = 'receivable'): OpenItem[] {
   const sign = side === 'receivable' ? 1n : -1n;
-  const debits: LedgerEntry[] = [];
+  // Tutar her zaman bu tarafın yönündeki büyüklüktür (açılış eksi girilmiş olabilir).
+  const debits: { e: LedgerEntry; amt: bigint }[] = [];
   let pool = 0n;
   for (const e of entries) {
     const s = signed(e) * sign;
-    if (s > 0n) debits.push(e);
+    if (s > 0n) debits.push({ e, amt: s });
     else pool += -s;
   }
-  debits.sort((a, b) => (a.due ?? '9999-12-31').localeCompare(b.due ?? '9999-12-31') || a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+  // Açılış kaleminin vadesi açılış tarihidir (en eski borç önce kapanır); vadesiz faturalar en sona.
+  const dueOf = (e: LedgerEntry) => e.due ?? (e.kind === 'opening' ? e.date : null);
+  debits.sort((a, b) => (dueOf(a.e) ?? '9999-12-31').localeCompare(dueOf(b.e) ?? '9999-12-31') || a.e.date.localeCompare(b.e.date) || a.e.id.localeCompare(b.e.id));
   const out: OpenItem[] = [];
-  for (const d of debits) {
-    const used = pool < d.amount ? pool : d.amount;
+  for (const { e: d, amt } of debits) {
+    const used = pool < amt ? pool : amt;
     pool -= used;
-    const open = d.amount - used;
+    const open = amt - used;
     if (open <= 0n) continue;
-    const due = d.due ?? (d.kind === 'opening' ? d.date : null);
-    out.push({ id: d.id, date: d.date, due, total: d.amount, open, text: d.text, ...bucketOf(due, today) });
+    const due = dueOf(d);
+    out.push({ id: d.id, date: d.date, due, total: amt, open, text: d.text, ...bucketOf(due, today) });
   }
   return out;
 }
@@ -121,3 +126,5 @@ export function invoiceTotals(baseMinor: bigint, vatRatePercent: number, withhol
   const withholding = (vat * BigInt(withholdingTenths) + 5n) / 10n;
   return { vat, withholding, total: baseMinor + vat - withholding };
 }
+
+export const INVOICE_KIND_LABELS: Record<string, string> = { sales: 'Satış faturası', purchase: 'Alış faturası', sales_return: 'Satış iade faturası', purchase_return: 'Alış iade faturası' };

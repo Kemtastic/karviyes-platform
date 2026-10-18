@@ -17,7 +17,7 @@ type Row = { id: string; date: string; due: string | null; kind: string; text: s
 type Item = { id: string; date: string; due: string | null; total: string; open: string; daysOverdue: number; bucket: string; text: string };
 export type Ledger = { currencies: { currency: Currency; carried: string; balance: string; rows: Row[]; receivable: Item[]; payable: Item[] }[] };
 
-type Dialog = 'sales' | 'purchase' | 'collection' | 'payment' | 'opening' | null;
+type Dialog = 'sales' | 'purchase' | 'sales_return' | 'purchase_return' | 'collection' | 'payment' | 'opening' | null;
 
 export function PartyLedger({ party, kind, ledger, accounts, from }: { party: PartyRef; kind: string; ledger: Ledger; accounts: AccountOption[]; from: string }) {
   const router = useRouter();
@@ -33,6 +33,8 @@ export function PartyLedger({ party, kind, ledger, accounts, from }: { party: Pa
         {isSupplier && <Button variant={isCustomer ? 'secondary' : 'primary'} onClick={() => setOpen('payment')}><ArrowUpRight aria-hidden className="h-4 w-4" /> Ödeme yap</Button>}
         {isCustomer && <Button variant="secondary" onClick={() => setOpen('sales')}><Receipt aria-hidden className="h-4 w-4" /> Satış faturası</Button>}
         {isSupplier && <Button variant="secondary" onClick={() => setOpen('purchase')}><Receipt aria-hidden className="h-4 w-4" /> Alış faturası</Button>}
+        {isCustomer && <Button variant="ghost" onClick={() => setOpen('sales_return')}>Satış iadesi</Button>}
+        {isSupplier && <Button variant="ghost" onClick={() => setOpen('purchase_return')}>Alış iadesi</Button>}
         <Button variant="ghost" onClick={() => setOpen('opening')}><Scale aria-hidden className="h-4 w-4" /> Açılış bakiyesi</Button>
         <Link href={`/muhasebe/mutabakat?cari=${party.id}`} className="inline-flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold text-stone-700 hover:bg-stone-100"><FileText aria-hidden className="h-4 w-4" /> Mutabakat</Link>
       </div>
@@ -46,7 +48,7 @@ export function PartyLedger({ party, kind, ledger, accounts, from }: { party: Pa
       ) : (
         <EmptyState title="Bu carinin muhasebe kaydı yok." hint="Fatura kaydı, tahsilat ya da açılış bakiyesi girerek başlayın." />
       )}
-      {(open === 'sales' || open === 'purchase') && <InvoiceDialog kind={open} party={party} onClose={close} onDone={done} />}
+      {(open === 'sales' || open === 'purchase' || open === 'sales_return' || open === 'purchase_return') && <InvoiceDialog kind={open} party={party} onClose={close} onDone={done} />}
       {(open === 'collection' || open === 'payment') && <PaymentDialog kind={open} party={party} accounts={accounts} onClose={close} onDone={done} />}
       {open === 'opening' && <OpeningDialog party={party} onClose={close} onDone={done} />}
     </div>
