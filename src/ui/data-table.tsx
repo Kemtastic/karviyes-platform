@@ -8,6 +8,8 @@ export type Column<T> = {
   align?: 'left' | 'right';
   render: (row: T) => React.ReactNode;
   sortValue?: (row: T) => string | number | bigint;
+  /** Telefonda kart görünümü: başlık olarak öne çıkar ya da hiç gösterme. */
+  mobile?: 'title' | 'hide';
 };
 
 type Props<T> = { columns: Column<T>[]; rows: T[]; rowKey: (row: T) => string; empty?: string; pageSize?: number; onRowClick?: (row: T) => void };
@@ -33,8 +35,34 @@ export function DataTable<T>({ columns, rows, rowKey, empty = 'Kayıt yok.', pag
 
   if (!rows.length) return <EmptyState title={empty} />;
 
+  // Telefonda tablo yerine kart listesi: başlık sütunu üstte, diğerleri etiket–değer, eylem sütunu (başlıksız) altta.
+  const titleCol = columns.find((c) => c.mobile === 'title') ?? columns[0]!;
+  const infoCols = columns.filter((c) => c !== titleCol && c.mobile !== 'hide' && c.header);
+  const actionCols = columns.filter((c) => !c.header && c !== titleCol);
+
   return (
-    <div className="overflow-x-auto rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)]">
+    <>
+    <ul className="space-y-2 sm:hidden">
+      {visible.map((row) => (
+        <li
+          key={rowKey(row)}
+          onClick={onRowClick ? () => onRowClick(row) : undefined}
+          className={`rounded-2xl border border-stone-200/80 bg-white p-4 shadow-[var(--shadow-card)] ${onRowClick ? 'cursor-pointer active:bg-[var(--brand-softer)]' : ''}`}
+        >
+          <div className="text-[15px] font-medium text-stone-900">{titleCol.render(row)}</div>
+          <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-sm">
+            {infoCols.map((c) => (
+              <div key={c.key} className="min-w-0">
+                <dt className="text-[11px] font-medium uppercase tracking-wide text-stone-400">{c.header}</dt>
+                <dd className="min-w-0 break-words text-stone-700 [&_.block.text-right]:text-left">{c.render(row)}</dd>
+              </div>
+            ))}
+          </dl>
+          {actionCols.length > 0 && <div className="mt-3 flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>{actionCols.map((c) => <span key={c.key}>{c.render(row)}</span>)}</div>}
+        </li>
+      ))}
+    </ul>
+    <div className="hidden overflow-x-auto rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)] sm:block">
       <table className="w-full text-sm">
         <thead className="border-b border-stone-200 bg-stone-50/80 text-xs uppercase tracking-wide text-stone-500">
           <tr>
@@ -65,8 +93,9 @@ export function DataTable<T>({ columns, rows, rowKey, empty = 'Kayıt yok.', pag
           ))}
         </tbody>
       </table>
+    </div>
       {pages > 1 && (
-        <div className="flex items-center justify-between border-t border-stone-200 px-4 py-2.5 text-sm text-stone-600">
+        <div className="mt-2 flex items-center justify-between rounded-2xl border border-stone-200/80 bg-white px-4 py-2.5 text-sm text-stone-600 shadow-[var(--shadow-card)]">
           <span>
             {current + 1} / {pages} sayfa · {rows.length} kayıt
           </span>
@@ -76,6 +105,6 @@ export function DataTable<T>({ columns, rows, rowKey, empty = 'Kayıt yok.', pag
           </span>
         </div>
       )}
-    </div>
+    </>
   );
 }

@@ -57,7 +57,7 @@ export function BoardScreen({ tab, data, sector, canManage }: { tab: string; dat
           columns={[
             { key: 'no', header: 'Sipariş', render: (r) => <Link className="whitespace-nowrap font-mono text-xs font-medium text-stone-700 underline-offset-2 hover:underline" href={`/siparisler/${r.id}`}>{r.no}</Link> },
             { key: 'date', header: 'Tarih', render: (r) => <DateText value={r.orderDate} />, sortValue: (r) => r.orderDate },
-            { key: 'party', header: 'Müşteri', render: (r) => <span className="font-medium">{r.partyName}</span> },
+            { key: 'party', header: 'Müşteri', mobile: 'title', render: (r) => <span className="font-medium">{r.partyName}</span> },
             { key: 'product', header: 'Ürün', render: (r) => <span className="line-clamp-2 max-w-md text-stone-600">{r.product}</span> },
             { key: 'qty', header: 'Adet', align: 'right', render: (r) => r.quantity.toLocaleString('tr-TR') },
             { key: 'go', header: '', render: (r) => canManage && <Button disabled={start.pending} onClick={() => start.run({ orderId: r.id }, (d) => router.push(`/uretim/is/${d.id}`))}>Üretime al</Button> },
@@ -72,7 +72,7 @@ export function BoardScreen({ tab, data, sector, canManage }: { tab: string; dat
           columns={[
             { key: 'no', header: 'İş', render: (r) => <span className="whitespace-nowrap font-mono text-xs font-medium text-stone-700">{r.no}</span>, sortValue: (r) => r.no },
             { key: 'date', header: 'Sipariş tarihi', render: (r) => <DateText value={r.orderDate} />, sortValue: (r) => r.orderDate },
-            { key: 'party', header: 'Müşteri', render: (r) => <span className="font-medium">{r.partyName}</span>, sortValue: (r) => r.partyName },
+            { key: 'party', header: 'Müşteri', mobile: 'title', render: (r) => <span className="font-medium">{r.partyName}</span>, sortValue: (r) => r.partyName },
             { key: 'product', header: 'Ürün', render: (r) => <span className="line-clamp-2 max-w-sm text-stone-600">{r.product}</span> },
             { key: 'qty', header: 'Adet', align: 'right', render: (r) => r.quantity.toLocaleString('tr-TR') },
             { key: 'done', header: 'Üretilen / sevk', render: (r) => <span className="block"><Progress done={r.producedQty} total={r.quantity} />{r.shippedQty > 0 && <span className="mt-1 block text-xs text-stone-500">sevk {r.shippedQty.toLocaleString('tr-TR')}</span>}</span> },
