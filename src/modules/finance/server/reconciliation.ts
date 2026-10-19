@@ -255,7 +255,7 @@ export type PublicReconciliation = {
   rows: ReconciliationSnapshot['rows']; truncated: boolean; status: string; response: ReconciliationResponse | null;
 };
 
-async function byToken(token: string, db: Db) {
+async function byToken(token: string, db?: Db) {
   const t = parseToken(token);
   if (!t) return null;
   const [r] = await withCompany(t.companyId, (tx) => tx.select().from(finReconciliations).where(eq(finReconciliations.id, t.id)), db).catch(() => []);
@@ -266,7 +266,7 @@ async function byToken(token: string, db: Db) {
 }
 
 export async function publicReconciliation(token: string, db?: Db): Promise<PublicReconciliation | null> {
-  const found = await byToken(token, db ?? (await getDb()));
+  const found = await byToken(token, db);
   if (!found) return null;
   const { r } = found;
   return {
@@ -277,7 +277,7 @@ export async function publicReconciliation(token: string, db?: Db): Promise<Publ
 
 /** Karşı tarafın cevabı: bir kez verilir, sonra kesinleşir. Sessizlik mutabakat sayılmaz. */
 export async function answerReconciliation(token: string, raw: unknown, db?: Db, meta: { ip?: string; userAgent?: string } = {}): Promise<{ ok: true } | { ok: false; message: string; fieldErrors?: Record<string, string> }> {
-  const database = db ?? (await getDb());
+  const database = db;
   const found = await byToken(token, database);
   if (!found) return { ok: false, message: 'Bağlantı geçersiz ya da süresi dolmuş.' };
   const { t, r } = found;

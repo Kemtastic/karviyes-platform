@@ -1,0 +1,1 @@
+ALTER TABLE "companies" ADD COLUMN "data_url_enc" text;

@@ -20,6 +20,7 @@ Her müşteri kurulumunda, ilk kullanıcı girmeden önce.
 ## Kurulumda yapılacaklar
 
 - [ ] `BETTER_AUTH_SECRET` en az 32 karakter, rastgele, kuruluma özel
+- [ ] `PLATFORM_SECRET` tanımlı ve parola kasasında yedekli (ayrı veritabanı adreslerinin anahtarı)
 - [ ] `DB_PASSWORD` uzun ve rastgele; veritabanı portu dışarı açık değil
 - [ ] Alan adı HTTPS (Caddy otomatik); `BETTER_AUTH_URL` https
 - [ ] SSH yalnızca anahtarla, parola girişi kapalı; güvenlik duvarı 22/80/443

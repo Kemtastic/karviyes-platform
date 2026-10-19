@@ -29,5 +29,6 @@ export const getConfig = cache(async (): Promise<InstallConfig> => {
   const [{ getCurrentUser }, { getDb }] = await Promise.all([import('@/core/auth/session'), import('@/core/db/client')]);
   const user = await getCurrentUser();
   if (!user) return getInstallConfig();
-  return loadCompanyConfig(await getDb(), user.companyId);
+  const { dataDbFor } = await import('@/core/db/router');
+  return loadCompanyConfig(await dataDbFor(user.companyId, await getDb()), user.companyId);
 });

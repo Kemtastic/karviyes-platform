@@ -73,3 +73,56 @@ describe('panelden firma açma', () => {
     expect(await createCompany(base, { ...rt(), admin: null })).toMatchObject({ ok: false, code: 'FORBIDDEN' });
   });
 });
+
+describe('firmaya ayrı veritabanı', () => {
+  it('bağlantı adresi şifreli saklanır; bozulmuş şifre açılmaz', async () => {
+    process.env.PLATFORM_SECRET = 'p'.repeat(40);
+    const { encryptUrl, decryptUrl } = await import('@/core/db/router');
+    const enc = encryptUrl('postgres://kullanici:gizli@host/db');
+    expect(enc).not.toContain('gizli');
+    expect(decryptUrl(enc)).toBe('postgres://kullanici:gizli@host/db');
+    expect(() => decryptUrl(enc.slice(0, -2) + 'AA')).toThrow();
+    // PLATFORM_SECRET sonradan eklense de oturum anahtarıyla şifrelenmiş adres açılır.
+    const saved = process.env.PLATFORM_SECRET;
+    delete process.env.PLATFORM_SECRET;
+    process.env.BETTER_AUTH_SECRET ??= 'b'.repeat(40);
+    const old = encryptUrl('postgres://eski@host/db');
+    process.env.PLATFORM_SECRET = saved;
+    expect(decryptUrl(old)).toBe('postgres://eski@host/db');
+  });
+
+  it('firma ayrı veritabanında açılır: ayarlar, davet ve üyelik orada; ana veritabanında iş verisi yok', async () => {
+    process.env.PLATFORM_SECRET = 'p'.repeat(40);
+    const { mkdtempSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { connectDb } = await import('@/core/db/client');
+    const { dataDbFor } = await import('@/core/db/router');
+    const url = `pglite://${join(mkdtempSync(join(tmpdir(), 'firma-db-')), 'veri')}`;
+    const r = ok(await createCompany({ name: 'Ayrı Veri A.Ş.', slug: 'ayri', host: 'ayri.example.com', sector: 'bags', modules: ['orders'], adminName: 'Ayrı Yönetici', adminEmail: 'yonetici@ayri.example.com', databaseUrl: url }, rt()));
+    const own = await connectDb(url);
+    expect(await withCompany(r.companyId, (tx) => tx.select().from(invites), own)).toHaveLength(1);
+    expect(await withCompany(r.companyId, (tx) => tx.select().from(invites), t.db)).toHaveLength(0);
+    const routed = await dataDbFor(r.companyId, t.db);
+    expect(routed).toBe(own);
+    expect(await loadCompanyConfig(routed, r.companyId)).toMatchObject({ modules: ['orders'] });
+
+    const token = r.inviteLink.split('/davet/')[1]!;
+    ok(await acceptInvite({ token, password: 'GucluParola-2026!' }, { auth, db: routed, companyId: r.companyId }));
+    const res = await auth.handler(new Request('http://localhost:3000/api/auth/sign-in/email', {
+      method: 'POST', headers: { 'content-type': 'application/json', origin: 'http://localhost:3000', 'x-forwarded-for': '10.9.0.2' },
+      body: JSON.stringify({ email: 'yonetici@ayri.example.com', password: 'GucluParola-2026!' }),
+    }));
+    const headers = new Headers({ cookie: (res.headers.get('set-cookie') ?? '').split(';')[0]! });
+    expect(await resolveCurrentUser(auth, routed, r.companyId, headers)).toMatchObject({ roles: ['admin'] });
+    // Ana veritabanında bu firmanın üyeliği yok: yanlış veritabanına bakan kod kullanıcıyı göremez.
+    expect(await resolveCurrentUser(auth, t.db, r.companyId, headers)).toBeNull();
+  });
+
+  it('erişilemeyen ayrı veritabanında firma açılmaz ve kayıt geri alınır', async () => {
+    process.env.PLATFORM_SECRET = 'p'.repeat(40);
+    const res = await createCompany({ name: 'Bozuk', slug: 'bozuk', host: '', sector: 'bags', modules: ['orders'], adminName: 'Yönetici', adminEmail: 'b@example.com', databaseUrl: 'ftp://yanlis' }, rt());
+    expect(res).toMatchObject({ ok: false, fieldErrors: { databaseUrl: expect.any(String) } });
+    expect((await t.db.select().from(companies).where(eq(companies.slug, 'bozuk'))).length).toBe(0);
+  });
+});

@@ -9,6 +9,7 @@ import { getInstallConfig } from '@/core/install-config';
 import { sendMail } from '@/core/mail';
 import type { Role } from '@/core/modules/types';
 import { companyIdForHost, companyOrigins } from '@/core/company/tenant';
+import { dataDbFor } from '@/core/db/router';
 import { createAuth, type Auth } from './auth';
 import { validateMembership, type AccountKind } from './policy';
 
@@ -77,7 +78,8 @@ export async function resolveCurrentUser(auth: Auth, db: Db, companyId: string, 
 // Aynı istekte (layout, sayfa, eylemler) oturum bir kez çözülür.
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const { headers } = await import('next/headers');
-  return resolveCurrentUser(await getAuth(), await getDb(), await getCompanyId(), await headers());
+  const companyId = await getCompanyId();
+  return resolveCurrentUser(await getAuth(), await dataDbFor(companyId, await getDb()), companyId, await headers());
 });
 
 export async function requireUser(): Promise<CurrentUser> {

@@ -44,13 +44,16 @@ export type ActionSpec<I, O> = {
 
 export type Action<O> = (raw: unknown, runtime?: ActionRuntime) => Promise<ActionResult<O>>;
 
-async function defaultRuntime(): Promise<ActionRuntime> {
+export async function actionRuntime(): Promise<ActionRuntime> {
   const [{ getCurrentUser }, { getDb }, { getConfig }] = await Promise.all([
     import('@/core/auth/session'),
     import('@/core/db/client'),
     import('@/core/company/config'),
   ]);
-  return { user: await getCurrentUser(), db: await getDb(), cfg: await getConfig() };
+  const user = await getCurrentUser();
+  const main = await getDb();
+  const { dataDbFor } = await import('@/core/db/router');
+  return { user, db: user ? await dataDbFor(user.companyId, main) : main, cfg: await getConfig() };
 }
 
 // Sabit pencereli sayaç: pencere 60 sn; sayaç sınırı aşınca RATE_LIMITED.
@@ -92,7 +95,7 @@ export function toFailure(e: unknown, actionName: string): ActionResult<never> {
 export function defineAction<I, O>(spec: ActionSpec<I, O>): Action<O> {
   return async (raw, runtime) => {
     try {
-      const rt = runtime ?? (await defaultRuntime());
+      const rt = runtime ?? (await actionRuntime());
       const user = rt.user;
       if (!user) throw new AppError('UNAUTHENTICATED', 'Oturum açmanız gerekiyor.');
       // 2FA zorunlu rollerde yalnızca ekran düzeni değil, her eylem de 2FA ister.

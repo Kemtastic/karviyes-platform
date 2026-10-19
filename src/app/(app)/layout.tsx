@@ -3,7 +3,6 @@ import { redirect } from 'next/navigation';
 import { getPlatformAdmin } from '@/core/platform/action';
 import { mustEnrollTwoFactor } from '@/core/auth/policy';
 import { getCurrentUser } from '@/core/auth/session';
-import { getDb } from '@/core/db/client';
 import { withCompany } from '@/core/db/scope';
 import { companies } from '@/core/db/schema';
 import { getConfig } from '@/core/company/config';
@@ -21,7 +20,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const cfg = (await getConfig());
   if (mustEnrollTwoFactor(user, cfg)) redirect('/iki-adim-kurulum');
 
-  const [company] = await withCompany(user.companyId, (tx) => tx.select().from(companies).where(eq(companies.id, user.companyId)), await getDb());
+  const [company] = await withCompany(user.companyId, (tx) => tx.select().from(companies).where(eq(companies.id, user.companyId)));
   const labels = roleLabelsFor(cfg.sector);
   const nav = navFor(user.roles, cfg).map(({ href, label, icon }) => ({ href, label, icon }));
 

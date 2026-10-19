@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { getDb, type Db, type Tx } from './client';
+import { dataDbFor } from './router';
 import { auditLog } from './schema';
 
 const ROLE_NAME = /^[a-z_][a-z0-9_]*$/;
@@ -12,8 +13,9 @@ function appRole(): string {
 }
 
 // Bütün iş sorguları bu sarmalayıcı içinde, uygulama rolüyle ve tek firma kapsamında çalışır.
+// Bağlantı verilmezse firmanın veri veritabanı kullanılır (firmaya ayrı veritabanı varsa o).
 export async function withCompany<T>(companyId: string, fn: (tx: Tx) => Promise<T>, db?: Db): Promise<T> {
-  const database = db ?? (await getDb());
+  const database = db ?? (await dataDbFor(companyId, await getDb()));
   return database.transaction(async (tx) => {
     await tx.execute(sql.raw(`set local role ${appRole()}`));
     await tx.execute(sql`select set_config('app.company_id', ${companyId}, true)`);

@@ -41,6 +41,7 @@ npx tsx --env-file=.env.kurulum scripts/ornek-veri.ts     # hayali demo verisi +
 | `DATABASE_URL` | Supabase pooler (6543, transaction modu) adresi |
 | `DB_APP_ROLE` | `app_user` |
 | `BETTER_AUTH_SECRET` | kurulumdakiyle aynı |
+| `PLATFORM_SECRET` | en az 32 karakter, rastgele. Firmaya ayrı veritabanı adreslerini şifreler; **değiştirilirse kayıtlı adresler açılamaz**, yedeğini saklayın |
 | `BETTER_AUTH_URL` | `https://<demo-adresi>.vercel.app` |
 | `INSTALL_CONFIG_JSON` | `kurulum.config.json` içeriği, tek satır: `{"company":{"name":"Karviyes Ambalaj","slug":"karviyes","brandColor":"#c2410c"},"modules":["orders","production","sales","finance"],"sector":"bags","security":{"twoFactorRequiredRoles":["admin","accounting","tracking"]}}` |
 | `STORAGE_DRIVER` | `s3` |

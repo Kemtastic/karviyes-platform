@@ -1,6 +1,9 @@
 // Vercel derlemesinden önce veritabanı göçlerini uygular. Göç başarısız olursa derleme durur ve
 // önceki sürüm yayında kalır (yeni kod eski şemayla açılmaz). Vercel dışında hiçbir şey yapmaz.
+import { isNotNull } from 'drizzle-orm';
 import { closeDb, connectDb, migrateDb } from '@/core/db/client';
+import { decryptUrl } from '@/core/db/router';
+import { companies } from '@/core/db/schema';
 
 const url = process.env.DATABASE_URL ?? '';
 if (!process.env.VERCEL) {
@@ -14,7 +17,15 @@ if (!process.env.VERCEL) {
   const started = Date.now();
   const db = await connectDb(url);
   await migrateDb(db, url);
+  // Kendi veritabanı olan firmalar da aynı sürüme taşınır; biri başarısız olursa derleme durur.
+  const own = await db.select({ slug: companies.slug, enc: companies.dataUrlEnc }).from(companies).where(isNotNull(companies.dataUrlEnc));
+  for (const c of own) {
+    const target = decryptUrl(c.enc!);
+    await migrateDb(await connectDb(target), target);
+    await closeDb(target);
+    console.log(`[göç] ${c.slug}: firma veritabanı güncel.`);
+  }
   await closeDb(url);
-  console.log(`[göç] Göçler uygulandı (${Date.now() - started} ms).`);
+  console.log(`[göç] Göçler uygulandı: ana + ${own.length} firma veritabanı (${Date.now() - started} ms).`);
 }
 process.exit(0);

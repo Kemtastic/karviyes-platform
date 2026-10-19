@@ -5,6 +5,7 @@ import { checkRateLimit, toFailure, type ActionResult } from '@/core/action';
 import type { Auth } from '@/core/auth/auth';
 import type { Db, Tx } from '@/core/db/client';
 import { platformAdmins, platformAudit, user } from '@/core/db/schema';
+import { dataDbFor } from '@/core/db/router';
 import { withCompany, writeAudit } from '@/core/db/scope';
 import { AppError } from '@/core/errors';
 import { trErrorMap } from '@/core/zod-tr';
@@ -53,11 +54,11 @@ export function definePlatformAction<I, O>(spec: Spec<I, O>) {
       const ctx: PlatformCtx = {
         db: rt.db,
         admin,
-        inCompany: (companyId, fn) =>
+        inCompany: async (companyId, fn) =>
           withCompany(
             companyId,
             (tx) => fn(tx, (r) => writeAudit(tx, { companyId, actorUserId: admin.userId, action: spec.name, ...r })),
-            rt.db,
+            await dataDbFor(companyId, rt.db),
           ),
         log: async (r) => {
           await rt.db.insert(platformAudit).values({ actorUserId: admin.userId, action: spec.name, targetCompanyId: r.targetCompanyId ?? null, detail: r.detail ?? {} });

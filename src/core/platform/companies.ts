@@ -6,7 +6,16 @@ import { AppError } from '@/core/errors';
 import { getInstallConfig, type InstallConfig } from '@/core/install-config';
 import { MODULE_IDS, ROLES } from '@/core/modules/types';
 import { SECTOR_IDS } from '@/sectors';
+import { connectDb, migrateDb } from '@/core/db/client';
+import { clearDataRoutes, encryptUrl } from '@/core/db/router';
 import { definePlatformAction, type PlatformCtx } from './action';
+
+/** Ayrı veritabanı adresi: canlıda yalnız Postgres; geliştirme ve testte gömülü veritabanı da. */
+function checkDatabaseUrl(url: string): string {
+  const ok = /^postgres(ql)?:\/\/\S+$/.test(url) || (process.env.NODE_ENV !== 'production' && /^pglite:\/\/(?!memory$)\S+$/.test(url));
+  if (!ok) throw new AppError('VALIDATION', 'Veritabanı adresi postgres:// ile başlamalı.', { databaseUrl: 'postgres://… biçiminde girin.' });
+  return url;
+}
 
 async function companyState(ctx: PlatformCtx, companyId: string, base: InstallConfig) {
   return ctx.inCompany(companyId, async (tx) => {
@@ -29,7 +38,7 @@ export const platformCompanies = definePlatformAction({
     for (const c of rows) {
       const st = await companyState(ctx, c.id, base);
       out.push({
-        id: c.id, name: c.name, slug: c.slug, createdAt: c.createdAt.toISOString(), status: st.settings?.status ?? 'active',
+        id: c.id, name: c.name, slug: c.slug, host: c.host, dataLocation: c.dataUrlEnc ? 'dedicated' : 'shared', createdAt: c.createdAt.toISOString(), status: st.settings?.status ?? 'active',
         sector: st.config.sector, modules: st.config.modules, activeUsers: st.activeUsers, lastActivity: st.lastActivity,
       });
     }
@@ -128,6 +137,8 @@ export const createCompany = definePlatformAction({
     modules: z.array(z.enum(MODULE_IDS)).min(1, 'En az bir modül seçin.'),
     adminName: z.string().trim().min(2, 'Yöneticinin adını yazın.').max(120),
     adminEmail: z.string().trim().toLowerCase().email('Geçerli bir e-posta yazın.'),
+    /** Firmaya ayrı veritabanı (Postgres bağlantı adresi). Boşsa ortak veritabanı. */
+    databaseUrl: z.string().trim().max(2000).default(''),
   }),
   run: async (ctx, i) => {
     try {
@@ -141,8 +152,24 @@ export const createCompany = definePlatformAction({
       const [hostTaken] = await ctx.db.select({ id: companies.id }).from(companies).where(eq(companies.host, i.host));
       if (hostTaken) throw new AppError('CONFLICT', 'Bu adres başka firmada.', { host: 'Başka bir adres seçin.' });
     }
-    const [c] = await ctx.db.insert(companies).values({ name: i.name, slug: i.slug, host: i.host || null }).returning({ id: companies.id });
+    const dedicated = i.databaseUrl ? checkDatabaseUrl(i.databaseUrl) : null;
+    const [c] = await ctx.db
+      .insert(companies)
+      .values({ name: i.name, slug: i.slug, host: i.host || null, dataUrlEnc: dedicated ? encryptUrl(dedicated) : null })
+      .returning({ id: companies.id });
     const companyId = c!.id;
+    if (dedicated) {
+      // Ayrı veritabanı hazırlanır: tablolar (göçler) ve firmanın kendi kaydı. Hata olursa firma kaydı geri alınır.
+      try {
+        const target = await connectDb(dedicated);
+        await migrateDb(target, dedicated);
+        await target.insert(companies).values({ id: companyId, name: i.name, slug: i.slug, host: i.host || null }).onConflictDoNothing();
+        clearDataRoutes(companyId);
+      } catch (e) {
+        await ctx.db.delete(companies).where(eq(companies.id, companyId));
+        throw new AppError('VALIDATION', `Ayrı veritabanı hazırlanamadı: ${(e as Error).message.slice(0, 200)}`, { databaseUrl: 'Adresi ve erişimi kontrol edin.' });
+      }
+    }
     const { randomBytes } = await import('node:crypto');
     const { hashToken, INVITE_TTL_HOURS } = await import('@/core/users/service');
     const token = randomBytes(32).toString('base64url');
@@ -159,7 +186,7 @@ export const createCompany = definePlatformAction({
     const link = `${base.replace(/\/$/, '')}/davet/${token}`;
     const { sendMail } = await import('@/core/mail');
     const mailed = await sendMail(i.adminEmail, `${i.name} · hesabınız hazır`, `${i.adminName}, ${i.name} için yönetici hesabınızı oluşturmak üzere bağlantı (${INVITE_TTL_HOURS} saat geçerli):\n${link}`).then(() => true, () => false);
-    await ctx.log({ targetCompanyId: companyId, detail: { name: i.name, slug: i.slug, host: i.host || null, sector: i.sector, modules: i.modules, adminEmail: i.adminEmail, mailed } });
+    await ctx.log({ targetCompanyId: companyId, detail: { name: i.name, slug: i.slug, host: i.host || null, sector: i.sector, modules: i.modules, adminEmail: i.adminEmail, mailed, dataLocation: dedicated ? 'dedicated' : 'shared' } });
     return { companyId, inviteLink: link, mailed };
   },
 });

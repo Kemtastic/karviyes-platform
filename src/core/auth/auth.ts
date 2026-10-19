@@ -54,6 +54,13 @@ export function createAuth(db: Db, opts: AuthOptions) {
 
 export type Auth = ReturnType<typeof createAuth>;
 
+/** Firmaya ayrı veritabanında üyelik kullanıcıya bağlıdır: kimliğin bir kopyası (parolasız) firma veritabanına yazılır. */
+export async function mirrorUser(auth: Auth, db: Db, userId: string): Promise<void> {
+  const u = await (await auth.$context).internalAdapter.findUserById(userId);
+  if (!u) throw new Error('Kullanıcı bulunamadı.');
+  await db.insert(user).values({ id: u.id, name: u.name, email: u.email, emailVerified: u.emailVerified, createdAt: u.createdAt, updatedAt: u.updatedAt }).onConflictDoNothing();
+}
+
 // Herkese açık kayıt kapalı olduğundan hesaplar sunucu tarafında oluşturulur.
 export async function createUserWithPassword(auth: Auth, input: { email: string; name: string; password: string }): Promise<{ id: string }> {
   if (input.password.length < MIN_PASSWORD_LENGTH) throw new Error(`Parola en az ${MIN_PASSWORD_LENGTH} karakter olmalı.`);

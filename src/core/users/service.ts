@@ -1,8 +1,8 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { and, eq, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { defineAction, toFailure, type ActionResult, type ActionRuntime } from '@/core/action';
-import { createUserWithPassword, MIN_PASSWORD_LENGTH, type Auth } from '@/core/auth/auth';
+import { actionRuntime, defineAction, toFailure, type ActionResult, type ActionRuntime } from '@/core/action';
+import { createUserWithPassword, mirrorUser, MIN_PASSWORD_LENGTH, type Auth } from '@/core/auth/auth';
 import { validateMembership } from '@/core/auth/policy';
 import type { Db } from '@/core/db/client';
 import { withCompany, writeAudit } from '@/core/db/scope';
@@ -92,6 +92,7 @@ export async function acceptInvite(raw: unknown, deps: AcceptDeps): Promise<Acti
       }
     }
     const userId = existing?.user.id ?? (await createUserWithPassword(deps.auth, { email: inv.email, name: inv.name, password: input.password })).id;
+    await mirrorUser(deps.auth, deps.db, userId);
 
     await withCompany(
       deps.companyId,
@@ -187,13 +188,15 @@ const attachDevice = defineAction({
 
 // Tablet hesabı: e-posta yerine sistemin ürettiği giriş adı (…@cihaz.yerel) ve yöneticinin verdiği parola.
 export async function createDeviceAccount(raw: unknown, rt?: ActionRuntime, deps?: { auth?: Auth }) {
-  const checked = await authorizeDevice(raw, rt);
+  const runtime = rt ?? (await actionRuntime());
+  const checked = await authorizeDevice(raw, runtime);
   if (!checked.ok) return checked;
   const role = checked.data.roles[0]!;
   const loginEmail = `${role}-${randomBytes(3).toString('hex')}@cihaz.yerel`;
   const auth = await authFor(deps);
   const user = await createUserWithPassword(auth, { email: loginEmail, name: checked.data.label, password: checked.data.password });
-  return attachDevice({ userId: user.id, role, loginEmail }, rt);
+  await mirrorUser(auth, runtime.db, user.id);
+  return attachDevice({ userId: user.id, role, loginEmail }, runtime);
 }
 
 // ---- Personel kartları ---------------------------------------------------------------------------

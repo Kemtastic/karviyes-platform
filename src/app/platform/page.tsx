@@ -23,7 +23,7 @@ export default async function PlatformHome() {
         <table className="w-full text-sm">
           <thead className="border-b border-stone-200 bg-stone-50/80 text-xs uppercase tracking-wide text-stone-500">
             <tr>
-              <th className="px-4 py-3 text-left font-semibold">Firma</th><th className="px-4 py-3 text-left font-semibold">Sektör</th><th className="px-4 py-3 text-left font-semibold">Modüller</th>
+              <th className="px-4 py-3 text-left font-semibold">Firma</th><th className="px-4 py-3 text-left font-semibold">Sektör</th><th className="px-4 py-3 text-left font-semibold">Modüller</th><th className="px-4 py-3 text-left font-semibold">Veri</th>
               <th className="px-4 py-3 text-right font-semibold">Aktif kullanıcı</th><th className="px-4 py-3 text-left font-semibold">Son işlem</th><th className="px-4 py-3 text-left font-semibold">Durum</th>
             </tr>
           </thead>
@@ -33,6 +33,7 @@ export default async function PlatformHome() {
                 <td className="px-4 py-3"><Link href={`/platform/firmalar/${c.id}`} className="font-medium text-stone-900 hover:underline">{c.name}</Link><span className="block font-mono text-xs text-stone-500">{c.slug}</span></td>
                 <td className="px-4 py-3">{getSector(c.sector).name}</td>
                 <td className="px-4 py-3"><span className="flex flex-wrap gap-1">{c.modules.map((m) => <Badge key={m} tone="neutral" dot={false}>{MANIFESTS[m].name}</Badge>)}</span></td>
+                <td className="px-4 py-3"><Badge tone={c.dataLocation === 'dedicated' ? 'info' : 'neutral'} dot={false}>{c.dataLocation === 'dedicated' ? 'Ayrı veritabanı' : 'Ortak'}</Badge>{c.host && <span className="block font-mono text-xs text-stone-500">{c.host}</span>}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{c.activeUsers}</td>
                 <td className="px-4 py-3 text-stone-600">{c.lastActivity ? formatDateTime(new Date(c.lastActivity)) : '—'}</td>
                 <td className="px-4 py-3"><Badge tone={c.status === 'active' ? 'success' : 'danger'}>{c.status === 'active' ? 'Aktif' : 'Askıda'}</Badge></td>

@@ -395,7 +395,7 @@ test('merkez panel: ön muhasebe kapatılınca firmadan kalkar, açılınca geri
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Firma adı').fill('E2E Plastik');
   await dialog.getByLabel('Kısa ad').fill('e2e-plastik');
-  await dialog.getByLabel('Adres').fill('plastik.e2e.example.com');
+  await dialog.getByLabel('Adres', { exact: true }).fill('plastik.e2e.example.com');
   await dialog.getByLabel('Sektör').selectOption({ label: 'Plastik poşet' });
   await dialog.getByLabel('Yöneticinin adı').fill('Plastik Yönetici');
   await dialog.getByLabel('Yöneticinin e-postası').fill('yonetici@plastik.example.com');

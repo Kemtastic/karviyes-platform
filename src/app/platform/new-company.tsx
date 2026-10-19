@@ -46,6 +46,11 @@ export function NewCompany({ sectors, modules }: Props) {
                 <FormField label="Sektör" required error={f.sector}><select name="sector" className={fieldClass}>{sectors.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></FormField>
                 <FormField label="Yöneticinin adı" required error={f.adminName}><input name="adminName" className={fieldClass} /></FormField>
                 <FormField label="Yöneticinin e-postası" required error={f.adminEmail}><input name="adminEmail" type="email" className={fieldClass} /></FormField>
+                <div className="sm:col-span-2">
+                  <FormField label="Ayrı veritabanı adresi" error={f.databaseUrl} hint="Boşsa ortak veritabanı. Doluysa firmanın verisi yalnız bu veritabanında durur; adres şifreli saklanır.">
+                    <input name="databaseUrl" type="password" autoComplete="off" className={`${fieldClass} font-mono`} placeholder="postgres://kullanici:parola@sunucu:5432/firma" />
+                  </FormField>
+                </div>
               </div>
               <fieldset className="space-y-2">
                 <legend className="text-sm font-medium text-stone-700">Modüller</legend>

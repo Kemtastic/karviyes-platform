@@ -7,8 +7,9 @@ import type { Role } from '@/core/modules/types';
 export type MemberRow = { id: string; userId: string; name: string; email: string; roles: Role[]; kind: 'person' | 'device'; active: boolean; version: number; twoFactorEnabled: boolean };
 
 export async function listMembers(companyId: string): Promise<MemberRow[]> {
+  // Üyelikler firmanın veri veritabanında, kimlik (ad, e-posta) ana veritabanında.
   const db = await getDb();
-  const ms = await withCompany(companyId, (tx) => tx.select().from(memberships), db);
+  const ms = await withCompany(companyId, (tx) => tx.select().from(memberships));
   if (!ms.length) return [];
   // Kimlik tabloları firmalar arası; yalnızca bu firmanın üyelerinin adı ve e-postası okunur.
   const users = await db.select({ id: user.id, name: user.name, email: user.email, twoFactorEnabled: user.twoFactorEnabled }).from(user).where(inArray(user.id, ms.map((m) => m.userId)));
@@ -19,6 +20,6 @@ export async function listMembers(companyId: string): Promise<MemberRow[]> {
 }
 
 export async function listStaff(companyId: string) {
-  const rows = await withCompany(companyId, (tx) => tx.select().from(staff), await getDb());
+  const rows = await withCompany(companyId, (tx) => tx.select().from(staff));
   return rows.sort((a, b) => a.name.localeCompare(b.name, 'tr'));
 }
