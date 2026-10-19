@@ -3,6 +3,9 @@ import { resultStatus } from '@/core/http';
 import { storeFile } from '@/core/files/service';
 import { readBodyCapped, uploadPrecheck } from '@/core/files/upload';
 
+// Sunucu fonksiyonu veritabanıyla aynı bölgede (Supabase Frankfurt) çalışır; bkz. docs/demo-yayini.md.
+export const preferredRegion = 'fra1';
+
 // Çok parçalı form ile tek dosya yükleme. Tür içerikten belirlenir; boyut sınırı servistedir.
 export async function POST(req: Request) {
   const rejected = uploadPrecheck(req, Boolean(await getCurrentUser()));

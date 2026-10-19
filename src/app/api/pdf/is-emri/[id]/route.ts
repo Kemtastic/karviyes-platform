@@ -6,6 +6,9 @@ import { PACKAGING_LABELS } from '@/modules/orders/domain/packaging';
 import { jobDetail } from '@/modules/production/server/queries';
 import { getSector } from '@/sectors';
 
+// Sunucu fonksiyonu veritabanıyla aynı bölgede (Supabase Frankfurt) çalışır; bkz. docs/demo-yayini.md.
+export const preferredRegion = 'fra1';
+
 // İş emri bölüm tabletlerinden de basılabilir; fiyat içermez.
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

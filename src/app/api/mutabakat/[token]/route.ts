@@ -3,6 +3,9 @@ import { publicRateLimited } from '@/core/rate-limit';
 import { publicReconciliation } from '@/modules/finance/server/reconciliation';
 import { reconciliationPdf } from '@/modules/finance/server/reconciliation-pdf';
 
+// Sunucu fonksiyonu veritabanıyla aynı bölgede (Supabase Frankfurt) çalışır; bkz. docs/demo-yayini.md.
+export const preferredRegion = 'fra1';
+
 // Karşı tarafın PDF'i: oturum gerekmez, bağlantıdaki gizli anahtar yeterlidir.
 export async function GET(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0]!.trim() || 'bilinmiyor';

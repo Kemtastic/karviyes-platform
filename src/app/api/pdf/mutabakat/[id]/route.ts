@@ -2,6 +2,9 @@ import { pdfResponse } from '@/core/pdf/response';
 import { reconciliationDetail } from '@/modules/finance/server/reconciliation';
 import { reconciliationPdf } from '@/modules/finance/server/reconciliation-pdf';
 
+// Sunucu fonksiyonu veritabanıyla aynı bölgede (Supabase Frankfurt) çalışır; bkz. docs/demo-yayini.md.
+export const preferredRegion = 'fra1';
+
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const r = await reconciliationDetail({ id });

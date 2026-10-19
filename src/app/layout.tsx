@@ -7,6 +7,8 @@ const inter = Inter({ subsets: ['latin', 'latin-ext'], variable: '--font-inter',
 
 // CSP nonce'u her istekte üretildiği için tüm sayfalar dinamik oluşturulur.
 export const dynamic = 'force-dynamic';
+// Sunucu fonksiyonu veritabanıyla aynı bölgede (Supabase Frankfurt) çalışır; bkz. docs/demo-yayini.md.
+export const preferredRegion = 'fra1';
 
 export const metadata: Metadata = { title: 'Üretim Platformu' };
 

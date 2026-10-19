@@ -3,6 +3,9 @@ import { ERROR_STATUS, type AppErrorCode } from '@/core/errors';
 import { csvResponse, toCsv } from '@/core/export/csv';
 import { financeCsv } from '@/modules/finance/server/reports';
 
+// Sunucu fonksiyonu veritabanıyla aynı bölgede (Supabase Frankfurt) çalışır; bkz. docs/demo-yayini.md.
+export const preferredRegion = 'fra1';
+
 // Ön muhasebe dışa aktarımları: ?tur=faturalar|hareketler|bakiyeler|ekstre|hesap|ba-bs (yetki her sorguda denetlenir).
 export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;

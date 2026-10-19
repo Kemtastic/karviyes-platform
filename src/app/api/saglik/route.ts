@@ -1,6 +1,9 @@
 import { getDb } from '@/core/db/client';
 import { healthCheck } from '@/core/health';
 
+// Sunucu fonksiyonu veritabanıyla aynı bölgede (Supabase Frankfurt) çalışır; bkz. docs/demo-yayini.md.
+export const preferredRegion = 'fra1';
+
 export const dynamic = 'force-dynamic';
 
 export async function GET() {

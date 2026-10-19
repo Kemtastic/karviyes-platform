@@ -7,6 +7,9 @@ import { PACKAGING_LABELS } from '@/modules/orders/domain/packaging';
 import { orderForOffice } from '@/modules/orders/server/queries';
 import { getSector } from '@/sectors';
 
+// Sunucu fonksiyonu veritabanıyla aynı bölgede (Supabase Frankfurt) çalışır; bkz. docs/demo-yayini.md.
+export const preferredRegion = 'fra1';
+
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const r = await orderForOffice({ id });
