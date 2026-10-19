@@ -239,6 +239,13 @@
       "when": 1792442202377,
       "tag": "0033_company_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1792442433355,
+      "tag": "0034_platform",
+      "breakpoints": true
     }
   ]
 }

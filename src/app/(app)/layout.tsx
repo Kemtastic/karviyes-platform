@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
+import { getPlatformAdmin } from '@/core/platform/action';
 import { mustEnrollTwoFactor } from '@/core/auth/policy';
 import { getCurrentUser } from '@/core/auth/session';
 import { getDb } from '@/core/db/client';
@@ -15,7 +16,8 @@ export const dynamic = 'force-dynamic';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
-  if (!user) redirect('/giris');
+  // Firma üyeliği olmayan merkez panel yöneticisi kendi paneline gider.
+  if (!user) redirect((await getPlatformAdmin()) ? '/platform' : '/giris');
   const cfg = (await getConfig());
   if (mustEnrollTwoFactor(user, cfg)) redirect('/iki-adim-kurulum');
 

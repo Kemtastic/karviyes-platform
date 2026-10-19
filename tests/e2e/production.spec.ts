@@ -365,3 +365,28 @@ test('mutabakat: bakiye dondurulur, bağlantı oturumsuz açılır, karşı tara
   await page.reload();
   await expect(page.getByText('Son ödememiz görünmüyor')).toBeVisible();
 });
+
+test('merkez panel: ön muhasebe kapatılınca firmadan kalkar, açılınca geri gelir; işlem kayda geçer', async ({ page }) => {
+  await login(page);
+  await page.goto('/platform');
+  await expect(page.getByRole('heading', { name: 'Firmalar' })).toBeVisible();
+  await page.getByRole('link', { name: 'Karviyes Ambalaj' }).click();
+  const finance = page.getByRole('checkbox', { name: /Ön Muhasebe/ });
+  await finance.uncheck();
+  await page.getByRole('button', { name: 'Ayarları kaydet' }).click();
+  await expect(page.getByRole('status')).toContainText('Kaydedildi');
+  await page.goto('/muhasebe');
+  await expect(page.getByText('Sayfa bulunamadı')).toBeVisible();
+  await page.goto('/');
+  await expect(page.getByRole('navigation', { name: 'Ana menü' }).getByRole('link', { name: 'Muhasebe Özeti' })).toHaveCount(0);
+
+  await page.goto('/platform');
+  await page.getByRole('link', { name: 'Karviyes Ambalaj' }).click();
+  await page.getByRole('checkbox', { name: /Ön Muhasebe/ }).check();
+  await page.getByRole('button', { name: 'Ayarları kaydet' }).click();
+  await expect(page.getByRole('status')).toContainText('Kaydedildi');
+  await page.goto('/muhasebe');
+  await expect(page.getByRole('heading', { name: 'Muhasebe özeti' })).toBeVisible();
+  await page.goto('/platform/kayit');
+  await expect(page.getByRole('cell', { name: 'platform.updateCompanySettings' }).first()).toBeVisible();
+});

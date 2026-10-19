@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { feature } from '@/core/features';
 import { markOrderInvoiced } from './api';
 import { defineAction, type ActionCtx } from '@/core/action';
 import { istanbulToday } from '@/core/dates';
@@ -190,6 +191,7 @@ export const createOrder = defineAction({
   roles: OFFICE,
   input: orderBase.superRefine(requireLines),
   run: async (ctx, i) => {
+    if (feature(ctx.cfg, 'orders.requireDeliveryDate') && !i.deliveryDate) throw new AppError('VALIDATION', 'Teslim tarihini girin.', { deliveryDate: 'Teslim tarihi zorunlu.' });
     const p = await prepare(ctx, i);
     const deposit = i.deposit?.trim() ? parseMoney(i.deposit, i.currency) : null;
     if (deposit && deposit.minor < 0n) throw new AppError('VALIDATION', 'Peşinat negatif olamaz.', { deposit: 'Peşinat negatif olamaz.' });

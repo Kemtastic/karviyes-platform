@@ -6,6 +6,8 @@ import { E2E_PORT, e2eEnv } from './env';
 export default async function globalSetup() {
   rmSync('.data/e2e', { recursive: true, force: true });
   execSync('npx tsx scripts/kurulum.ts', { env: e2eEnv(), stdio: 'inherit' });
+  // E2E yöneticisi aynı zamanda merkez panel yöneticisi (panel testleri için).
+  execSync(`npx tsx scripts/platform-yonetici.ts ${e2eEnv().KURULUM_ADMIN_EMAIL}`, { env: e2eEnv(), stdio: 'inherit' });
   const server = spawn('npx', ['next', 'dev', '--port', String(E2E_PORT)], { env: e2eEnv(), shell: true, stdio: 'ignore', detached: false });
   writeFileSync('.data/e2e/server.pid', String(server.pid));
   for (let i = 0; i < 180; i++) {

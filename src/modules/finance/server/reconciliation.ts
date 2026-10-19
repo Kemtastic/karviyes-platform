@@ -1,6 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { feature } from '@/core/features';
 import { defineAction, type ActionCtx } from '@/core/action';
 import { istanbulToday } from '@/core/dates';
 import { getDb, type Db } from '@/core/db/client';
@@ -116,7 +117,7 @@ export const issueReconciliationLink = defineAction({
     const { token, tokenHash } = makeToken(ctx.companyId, r.id);
     const expires = new Date(Date.now() + LINK_DAYS * 86_400_000);
     const link = publicLink(token);
-    const send = i.send && Boolean(r.email);
+    const send = i.send && Boolean(r.email) && feature(ctx.cfg, 'finance.reconciliationEmail');
     if (send) {
       if (r.sentAt && Date.now() - r.sentAt.getTime() < 60 * 60 * 1000) throw new AppError('RATE_LIMITED', 'Bu mutabakat son bir saat içinde gönderildi. Bağlantıyı kopyalayıp iletebilirsiniz.');
       const [d] = await ctx.tx

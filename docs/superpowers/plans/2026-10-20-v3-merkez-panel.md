@@ -45,3 +45,7 @@ G1 firma profili (MERSİS, IBAN, mali müşavir) + kayıtlara not/belge · G2 ü
 ## Kayıt
 
 - 2026-10-19 gece: yedek alındı (`yedekler/2026-10-19`: depo paketi + `yedek-2026-10-19` etiketi, yerel veritabanı, eski proje ve takip paneli, canlı veritabanı JSON dökümü; döküm parola özetleri içerir, paylaşılmaz).
+- V3-1 bitti: `company_settings` (göç 0033), istek başına firma ayarı (`getConfig`), tüm sayfa ve eylemler firma ayarıyla çalışır.
+- V3-2 + V3-3 (ilk dilim) bitti: `platform_admins`, `platform_audit` (göç 0034; uygulama rolüne kapalı, satır güvenliği açık), `/platform` (yalnız panel yöneticisi, 2FA zorunlu), firma listesi, firma ayarları (modüller bağımlılıklarıyla, sektör — sipariş varken değiştirilemez —, 2FA rolleri, özellik anahtarları, askıya alma), panel kaydı; askıdaki firmanın kullanıcıları oturum açamaz. İlk iki gerçek özellik anahtarı: siparişte teslim tarihi zorunlu, mutabakat e-postası. Panel yöneticisi: `scripts/platform-yonetici.ts <e-posta>`.
+  - Ruling: Panel, firma verisine yalnız firma kapsamındaki güvenli kapıdan (`withCompany`) dokunur; zorunlu satır güvenliği sahip bağlantısına da uygulandığı için başka yol yok. — Maliyet: çok firmada liste firma başına bir sorgu (yüzlerce firmaya kadar sorun değil).
+

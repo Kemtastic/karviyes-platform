@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { getPlatformAdmin } from '@/core/platform/action';
 import { getCurrentUser } from '@/core/auth/session';
 import { getConfig } from '@/core/company/config';
 import { formatMoney, moneyFromJSON } from '@/core/money';
@@ -25,7 +26,8 @@ const has = (roles: Role[], ...want: Role[]) => roles.some((r) => want.includes(
 // Ana sayfa: açık modüllerin kullanıcının rolüne göre özet kartları, altında menü kısayolları.
 export default async function HomePage() {
   const user = await getCurrentUser();
-  if (!user) redirect('/giris');
+  // Firma üyeliği olmayan merkez panel yöneticisi kendi paneline gider.
+  if (!user) redirect((await getPlatformAdmin()) ? '/platform' : '/giris');
   // Bölüm tabletleri doğrudan kendi ekranlarına gider.
   if (user.kind === 'device') redirect('/uretim/bolum');
 

@@ -38,6 +38,17 @@ describe('oturumdaki kullanıcı', () => {
     expect(await resolveCurrentUser(auth, t.db, t.companyA, await cookieFor('uyesiz@example.com'))).toBeNull();
   });
 
+  it('merkez panelden askıya alınan firmanın kullanıcısı oturum açmış sayılmaz', async () => {
+    const { companySettings } = await import('@/core/db/schema');
+    const { withCompany } = await import('@/core/db/scope');
+    const { eq } = await import('drizzle-orm');
+    const headers = await cookieFor('a@example.com');
+    await withCompany(t.companyA, (tx) => tx.insert(companySettings).values({ companyId: t.companyA, status: 'suspended' }), t.db);
+    expect(await resolveCurrentUser(auth, t.db, t.companyA, headers)).toBeNull();
+    await withCompany(t.companyA, (tx) => tx.update(companySettings).set({ status: 'active' }).where(eq(companySettings.companyId, t.companyA)), t.db);
+    expect(await resolveCurrentUser(auth, t.db, t.companyA, headers)).not.toBeNull();
+  });
+
   it('başka firmanın kapsamında kullanıcı görünmez', async () => {
     expect(await resolveCurrentUser(auth, t.db, t.companyB, await cookieFor('a@example.com'))).toBeNull();
   });

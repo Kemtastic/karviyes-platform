@@ -54,7 +54,7 @@ async function defaultRuntime(): Promise<ActionRuntime> {
 }
 
 // Sabit pencereli sayaç: pencere 60 sn; sayaç sınırı aşınca RATE_LIMITED.
-async function checkRateLimit(db: Db, userId: string): Promise<void> {
+export async function checkRateLimit(db: Db, userId: string): Promise<void> {
   const result = await db.execute(sql`
     insert into rate_limits (key, window_start, count) values (${'write:' + userId}, now(), 1)
     on conflict (key) do update set

@@ -2,7 +2,7 @@ import { cache } from 'react';
 import { and, eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/core/db/client';
 import { withCompany } from '@/core/db/scope';
-import { companies, memberships } from '@/core/db/schema';
+import { companies, companySettings, memberships } from '@/core/db/schema';
 import { getEnv } from '@/core/env';
 import { AppError } from '@/core/errors';
 import { getInstallConfig } from '@/core/install-config';
@@ -53,12 +53,17 @@ export async function getCompanyId(): Promise<string> {
 export async function resolveCurrentUser(auth: Auth, db: Db, companyId: string, headers: Headers): Promise<CurrentUser | null> {
   const session = await auth.api.getSession({ headers });
   if (!session) return null;
-  const [m] = await withCompany(
+  const [m, suspended] = await withCompany(
     companyId,
-    (tx) => tx.select().from(memberships).where(and(eq(memberships.userId, session.user.id), eq(memberships.active, true))),
+    async (tx) => {
+      const [row] = await tx.select().from(memberships).where(and(eq(memberships.userId, session.user.id), eq(memberships.active, true)));
+      // Merkez panelden askıya alınan firmanın kullanıcıları oturum açmış sayılmaz.
+      const [st] = await tx.select({ status: companySettings.status }).from(companySettings).where(eq(companySettings.companyId, companyId));
+      return [row, st?.status === 'suspended'] as const;
+    },
     db,
   );
-  if (!m) return null;
+  if (!m || suspended) return null;
   return {
     userId: session.user.id,
     email: session.user.email,
