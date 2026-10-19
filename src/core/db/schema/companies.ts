@@ -10,6 +10,8 @@ export const companies = pgTable('companies', {
   host: text('host').unique(),
   /** Firmaya ayrı veritabanı: şifreli bağlantı adresi (boşsa ana veritabanı). */
   dataUrlEnc: text('data_url_enc'),
+  /** Müşterinin kendi sunucusundaki kurulumun merkezden ayar çekerken kullandığı anahtarın özeti (SHA-256). */
+  installTokenHash: text('install_token_hash'),
   /** Resmî unvan, vergi/sicil, iletişim, ana IBAN, mali müşavir (bkz. core/company/profile.ts). */
   profile: jsonb('profile').$type<Record<string, unknown>>().notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

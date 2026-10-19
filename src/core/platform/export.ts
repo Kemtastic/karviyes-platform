@@ -38,7 +38,10 @@ export const exportCompanyData = definePlatformAction({
       return out;
     });
     await ctx.log({ targetCompanyId: i.companyId, detail: { tables: Object.keys(tables).length } });
-    const { dataUrlEnc: _secret, ...safeCompany } = company;
-    return { format: 'karviyes-firma-verisi/1', exportedAt: new Date().toISOString(), company: plain(safeCompany as Row), tables };
+    // Ayrı veritabanı adresi ve kurulum anahtarının özeti teslim dosyasına girmez.
+    const safeCompany: Row = { ...company };
+    delete safeCompany.dataUrlEnc;
+    delete safeCompany.installTokenHash;
+    return { format: 'karviyes-firma-verisi/1', exportedAt: new Date().toISOString(), company: plain(safeCompany), tables };
   },
 });

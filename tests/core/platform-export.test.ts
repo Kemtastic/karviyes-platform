@@ -36,7 +36,7 @@ describe('firma verisini dışa aktarma', () => {
     expect(() => JSON.stringify(out)).not.toThrow();
     expect(JSON.stringify(out)).not.toContain('B Firmasının');
     // Davet ve mutabakat bağlantılarının özetleri teslim dosyasına girmez; ayrı veritabanı adresi de.
-    expect(JSON.stringify(out)).not.toMatch(/token_hash|data_url_enc|dataUrlEnc/);
+    expect(JSON.stringify(out)).not.toMatch(/token_hash|data_url_enc|dataUrlEnc|installTokenHash/);
   });
 
   it('dışa aktarma firmanın denetim kaydına yazılır; panel yöneticisi olmayan alamaz', async () => {

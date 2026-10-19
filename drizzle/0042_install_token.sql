@@ -1,0 +1,1 @@
+ALTER TABLE "companies" ADD COLUMN "install_token_hash" text;

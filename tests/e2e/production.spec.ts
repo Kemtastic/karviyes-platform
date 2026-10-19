@@ -489,4 +489,11 @@ test('merkez panel: ön muhasebe kapatılınca firmadan kalkar, açılınca geri
   await page.getByRole('link', { name: 'Karviyes Ambalaj' }).click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('link', { name: 'Veriyi indir (JSON)' }).click()]);
   expect(download.suggestedFilename()).toMatch(/-veri-\d{4}-\d{2}-\d{2}\.json$/);
+
+  // Kendi sunucusundaki kurulum: anahtar bir kez gösterilir; merkez adresi yanlış anahtarı reddeder.
+  await page.getByRole('button', { name: 'Kurulum anahtarı' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Anahtar üret' }).click();
+  await expect(page.getByRole('dialog').getByText(/CENTRAL_INSTALL_TOKEN=/)).toBeVisible();
+  const bad = await page.request.get('/api/merkez/ayar/karviyes', { headers: { authorization: 'Bearer yanlis' } });
+  expect([401, 503]).toContain(bad.status());
 });

@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createCompany, updateCompanySettings } from '@/core/platform/companies';
 import { platformSetMemberActive } from '@/core/platform/insight';
+import { issueInstallToken } from '@/core/platform/signed-config';
 import { endSupportView, startSupportView, SUPPORT_COOKIE } from '@/core/platform/support';
 
 export async function updateCompanySettingsAction(input: unknown) {
@@ -31,4 +32,8 @@ export async function endSupportViewAction() {
   if (id) await endSupportView({ id });
   jar.delete(SUPPORT_COOKIE);
   redirect('/platform');
+}
+
+export async function issueInstallTokenAction(input: unknown) {
+  return issueInstallToken(input);
 }
