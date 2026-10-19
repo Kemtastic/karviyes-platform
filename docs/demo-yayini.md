@@ -31,6 +31,8 @@ npx tsx --env-file=.env.kurulum scripts/ornek-veri.ts     # hayali demo verisi +
 
 ## 3. Vercel
 
+> **Bölge:** `vercel.json` sunucu fonksiyonlarını **Frankfurt (fra1)** bölgesinde çalıştırır. Supabase de Frankfurt'ta olmalı; farklı kıtada olursa her sorgu okyanus aşırı gider ve sayfalar saniyelerce gecikir. Kontrol: yanıt başlığındaki `x-vercel-id` değeri `fra1::fra1::…` olmalı (`fra1::iad1` ise fonksiyon ABD'de çalışıyordur).
+
 1. Depoyu Vercel'e bağlayın (Framework: Next.js; Node.js 22). Ortam değişkenlerini **ilk deploy'dan önce** girin; yoksa derleme geçer ama uygulama açılışta veritabanı bulamaz.
 2. Ortam değişkenleri (Production):
 
