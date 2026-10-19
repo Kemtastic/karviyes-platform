@@ -389,4 +389,18 @@ test('merkez panel: ön muhasebe kapatılınca firmadan kalkar, açılınca geri
   await expect(page.getByRole('heading', { name: 'Muhasebe özeti' })).toBeVisible();
   await page.goto('/platform/kayit');
   await expect(page.getByRole('cell', { name: 'platform.updateCompanySettings' }).first()).toBeVisible();
+
+  await page.goto('/platform');
+  await page.getByRole('button', { name: 'Yeni firma' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Firma adı').fill('E2E Plastik');
+  await dialog.getByLabel('Kısa ad').fill('e2e-plastik');
+  await dialog.getByLabel('Adres').fill('plastik.e2e.example.com');
+  await dialog.getByLabel('Sektör').selectOption({ label: 'Plastik poşet' });
+  await dialog.getByLabel('Yöneticinin adı').fill('Plastik Yönetici');
+  await dialog.getByLabel('Yöneticinin e-postası').fill('yonetici@plastik.example.com');
+  await dialog.getByRole('button', { name: 'Firmayı aç' }).click();
+  await expect(dialog.getByText('/davet/')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Tamam' }).click();
+  await expect(page.getByRole('link', { name: 'E2E Plastik' })).toBeVisible();
 });

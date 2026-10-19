@@ -1,7 +1,7 @@
 import { asc, count, desc, eq, max, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { mergeCompanyConfig } from '@/core/company/config';
-import { auditLog, companies, companySettings, memberships, platformAudit } from '@/core/db/schema';
+import { auditLog, companies, companySettings, invites, memberships, platformAudit } from '@/core/db/schema';
 import { AppError } from '@/core/errors';
 import { getInstallConfig, type InstallConfig } from '@/core/install-config';
 import { MODULE_IDS, ROLES } from '@/core/modules/types';
@@ -111,5 +111,55 @@ export const platformAuditList = definePlatformAction({
       .orderBy(desc(platformAudit.at))
       .limit(i.limit);
     return rows.map(({ a, companyName }) => ({ id: a.id, at: a.at.toISOString(), actorUserId: a.actorUserId, action: a.action, companyName, detail: a.detail }));
+  },
+});
+
+/**
+ * Yeni firma: firma kaydı, ayarları (sektör, modüller) ve ilk yöneticiye tek kullanımlık davet (72 saat).
+ * Adres verilirse firma o adresten açılır (DNS kaydı ayrıca yapılır); davet bağlantısı yanıtta bir kez döner.
+ */
+export const createCompany = definePlatformAction({
+  name: 'platform.createCompany',
+  input: z.object({
+    name: z.string().trim().min(2, 'Firma adını yazın.').max(120),
+    slug: z.string().trim().toLowerCase().regex(/^[a-z0-9-]{2,40}$/, 'Kısa ad: küçük harf, rakam ve tire (2–40).'),
+    host: z.string().trim().toLowerCase().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/, 'Adres örn. plastik.kemalayan.com').or(z.literal('')).default(''),
+    sector: z.string().refine((s) => SECTOR_IDS.includes(s), 'Listeden bir sektör seçin.'),
+    modules: z.array(z.enum(MODULE_IDS)).min(1, 'En az bir modül seçin.'),
+    adminName: z.string().trim().min(2, 'Yöneticinin adını yazın.').max(120),
+    adminEmail: z.string().trim().toLowerCase().email('Geçerli bir e-posta yazın.'),
+  }),
+  run: async (ctx, i) => {
+    try {
+      mergeCompanyConfig(getInstallConfig(), { modules: i.modules, sector: i.sector, twoFactorRoles: null, features: {} });
+    } catch (e) {
+      throw new AppError('VALIDATION', (e as Error).message, { modules: (e as Error).message });
+    }
+    const [slugTaken] = await ctx.db.select({ id: companies.id }).from(companies).where(eq(companies.slug, i.slug));
+    if (slugTaken) throw new AppError('CONFLICT', 'Bu kısa ad kullanılıyor.', { slug: 'Başka bir kısa ad seçin.' });
+    if (i.host) {
+      const [hostTaken] = await ctx.db.select({ id: companies.id }).from(companies).where(eq(companies.host, i.host));
+      if (hostTaken) throw new AppError('CONFLICT', 'Bu adres başka firmada.', { host: 'Başka bir adres seçin.' });
+    }
+    const [c] = await ctx.db.insert(companies).values({ name: i.name, slug: i.slug, host: i.host || null }).returning({ id: companies.id });
+    const companyId = c!.id;
+    const { randomBytes } = await import('node:crypto');
+    const { hashToken, INVITE_TTL_HOURS } = await import('@/core/users/service');
+    const token = randomBytes(32).toString('base64url');
+    const expiresAt = new Date(Date.now() + INVITE_TTL_HOURS * 3600 * 1000);
+    await ctx.inCompany(companyId, async (tx, audit) => {
+      await tx.insert(companySettings).values({ companyId, modules: i.modules, sector: i.sector, updatedBy: ctx.admin.userId });
+      const [inv] = await tx
+        .insert(invites)
+        .values({ companyId, email: i.adminEmail, name: i.adminName, roles: ['admin'], tokenHash: hashToken(token), expiresAt, createdBy: ctx.admin.userId })
+        .returning({ id: invites.id });
+      await audit({ entity: 'company', entityId: companyId, after: { name: i.name, sector: i.sector, modules: i.modules, adminEmail: i.adminEmail, inviteId: inv!.id } });
+    });
+    const base = i.host ? `https://${i.host}` : (process.env.BETTER_AUTH_URL ?? 'http://localhost:3000');
+    const link = `${base.replace(/\/$/, '')}/davet/${token}`;
+    const { sendMail } = await import('@/core/mail');
+    const mailed = await sendMail(i.adminEmail, `${i.name} · hesabınız hazır`, `${i.adminName}, ${i.name} için yönetici hesabınızı oluşturmak üzere bağlantı (${INVITE_TTL_HOURS} saat geçerli):\n${link}`).then(() => true, () => false);
+    await ctx.log({ targetCompanyId: companyId, detail: { name: i.name, slug: i.slug, host: i.host || null, sector: i.sector, modules: i.modules, adminEmail: i.adminEmail, mailed } });
+    return { companyId, inviteLink: link, mailed };
   },
 });

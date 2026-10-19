@@ -12,6 +12,8 @@ export type AuthOptions = {
   baseURL: string;
   issuer: string;
   sendResetPassword?: (data: { user: { email: string }; url: string }) => Promise<void>;
+  /** Çok firmalı kurulumda firma adresleri (giriş istekleri bu kökenlerden de kabul edilir). */
+  trustedOrigins?: () => Promise<string[]>;
 };
 
 export function createAuth(db: Db, opts: AuthOptions) {
@@ -19,6 +21,7 @@ export function createAuth(db: Db, opts: AuthOptions) {
     secret: opts.secret,
     baseURL: opts.baseURL,
     basePath: '/api/auth',
+    ...(opts.trustedOrigins ? { trustedOrigins: async () => [opts.baseURL, ...(await opts.trustedOrigins!())] } : {}),
     appName: opts.issuer,
     database: drizzleAdapter(db, {
       provider: 'pg',

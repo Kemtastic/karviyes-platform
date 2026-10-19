@@ -8,6 +8,7 @@ import { AppError } from '@/core/errors';
 import { getInstallConfig } from '@/core/install-config';
 import { sendMail } from '@/core/mail';
 import type { Role } from '@/core/modules/types';
+import { companyIdForHost, companyOrigins } from '@/core/company/tenant';
 import { createAuth, type Auth } from './auth';
 import { validateMembership, type AccountKind } from './policy';
 
@@ -32,22 +33,18 @@ export function getAuth(): Promise<Auth> {
       secret: env.BETTER_AUTH_SECRET,
       baseURL: env.BETTER_AUTH_URL,
       issuer: getInstallConfig().company.name,
+      trustedOrigins: async () => companyOrigins(await getDb()),
       sendResetPassword: ({ user, url }) => sendMail(user.email, 'Parola sıfırlama', `Parolanızı sıfırlamak için bağlantı (1 saat geçerli):\n${url}`),
     });
   })();
   return authInstance;
 }
 
-let companyIdCache: string | undefined;
-
-// Bir kurulum bir firmadır: firma kimliği kurulum ayarındaki slug ile bulunur.
+// İsteğin firması: adres bir firmaya kayıtlıysa o firma (çok firmalı kurulum), değilse kurulum ayarındaki firma.
 export async function getCompanyId(): Promise<string> {
-  if (companyIdCache) return companyIdCache;
-  const db = await getDb();
-  const [row] = await db.select({ id: companies.id }).from(companies).where(eq(companies.slug, getInstallConfig().company.slug));
-  if (!row) throw new Error('Firma bulunamadı; önce "pnpm kurulum" çalıştırın.');
-  companyIdCache = row.id;
-  return row.id;
+  const { headers } = await import('next/headers');
+  const h = await headers();
+  return companyIdForHost(await getDb(), h.get('x-forwarded-host') ?? h.get('host') ?? '', getInstallConfig().company.slug);
 }
 
 export async function resolveCurrentUser(auth: Auth, db: Db, companyId: string, headers: Headers): Promise<CurrentUser | null> {

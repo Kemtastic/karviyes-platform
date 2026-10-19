@@ -6,7 +6,7 @@ import { createUserWithPassword, MIN_PASSWORD_LENGTH, type Auth } from '@/core/a
 import { validateMembership } from '@/core/auth/policy';
 import type { Db } from '@/core/db/client';
 import { withCompany, writeAudit } from '@/core/db/scope';
-import { invites, memberships, staff } from '@/core/db/schema';
+import { companies, invites, memberships, staff } from '@/core/db/schema';
 import { getEnv } from '@/core/env';
 import { AppError } from '@/core/errors';
 import { sendMail } from '@/core/mail';
@@ -15,7 +15,7 @@ import { ROLES, type Role } from '@/core/modules/types';
 export const INVITE_TTL_HOURS = 72;
 
 const roleList = z.array(z.enum(ROLES)).min(1);
-const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
+export const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
 
 async function authFor(deps?: { auth?: Auth }): Promise<Auth> {
   return deps?.auth ?? (await import('@/core/auth/session')).getAuth();
@@ -36,13 +36,17 @@ export const inviteUser = defineAction({
       .insert(invites)
       .values({ companyId: ctx.companyId, email, name: i.name, roles: i.roles, tokenHash: hashToken(token), expiresAt, createdBy: ctx.user.userId })
       .returning({ id: invites.id });
-    const base = (() => {
-      try {
-        return getEnv().BETTER_AUTH_URL;
-      } catch {
-        return 'http://localhost:3000';
-      }
-    })();
+    // Firmanın kendi adresi varsa davet o adrese gider (çok firmalı kurulum).
+    const [own] = await ctx.tx.select({ host: companies.host }).from(companies).where(eq(companies.id, ctx.companyId));
+    const base = own?.host
+      ? `https://${own.host}`
+      : (() => {
+          try {
+            return getEnv().BETTER_AUTH_URL;
+          } catch {
+            return 'http://localhost:3000';
+          }
+        })();
     const link = `${base}/davet/${token}`;
     await ctx.audit({ entity: 'invite', entityId: row!.id, after: { email, roles: i.roles } });
     await sendMail(email, 'Hesap daveti', `${i.name}, sisteme davet edildiniz. Parolanızı belirlemek için bağlantı (${INVITE_TTL_HOURS} saat geçerli):\n${link}`).catch(() => undefined);

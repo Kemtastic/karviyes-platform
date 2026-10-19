@@ -3,7 +3,9 @@ import { notFound } from 'next/navigation';
 import { formatDateTime } from '@/core/dates';
 import { MANIFESTS } from '@/core/modules/registry';
 import { platformCompanies } from '@/core/platform/companies';
-import { getSector } from '@/sectors';
+import { MODULE_IDS } from '@/core/modules/types';
+import { getSector, SECTOR_IDS } from '@/sectors';
+import { NewCompany } from './new-company';
 import { Badge } from '@/ui/badge';
 import { PageHeader } from '@/ui/page-header';
 
@@ -12,7 +14,11 @@ export default async function PlatformHome() {
   if (!r.ok) notFound();
   return (
     <div className="space-y-5">
-      <PageHeader title="Firmalar" description="Her firmanın sektörü, açık modülleri ve durumu. Firmaya tıklayınca ayarları açılır; her değişiklik panel kaydına ve firmanın denetim kaydına yazılır." />
+      <PageHeader
+        title="Firmalar"
+        description="Her firmanın sektörü, açık modülleri ve durumu. Firmaya tıklayınca ayarları açılır; her değişiklik panel kaydına ve firmanın denetim kaydına yazılır."
+        actions={<NewCompany sectors={SECTOR_IDS.map((s) => ({ id: s, name: getSector(s).name }))} modules={MODULE_IDS.map((m) => ({ id: m, name: MANIFESTS[m].name, dependsOn: [...MANIFESTS[m].dependsOn] }))} />}
+      />
       <div className="overflow-x-auto rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)]">
         <table className="w-full text-sm">
           <thead className="border-b border-stone-200 bg-stone-50/80 text-xs uppercase tracking-wide text-stone-500">
