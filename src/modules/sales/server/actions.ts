@@ -6,6 +6,7 @@ import { parties, staff } from '@/core/db/schema';
 import { AppError } from '@/core/errors';
 import type { Role } from '@/core/modules/types';
 import { salesCalls, salesContacts } from '../db/schema';
+import { PRIORITIES } from '../db/schema';
 
 export const SALES: Role[] = ['admin', 'sales'];
 
@@ -53,5 +54,41 @@ export const setResponsible = defineAction({
       .onConflictDoUpdate({ target: [salesContacts.companyId, salesContacts.partyId], set: { responsibleStaffId: i.staffId, updatedAt: new Date() } });
     await ctx.audit({ entity: 'party', entityId: i.partyId, after: { responsibleStaffId: i.staffId } });
     return { partyId: i.partyId };
+  },
+});
+
+export const setPriority = defineAction({
+  name: 'sales.setPriority',
+  module: 'sales',
+  roles: SALES,
+  input: z.object({ partyId: z.string().uuid(), priority: z.enum(PRIORITIES) }),
+  run: async (ctx, i) => {
+    await assertCustomer(ctx, i.partyId);
+    await ctx.tx
+      .insert(salesContacts)
+      .values({ companyId: ctx.companyId, partyId: i.partyId, priority: i.priority })
+      .onConflictDoUpdate({ target: [salesContacts.companyId, salesContacts.partyId], set: { priority: i.priority, updatedAt: new Date() } });
+    await ctx.audit({ entity: 'party', entityId: i.partyId, after: { priority: i.priority } });
+    return { partyId: i.partyId, priority: i.priority };
+  },
+});
+
+/** Bir satışçının bütün müşterilerini başka satışçıya aktarır (ayrılan ya da bölge değiştiren satışçı). Yalnız yönetici. */
+export const transferCustomers = defineAction({
+  name: 'sales.transferCustomers',
+  module: 'sales',
+  roles: ['admin'],
+  input: z.object({ fromStaffId: z.string().uuid('Kimden aktarılacağını seçin.'), toStaffId: z.string().uuid('Kime aktarılacağını seçin.') }),
+  run: async (ctx, i) => {
+    if (i.fromStaffId === i.toStaffId) throw new AppError('VALIDATION', 'Aynı kişiye aktarılamaz.', { toStaffId: 'Başka bir satışçı seçin.' });
+    const [s] = await ctx.tx.select({ active: staff.active, departments: staff.departments }).from(staff).where(eq(staff.id, i.toStaffId));
+    if (!s?.active || !s.departments.includes('sales')) throw new AppError('VALIDATION', 'Aktif bir satış personeli seçin.', { toStaffId: 'Satış personelinden seçin.' });
+    const moved = await ctx.tx
+      .update(salesContacts)
+      .set({ responsibleStaffId: i.toStaffId, updatedAt: new Date() })
+      .where(eq(salesContacts.responsibleStaffId, i.fromStaffId))
+      .returning({ partyId: salesContacts.partyId });
+    await ctx.audit({ entity: 'staff', entityId: i.fromStaffId, after: { transferredTo: i.toStaffId, customers: moved.map((m) => m.partyId) } });
+    return { moved: moved.length };
   },
 });

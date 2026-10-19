@@ -81,3 +81,6 @@ G1 firma profili (MERSİS, IBAN, mali müşavir) + kayıtlara not/belge · G2 ü
   - Ruling: Yalnız TL kayıtlar; döviz fatura ve hesaplar raporlara girmez (ekranda yazılı). — Maliyet: dövizli çalışan firmada tahmin eksik; kur çevrimi sonraki dilimde.
   - Ruling: Gelir-gider tahakkuk esaslı ve "yönetim raporu"dur; stok değişimi ve amortisman yok, resmî kâr/zarar değildir (ekranda yazılı).
   - Proforma'da KDV oranları artık sıralı (satır sırasına bağlı kalıyordu; testte ara sıra kırmızı çıkardı).
+- G5 bitti: satış takibinde müşteri önceliği (A/B/C, `sales_contacts.priority`, göç 0041; satırda seçilir, listede A önce), süzgeçler (ad araması, öncelik, sorumlusu olmayanlar, 30/60/90/180 günden uzun süredir aranmayanlar), yöneticiye "Müşterileri aktar" (bir satışçının bütün müşterileri başkasına; denetim kaydında müşteri listesiyle).
+  - Ruling: xlsx dışa aktarma eklenmedi; mevcut CSV dışa aktarımları (UTF-8 BOM, `;` ayraç) Excel'de doğrudan açılıyor. — Neden: xlsx için yeni bağımlılık gerekir. — Maliyet: biçimli (renkli, formüllü) Excel yok.
+  - Not: Vercel derlemeleri tek tek kuyrukta; her commit'i hem v3'e hem main'e itmek kuyruğu ikiye katlıyordu. Bundan sonra yalnız main itilir, v3 ara sıra eşitlenir.

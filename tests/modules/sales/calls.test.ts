@@ -5,7 +5,7 @@ import { istanbulToday } from '@/core/dates';
 import { parseInstallConfig } from '@/core/install-config';
 import { archiveParty, createParty } from '@/core/parties/service';
 import { createStaff } from '@/core/users/service';
-import { logCall, setResponsible } from '@/modules/sales/server/actions';
+import { logCall, setPriority, setResponsible, transferCustomers } from '@/modules/sales/server/actions';
 import { callList, partyCalls } from '@/modules/sales/server/queries';
 
 let t: TestDb;
@@ -98,5 +98,42 @@ describe('yetki ve kapsam', () => {
   it('modül kurulumda kapalıysa erişilemez', async () => {
     const cfg = parseInstallConfig({ ...testConfig, modules: ['orders', 'production'] });
     expect(await callList({ view: 'all' }, { ...sales(), cfg })).toMatchObject({ ok: false, code: 'MODULE_DISABLED' });
+  });
+});
+
+describe('müşteri önceliği, toplu aktarma ve süzme', () => {
+  it('öncelik verilir; listede önce A gelir ve önceliğe göre süzülür', async () => {
+    expect(await setPriority({ partyId: ids.hic!, priority: 'A' }, sales())).toMatchObject({ ok: true });
+    const all = await callList({ view: 'all' }, sales());
+    if (!all.ok) throw new Error(all.message);
+    expect(all.data[0]).toMatchObject({ partyId: ids.hic, priority: 'A' });
+    expect(all.data.find((r) => r.partyId === ids.bugun)?.priority).toBe('B');
+    const onlyA = await callList({ view: 'all', priority: 'A' }, sales());
+    expect(onlyA.ok && onlyA.data.map((r) => r.partyId)).toEqual([ids.hic]);
+    expect(await setPriority({ partyId: ids.tedarikci!, priority: 'A' }, sales())).toMatchObject({ ok: false, code: 'VALIDATION' });
+  });
+
+  it('bir satışçının bütün müşterileri başka satışçıya aktarılır (yalnız yönetici); sayısı döner', async () => {
+    const v = await createStaff({ name: 'Veli Satış', kind: 'sales', departments: ['sales'] }, admin());
+    if (!v.ok) throw new Error(v.message);
+    await setResponsible({ partyId: ids.bugun!, staffId: ali }, sales());
+    await setResponsible({ partyId: ids.geciken!, staffId: ali }, sales());
+    expect(await transferCustomers({ fromStaffId: ali, toStaffId: v.data.id }, sales())).toMatchObject({ ok: false, code: 'FORBIDDEN' });
+    expect(await transferCustomers({ fromStaffId: ali, toStaffId: tracker }, admin())).toMatchObject({ ok: false, code: 'VALIDATION' });
+    expect(await transferCustomers({ fromStaffId: ali, toStaffId: v.data.id }, admin())).toMatchObject({ ok: true, data: { moved: 2 } });
+    const r = await callList({ view: 'all', responsibleStaffId: v.data.id }, sales());
+    expect(r.ok && r.data.map((x) => x.partyId).sort()).toEqual([ids.bugun, ids.geciken].sort());
+    const none = await callList({ view: 'all', responsibleStaffId: ali }, sales());
+    expect(none.ok && none.data).toEqual([]);
+  });
+
+  it('uzun süredir aranmayanlar ve sorumlusu olmayanlar süzülür; adla aranır', async () => {
+    const stale = await callList({ view: 'all', staleDays: 30 }, sales());
+    expect(stale.ok && stale.data.some((r) => r.partyId === ids.hic)).toBe(true);
+    expect(stale.ok && stale.data.some((r) => r.partyId === ids.bugun)).toBe(false);
+    const unassigned = await callList({ view: 'all', unassigned: true }, sales());
+    expect(unassigned.ok && unassigned.data.every((r) => r.responsibleStaffId === null)).toBe(true);
+    const q = await callList({ view: 'all', q: 'GECİK' }, sales());
+    expect(q.ok && q.data.map((r) => r.partyId)).toEqual([ids.geciken]);
   });
 });

@@ -210,6 +210,16 @@ test('satış takibi: görüşme kaydı, planlanan listesi ve cari kartında ge�
   await expect(page.getByRole('row', { name: /E2E Gıda Ltd\. Şti\./ })).toBeVisible();
   await page.getByRole('link', { name: 'E2E Gıda Ltd. Şti.' }).click();
   await expect(page.getByRole('region', { name: 'Satış takibi' }).getByText('Yeni sezon fiyatı istedi')).toBeVisible();
+
+  // Öncelik ve süzme.
+  await page.goto('/satis?gorunum=all');
+  await page.getByRole('table').getByLabel('E2E Gıda Ltd. Şti. önceliği').selectOption('A');
+  await expect(page.getByRole('table').getByLabel('E2E Gıda Ltd. Şti. önceliği')).toHaveValue('A');
+  await page.locator('select[name="oncelik"]').selectOption('A');
+  await page.getByRole('button', { name: 'Süz' }).click();
+  await page.waitForURL(/oncelik=A/);
+  await expect(page.getByRole('row', { name: /E2E Gıda Ltd\. Şti\./ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Müşterileri aktar' })).toBeVisible();
 });
 
 test('sipariş arama ve son siparişten ürünleri getirme', async ({ page }) => {
