@@ -13,6 +13,7 @@ const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0
 // baskı aşamasında yalnızca baskı firesi, diğer aşamalarda yalnızca kesim firesi.
 export const machineStaffReport = defineAction({
   name: 'production.report',
+  readOnlySafe: true,
   module: 'production',
   roles: ['admin', 'tracking'],
   rateLimit: false,

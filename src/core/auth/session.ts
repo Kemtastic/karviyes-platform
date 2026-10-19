@@ -2,7 +2,7 @@ import { cache } from 'react';
 import { and, eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/core/db/client';
 import { withCompany } from '@/core/db/scope';
-import { companies, companySettings, memberships } from '@/core/db/schema';
+import { companySettings, memberships } from '@/core/db/schema';
 import { getEnv } from '@/core/env';
 import { AppError } from '@/core/errors';
 import { getInstallConfig } from '@/core/install-config';

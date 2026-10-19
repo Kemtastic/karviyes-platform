@@ -65,6 +65,7 @@ export function companyLetterhead(p: Pick<CompanyProfile, 'legalName' | 'taxOffi
 
 export const getCompanyProfile = defineAction({
   name: 'company.legalProfile',
+  readOnlySafe: true,
   roles: ['admin', 'sales', 'accounting', 'tracking'],
   rateLimit: false,
   input: z.object({}),

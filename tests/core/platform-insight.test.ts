@@ -71,6 +71,13 @@ describe('firma kullanıcıları', () => {
   });
 });
 
+describe('son yönetici', () => {
+  it('firmanın son aktif yöneticisi panelden kilitlenemez', async () => {
+    const zeynep = ok(await platformCompanyUsers({ companyId: t.companyB }, rt()))[0]!;
+    expect(await platformSetMemberActive({ companyId: t.companyB, membershipId: zeynep.membershipId, active: false, reason: 'Ayrıldı' }, rt())).toMatchObject({ ok: false, code: 'INVALID_STATE' });
+  });
+});
+
 describe('kullanım ve denetim', () => {
   it('son 30 günün işlemleri alan bazında sayılır', async () => {
     const u = ok(await platformCompanyUsage({ companyId: t.companyA, now: '2026-10-20T12:00:00Z' }, rt()));

@@ -61,6 +61,7 @@ const itemJson = (i: OpenItem) => ({ ...i, total: s(i.total), open: s(i.open) })
 /** Cari bakiyeleri: her cari × para birimi için bakiye, alacak ve borç yaşlandırması. */
 export const partyBalances = defineAction({
   name: 'finance.partyBalances',
+  readOnlySafe: true,
   module: 'finance',
   roles: FIN,
   rateLimit: false,
@@ -91,6 +92,7 @@ export const partyBalances = defineAction({
 /** Cari ekstresi (para birimi başına) ve açık kalemler. */
 export const partyLedger = defineAction({
   name: 'finance.partyLedger',
+  readOnlySafe: true,
   module: 'finance',
   roles: FIN,
   rateLimit: false,
@@ -130,6 +132,7 @@ export async function accountBalances(ctx: ActionCtx) {
 
 export const accountsList = defineAction({
   name: 'finance.accounts',
+  readOnlySafe: true,
   module: 'finance',
   roles: FIN,
   rateLimit: false,
@@ -149,6 +152,7 @@ export const accountsList = defineAction({
 /** Kasa/banka ekstresi: açılıştan itibaren yürüyen bakiye. */
 export const accountStatement = defineAction({
   name: 'finance.accountStatement',
+  readOnlySafe: true,
   module: 'finance',
   roles: FIN,
   rateLimit: false,
@@ -183,6 +187,7 @@ export const accountStatement = defineAction({
 
 export const invoicesList = defineAction({
   name: 'finance.invoices',
+  readOnlySafe: true,
   module: 'finance',
   roles: FIN,
   rateLimit: false,
@@ -204,6 +209,7 @@ export const invoicesList = defineAction({
 
 export const movementsList = defineAction({
   name: 'finance.movements',
+  readOnlySafe: true,
   module: 'finance',
   roles: FIN,
   rateLimit: false,
@@ -226,6 +232,7 @@ export const movementsList = defineAction({
 
 export const checksList = defineAction({
   name: 'finance.checks',
+  readOnlySafe: true,
   module: 'finance',
   roles: FIN,
   rateLimit: false,
@@ -252,6 +259,7 @@ export const checksList = defineAction({
 /** Muhasebe özeti: para birimi başına alacak, borç, gecikmiş tutarlar, kasa/banka, çekler; önümüzdeki 30 günün ödeme takvimi. */
 export const financeOverview = defineAction({
   name: 'finance.overview',
+  readOnlySafe: true,
   module: 'finance',
   roles: FIN,
   rateLimit: false,
@@ -306,6 +314,7 @@ export const financeOverview = defineAction({
 /** Seçim kutuları için açık hesaplar. */
 export const accountOptions = defineAction({
   name: 'finance.accountOptions',
+  readOnlySafe: true,
   module: 'finance',
   roles: FIN,
   rateLimit: false,
@@ -316,6 +325,7 @@ export const accountOptions = defineAction({
 /** Tahsilat penceresi için carinin bakiyesi kalan siparişleri (sipariş modülü açıksa). */
 export const partyOpenOrders = defineAction({
   name: 'finance.partyOpenOrders',
+  readOnlySafe: true,
   module: 'finance',
   roles: FIN,
   rateLimit: false,
@@ -331,6 +341,7 @@ export const partyOpenOrders = defineAction({
  */
 export const vatSummary = defineAction({
   name: 'finance.vatSummary',
+  readOnlySafe: true,
   module: 'finance',
   roles: FIN,
   rateLimit: false,
@@ -403,6 +414,7 @@ export const vatSummary = defineAction({
 
 export const periodLock = defineAction({
   name: 'finance.periodLock',
+  readOnlySafe: true,
   module: 'finance',
   roles: FIN,
   rateLimit: false,

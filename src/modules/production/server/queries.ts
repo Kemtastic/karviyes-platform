@@ -22,6 +22,7 @@ const PRODUCTION_STAGES = ['slitting', 'printing', 'cutting', 'finishing', 'repa
 // Okuma: üretim panosu sipariş ve cari tablolarını yalnızca okur (yazma orders/public üzerinden).
 export const productionBoard = defineAction({
   name: 'production.board',
+  readOnlySafe: true,
   module: 'production',
   roles: OFFICE,
   rateLimit: false,
@@ -86,6 +87,7 @@ function stagesForRoles(roles: Role[]): string[] {
 // Bölüm ekranı: yalnızca o bölümün işleri; fiyat ve ödeme yok.
 export const departmentQueue = defineAction({
   name: 'production.queue',
+  readOnlySafe: true,
   module: 'production',
   roles: ALL,
   rateLimit: false,
@@ -110,6 +112,7 @@ export const departmentQueue = defineAction({
 
 export const jobDetail = defineAction({
   name: 'production.detail',
+  readOnlySafe: true,
   module: 'production',
   roles: ALL,
   rateLimit: false,
@@ -154,6 +157,7 @@ export const jobDetail = defineAction({
 
 export const listFabric = defineAction({
   name: 'production.fabric',
+  readOnlySafe: true,
   module: 'production',
   roles: ['admin', 'tracking'],
   rateLimit: false,
@@ -170,6 +174,7 @@ export const listFabric = defineAction({
 
 export const listWorkshopStaff = defineAction({
   name: 'production.staff',
+  readOnlySafe: true,
   module: 'production',
   roles: ALL,
   rateLimit: false,
@@ -184,6 +189,7 @@ export const listWorkshopStaff = defineAction({
 // Bekleyen malzeme ihtiyacı (üretime alınmamış siparişler + ayrımı tamamlanmamış işler) ile boştaki stok karşılaştırması.
 export const materialShortages = defineAction({
   name: 'production.shortages',
+  readOnlySafe: true,
   module: 'production',
   roles: ['admin', 'tracking'],
   rateLimit: false,
@@ -227,6 +233,7 @@ export const materialShortages = defineAction({
 // Ana sayfa özeti: işler aşama gruplarına göre.
 export const productionSummary = defineAction({
   name: 'production.summary',
+  readOnlySafe: true,
   module: 'production',
   roles: OFFICE,
   rateLimit: false,
@@ -246,6 +253,7 @@ export const productionSummary = defineAction({
 // Sevk geçmişi: tarih aralığındaki sevkler (yeniden eskiye), iş, müşteri ve ürünle.
 export const shipmentHistory = defineAction({
   name: 'production.shipments',
+  readOnlySafe: true,
   module: 'production',
   roles: OFFICE,
   rateLimit: false,
@@ -269,6 +277,7 @@ export const shipmentHistory = defineAction({
 // Sevk fişi: tek sevkin alıcısı, ürünü, miktarı, ambalajı ve işin o ana kadarki toplam sevki; firma anteti ile.
 export const shipmentSlip = defineAction({
   name: 'production.shipmentSlip',
+  readOnlySafe: true,
   module: 'production',
   roles: OFFICE,
   rateLimit: false,

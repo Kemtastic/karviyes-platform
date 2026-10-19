@@ -18,9 +18,9 @@ if (!process.env.VERCEL) {
   const db = await connectDb(url);
   await migrateDb(db, url);
   // Kendi veritabanı olan firmalar da aynı sürüme taşınır; biri başarısız olursa derleme durur.
-  const own = await db.select({ slug: companies.slug, enc: companies.dataUrlEnc }).from(companies).where(isNotNull(companies.dataUrlEnc));
+  const own = await db.select({ id: companies.id, slug: companies.slug, enc: companies.dataUrlEnc }).from(companies).where(isNotNull(companies.dataUrlEnc));
   for (const c of own) {
-    const target = decryptUrl(c.enc!);
+    const target = decryptUrl(c.enc!, c.id);
     await migrateDb(await connectDb(target), target);
     await closeDb(target);
     console.log(`[göç] ${c.slug}: firma veritabanı güncel.`);

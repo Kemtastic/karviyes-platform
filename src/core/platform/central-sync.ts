@@ -10,6 +10,7 @@ export async function syncInstallFromCentral(): Promise<{ applied: boolean; reas
   const token = process.env.CENTRAL_INSTALL_TOKEN;
   const publicKey = process.env.CENTRAL_PUBLIC_KEY;
   if (!url || !token || !publicKey) return { applied: false, reason: 'Merkez bağlantısı tanımlı değil (CENTRAL_CONFIG_URL, CENTRAL_INSTALL_TOKEN, CENTRAL_PUBLIC_KEY).' };
+  if (!url.startsWith('https://')) return { applied: false, reason: 'CENTRAL_CONFIG_URL https:// ile başlamalı.' };
   const slug = getInstallConfig().company.slug;
   const db = await getDb();
   const [c] = await db.select({ id: companies.id }).from(companies).where(eq(companies.slug, slug));

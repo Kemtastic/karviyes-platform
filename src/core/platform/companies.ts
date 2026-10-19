@@ -6,7 +6,8 @@ import { AppError } from '@/core/errors';
 import { getInstallConfig, type InstallConfig } from '@/core/install-config';
 import { MODULE_IDS, ROLES } from '@/core/modules/types';
 import { SECTOR_IDS } from '@/sectors';
-import { connectDb, migrateDb } from '@/core/db/client';
+import { randomUUID } from 'node:crypto';
+import { closeDb, connectDb, migrateDb } from '@/core/db/client';
 import { clearDataRoutes, encryptUrl } from '@/core/db/router';
 import { definePlatformAction, type PlatformCtx } from './action';
 
@@ -153,11 +154,8 @@ export const createCompany = definePlatformAction({
       if (hostTaken) throw new AppError('CONFLICT', 'Bu adres başka firmada.', { host: 'Başka bir adres seçin.' });
     }
     const dedicated = i.databaseUrl ? checkDatabaseUrl(i.databaseUrl) : null;
-    const [c] = await ctx.db
-      .insert(companies)
-      .values({ name: i.name, slug: i.slug, host: i.host || null, dataUrlEnc: dedicated ? encryptUrl(dedicated) : null })
-      .returning({ id: companies.id });
-    const companyId = c!.id;
+    const companyId = randomUUID();
+    await ctx.db.insert(companies).values({ id: companyId, name: i.name, slug: i.slug, host: i.host || null, dataUrlEnc: dedicated ? encryptUrl(dedicated, companyId) : null });
     if (dedicated) {
       // Ayrı veritabanı hazırlanır: tablolar (göçler) ve firmanın kendi kaydı. Hata olursa firma kaydı geri alınır.
       try {
@@ -167,7 +165,10 @@ export const createCompany = definePlatformAction({
         clearDataRoutes(companyId);
       } catch (e) {
         await ctx.db.delete(companies).where(eq(companies.id, companyId));
-        throw new AppError('VALIDATION', `Ayrı veritabanı hazırlanamadı: ${(e as Error).message.slice(0, 200)}`, { databaseUrl: 'Adresi ve erişimi kontrol edin.' });
+        // Hata ayrıntısı yanıtta dönmez (iç ağ taraması için ipucu olmasın); sunucu günlüğüne yazılır.
+        console.error('[firma-veritabani]', (e as Error).message);
+        await closeDb(dedicated).catch(() => {});
+        throw new AppError('VALIDATION', 'Ayrı veritabanı hazırlanamadı. Adresi, kullanıcı yetkisini ve ağ erişimini kontrol edin.', { databaseUrl: 'Adresi ve erişimi kontrol edin.' });
       }
     }
     const { randomBytes } = await import('node:crypto');

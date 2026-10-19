@@ -45,6 +45,7 @@ export function storeFile(raw: unknown, rt?: ActionRuntime, deps: Deps = {}): Pr
 export function readStoredFile(id: string, rt?: ActionRuntime, deps: Deps = {}): Promise<ActionResult<{ bytes: Uint8Array; contentType: string; name: string }>> {
   return defineAction({
     name: 'files.read',
+    readOnlySafe: true,
     roles: ['admin', 'sales', 'tracking', 'slitting', 'printing', 'cutting', 'finishing', 'repair'],
     rateLimit: false,
     input: z.object({ id: z.string().uuid() }),

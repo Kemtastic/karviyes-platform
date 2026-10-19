@@ -29,6 +29,7 @@ export const updateCompanyBranding = defineAction({
 // Firma adı, rengi ve logosu: kabuk ve belgeler (PDF) buradan okur, kurulum dosyasından değil.
 export const companyProfile = defineAction({
   name: 'company.profile',
+  readOnlySafe: true,
   roles: [...ROLES],
   rateLimit: false,
   input: z.object({}),
@@ -43,6 +44,7 @@ export const AUDIT_PAGE_SIZE = 50;
 
 export const listAudit = defineAction({
   name: 'audit.list',
+  readOnlySafe: true,
   roles: ['admin'],
   rateLimit: false,
   input: z.object({

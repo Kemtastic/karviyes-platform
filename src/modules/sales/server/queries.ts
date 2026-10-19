@@ -14,6 +14,7 @@ export type CallView = (typeof CALL_VIEWS)[number];
 // Bugün: sonraki tarih bugün · Geciken: bugünden önce · Planlanan: bugünden sonra · Tümü: aranmamışlar dahil.
 export const callList = defineAction({
   name: 'sales.callList',
+  readOnlySafe: true,
   module: 'sales',
   roles: SALES,
   rateLimit: false,
@@ -74,6 +75,7 @@ export const callList = defineAction({
 // Cari kartındaki görüşme geçmişi (yeniden eskiye).
 export const partyCalls = defineAction({
   name: 'sales.partyCalls',
+  readOnlySafe: true,
   module: 'sales',
   roles: SALES,
   rateLimit: false,
@@ -94,6 +96,7 @@ export const partyCalls = defineAction({
 // Sorumlu seçimi için aktif satış personeli (sipariş modülüne bağlı kalmamak için burada).
 export const salesStaffList = defineAction({
   name: 'sales.staff',
+  readOnlySafe: true,
   module: 'sales',
   roles: SALES,
   rateLimit: false,

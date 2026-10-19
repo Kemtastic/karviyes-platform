@@ -213,6 +213,7 @@ export const recordReconciliationAnswer = defineAction({
 
 export const reconciliationsList = defineAction({
   name: 'finance.reconciliations',
+  readOnlySafe: true,
   module: 'finance',
   roles: FIN,
   rateLimit: false,
@@ -233,6 +234,7 @@ export const reconciliationsList = defineAction({
 
 export const reconciliationDetail = defineAction({
   name: 'finance.reconciliationDetail',
+  readOnlySafe: true,
   module: 'finance',
   roles: FIN,
   rateLimit: false,

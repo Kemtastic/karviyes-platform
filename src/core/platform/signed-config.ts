@@ -90,7 +90,10 @@ export async function applyCentralBundle(db: Db, companyId: string, p: CentralBu
   await withCompany(
     companyId,
     async (tx) => {
-      const values = { modules: p.modules, sector: p.sector, twoFactorRoles: p.twoFactorRoles, features: p.features, status: p.status, updatedAt: new Date(), updatedBy: 'merkez' };
+      // Eski paket yeniden oynatılamaz: yalnız son uygulanandan daha yeni düzenlenmiş paket geçer.
+      const [cur] = await tx.select({ issuedAt: companySettings.centralIssuedAt }).from(companySettings).where(eq(companySettings.companyId, companyId)).for('update');
+      if (cur?.issuedAt && Date.parse(p.issuedAt) <= cur.issuedAt.getTime()) throw new Error('Ayar paketi son uygulanandan eski.');
+      const values = { modules: p.modules, sector: p.sector, twoFactorRoles: p.twoFactorRoles, features: p.features, status: p.status, centralIssuedAt: new Date(p.issuedAt), updatedAt: new Date(), updatedBy: 'merkez' };
       await tx.insert(companySettings).values({ companyId, ...values }).onConflictDoUpdate({ target: companySettings.companyId, set: values });
       await writeAudit(tx, { companyId, actorUserId: null, action: 'platform.centralSync', entity: 'company', entityId: companyId, after: { modules: p.modules, sector: p.sector, status: p.status, issuedAt: p.issuedAt } });
     },

@@ -24,6 +24,7 @@ export function connectDb(url: string, opts: { autoMigrate?: boolean } = {}): Pr
       return db;
     });
     connections.set(url, connection);
+    connection.catch(() => { if (connections.get(url) === connection) connections.delete(url); });
   }
   return connection;
 }

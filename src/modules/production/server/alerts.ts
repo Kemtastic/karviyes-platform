@@ -46,6 +46,7 @@ const VIEW: Role[] = ['admin', 'tracking', 'sales'];
 
 export const productionAlerts = defineAction({
   name: 'production.alerts',
+  readOnlySafe: true,
   module: 'production',
   roles: VIEW,
   rateLimit: false,

@@ -87,6 +87,7 @@ export const archiveParty = defineAction({
 
 export const searchParties = defineAction({
   name: 'parties.search',
+  readOnlySafe: true,
   roles: EDITORS,
   rateLimit: false,
   input: z.object({ q: z.string().max(100).default(''), kind: z.enum(['customer', 'supplier']).optional(), limit: z.number().int().min(1).max(200).default(50) }),
@@ -105,6 +106,7 @@ export const searchParties = defineAction({
 // Cari kartı: vergi no ve adres içerir; yalnızca ofis rolleri görür.
 export const partyDetail = defineAction({
   name: 'parties.detail',
+  readOnlySafe: true,
   roles: EDITORS,
   rateLimit: false,
   input: z.object({ id: z.string().uuid() }),

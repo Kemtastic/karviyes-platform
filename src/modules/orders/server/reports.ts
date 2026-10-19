@@ -16,6 +16,7 @@ type Acc = { key: string; label: string; currency: Currency; orderIds: Set<strin
 // KDV hariç tutar satır bazında birim fiyat × adet (kuruşa yuvarlanmış); KDV = satır tutarı − KDV hariç.
 export const salesReport = defineAction({
   name: 'orders.salesReport',
+  readOnlySafe: true,
   module: 'orders',
   roles: OFFICE,
   rateLimit: false,

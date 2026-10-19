@@ -47,6 +47,7 @@ const sumQty = (lines: LineRow[]) => {
 
 export const listOrders = defineAction({
   name: 'orders.list',
+  readOnlySafe: true,
   module: 'orders',
   roles: OFFICE,
   rateLimit: false,
@@ -93,6 +94,7 @@ export const listOrders = defineAction({
 
 export const orderForOffice = defineAction({
   name: 'orders.office',
+  readOnlySafe: true,
   module: 'orders',
   roles: OFFICE,
   rateLimit: false,
@@ -130,6 +132,7 @@ export const orderForOffice = defineAction({
 // Bölüm ekranları için: fiyat, tutar, ödeme ve bakiye içermez.
 export const orderForWorkshop = defineAction({
   name: 'orders.workshop',
+  readOnlySafe: true,
   module: 'orders',
   roles: [...OFFICE, ...DEPARTMENT_ROLES],
   rateLimit: false,
@@ -148,6 +151,7 @@ export const orderForWorkshop = defineAction({
 
 export const listSalesStaff = defineAction({
   name: 'orders.salesStaff',
+  readOnlySafe: true,
   module: 'orders',
   roles: OFFICE,
   rateLimit: false,
@@ -167,6 +171,7 @@ function accountTotalsJSON(map: Map<Currency, AccountTotal>) {
 // Müşterinin sipariş bazlı cari hesabı (fatura bazlı değil): siparişler ve para birimi başına toplamlar.
 export const customerAccount = defineAction({
   name: 'orders.customerAccount',
+  readOnlySafe: true,
   module: 'orders',
   roles: OFFICE,
   rateLimit: false,
@@ -197,6 +202,7 @@ export const customerAccount = defineAction({
 // Açık alacaklar: bakiyesi sıfırdan büyük müşteriler, para birimi başına (TL önce), büyükten küçüğe.
 export const receivables = defineAction({
   name: 'orders.receivables',
+  readOnlySafe: true,
   module: 'orders',
   roles: OFFICE,
   rateLimit: false,
@@ -207,6 +213,7 @@ export const receivables = defineAction({
 // Ana sayfa özeti: durum başına sipariş sayısı ve para birimi başına açık sipariş bakiyesi toplamı.
 export const ordersSummary = defineAction({
   name: 'orders.summary',
+  readOnlySafe: true,
   module: 'orders',
   roles: OFFICE,
   rateLimit: false,
@@ -304,6 +311,7 @@ export const exportOrders = defineAction({
 // "Eski siparişten kopyala": müşterinin iptal edilmemiş son siparişinin satırları (fiyatlarıyla).
 export const lastOrderLines = defineAction({
   name: 'orders.lastLines',
+  readOnlySafe: true,
   module: 'orders',
   roles: OFFICE,
   rateLimit: false,
@@ -327,6 +335,7 @@ export const lastOrderLines = defineAction({
  */
 export const orderProforma = defineAction({
   name: 'orders.proforma',
+  readOnlySafe: true,
   module: 'orders',
   roles: OFFICE,
   rateLimit: false,

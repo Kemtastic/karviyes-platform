@@ -21,6 +21,7 @@ export const createPlate = defineAction({
 
 export const listPlates = defineAction({
   name: 'plates.list',
+  readOnlySafe: true,
   module: 'production',
   roles: ['admin', 'tracking', 'sales', 'printing'],
   rateLimit: false,

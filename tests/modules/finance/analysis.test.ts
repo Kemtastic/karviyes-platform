@@ -37,6 +37,7 @@ describe('gelir-gider', () => {
     ]);
     expect(r.total.result).toBe('5.000,00 ₺');
     expect(r.expenseByCategory).toEqual([{ category: 'Kira', amount: '1.000,00 ₺', share: 100 }]);
+    expect(await incomeExpense({ from: '0001-01-01', to: '9999-12-31' }, acc())).toMatchObject({ ok: false, fieldErrors: { to: expect.any(String) } });
   });
 });
 

@@ -19,6 +19,7 @@ type Group = { currency: Currency; key: string; lines: number; quantity: number;
  */
 export const productionInsights = defineAction({
   name: 'production.insights',
+  readOnlySafe: true,
   module: 'production',
   roles: VIEW,
   rateLimit: false,

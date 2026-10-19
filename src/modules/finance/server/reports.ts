@@ -28,6 +28,7 @@ export const BABS_DEFAULT_THRESHOLD_TL = 5000;
  */
 export const babsReport = defineAction({
   name: 'finance.babs',
+  readOnlySafe: true,
   module: 'finance',
   roles: FIN,
   rateLimit: false,

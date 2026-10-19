@@ -4,7 +4,8 @@ import { defineAction } from '@/core/action';
 import { staff } from '@/core/db/schema';
 import { AppError } from '@/core/errors';
 import { formatMoney, money, parseMoney } from '@/core/money';
-import { finMovements, finStaffEntries, STAFF_ENTRY_KINDS } from '../db/schema';
+import { istanbulToday } from '@/core/dates';
+import { finAccounts, finMovements, finStaffEntries, STAFF_ENTRY_KINDS } from '../db/schema';
 import { assertOpen, FIN, writeExpense } from './actions';
 
 // Personel carisi (yalnız yönetici ve muhasebe): bakiye artı = personele borçluyuz, eksi = personel bize borçlu (fazla avans).
@@ -42,6 +43,13 @@ export const recordStaffEntry = defineAction({
     if (i.kind === 'accrual' && !i.period) throw new AppError('VALIDATION', 'Tahakkukun ait olduğu ayı seçin.', { period: 'Dönem seçin.' });
     const paysOut = i.kind === 'advance' || i.kind === 'payment';
     if (paysOut && !i.accountId) throw new AppError('VALIDATION', 'Ödemenin çıktığı kasa ya da bankayı seçin.', { accountId: 'Hesap seçin.' });
+    if (paysOut) {
+      // Personel carisi TL tutulur: döviz hesabından ödeme carideki tutarla kasadan düşen tutarı ayırırdı.
+      const [a] = await ctx.tx.select({ currency: finAccounts.currency }).from(finAccounts).where(eq(finAccounts.id, i.accountId!));
+      if (a && a.currency !== 'TRY') throw new AppError('VALIDATION', 'Personel ödemesi TL hesaptan yapılır.', { accountId: 'TL bir kasa ya da banka seçin.' });
+    }
+    if (i.date > istanbulToday()) throw new AppError('VALIDATION', 'Tarih bugünden sonra olamaz.', { date: 'Bugün ya da önceki bir tarih seçin.' });
+    await assertOpen(ctx, i.date);
     const movement = paysOut
       ? await writeExpense(ctx, { direction: 'out', accountId: i.accountId!, amountMinor: amount, vatRate: 0, category: 'Personel', date: i.date, note: `${s.name} · ${STAFF_ENTRY_LABELS[i.kind]}${i.note ? ` · ${i.note}` : ''}` })
       : null;
@@ -73,6 +81,7 @@ export const reverseStaffEntry = defineAction({
 
 export const staffLedger = defineAction({
   name: 'finance.staffLedger',
+  readOnlySafe: true,
   module: 'finance',
   roles: FIN,
   rateLimit: false,
@@ -92,6 +101,7 @@ export const staffLedger = defineAction({
 
 export const staffBalances = defineAction({
   name: 'finance.staffBalances',
+  readOnlySafe: true,
   module: 'finance',
   roles: FIN,
   rateLimit: false,

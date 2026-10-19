@@ -79,8 +79,20 @@ describe('merkez → kurulum', () => {
   });
 
   it('paket uygulanırken askıya alma da geçer', async () => {
-    await applyCentralBundle(t.db, t.companyB, payload({ slug: 'firma-b', status: 'suspended' }));
+    await applyCentralBundle(t.db, t.companyB, payload({ slug: 'firma-b', status: 'suspended', issuedAt: '2026-10-20T06:00:00.000Z' }));
     const [row] = await withCompany(t.companyB, (tx) => tx.select().from(companySettings).where(eq(companySettings.companyId, t.companyB)), t.db);
     expect(row).toMatchObject({ status: 'suspended', modules: ['orders'], updatedBy: 'merkez' });
+  });
+
+  it('daha önce uygulanandan eski (ya da aynı) paket yeniden uygulanmaz', async () => {
+    const env = { url: 'https://merkez.example.com/api/merkez/ayar/firma-b', token: 'x', publicKey, slug: 'firma-b' };
+    const newer = signBundle(payload({ slug: 'firma-b', modules: ['orders', 'production'], issuedAt: '2026-10-22T00:00:00.000Z', expiresAt: '2026-10-29T00:00:00.000Z' }), privateKey);
+    const older = signBundle(payload({ slug: 'firma-b', modules: ['orders'], issuedAt: '2026-10-21T12:00:00.000Z', expiresAt: '2026-10-28T00:00:00.000Z' }), privateKey);
+    const serve = (b: unknown) => async () => new Response(JSON.stringify(b), { status: 200 });
+    const now = new Date('2026-10-23T00:00:00Z');
+    expect(await syncFromCentral(t.db, t.companyB, env, serve(newer), now)).toMatchObject({ applied: true });
+    expect(await syncFromCentral(t.db, t.companyB, env, serve(older), now)).toMatchObject({ applied: false, reason: expect.stringMatching(/eski/) });
+    expect(await syncFromCentral(t.db, t.companyB, env, serve(newer), now)).toMatchObject({ applied: false });
+    expect(await loadCompanyConfig(t.db, t.companyB)).toMatchObject({ modules: ['orders', 'production'] });
   });
 });

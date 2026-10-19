@@ -23,10 +23,14 @@ function monthsBetween(from: string, to: string): string[] {
 
 export const incomeExpense = defineAction({
   name: 'finance.incomeExpense',
+  readOnlySafe: true,
   module: 'finance',
   roles: FIN,
   rateLimit: false,
-  input: z.object({ from: isoDate, to: isoDate }).refine((i) => i.from <= i.to, { path: ['to'], message: 'Bitiş başlangıçtan önce olamaz.' }),
+  input: z
+    .object({ from: isoDate, to: isoDate })
+    .refine((i) => i.from <= i.to, { path: ['to'], message: 'Bitiş başlangıçtan önce olamaz.' })
+    .refine((i) => (Number(i.to.slice(0, 4)) - Number(i.from.slice(0, 4))) * 12 + Number(i.to.slice(5, 7)) - Number(i.from.slice(5, 7)) < 36, { path: ['to'], message: 'Aralık en fazla 36 ay olabilir.' }),
   run: async (ctx, i) => {
     const [invoices, movements] = await Promise.all([
       ctx.tx
@@ -78,6 +82,7 @@ export const incomeExpense = defineAction({
  */
 export const cashForecast = defineAction({
   name: 'finance.cashForecast',
+  readOnlySafe: true,
   module: 'finance',
   roles: FIN,
   rateLimit: false,

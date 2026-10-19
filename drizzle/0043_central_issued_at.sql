@@ -1,0 +1,1 @@
+ALTER TABLE "company_settings" ADD COLUMN "central_issued_at" timestamp with time zone;

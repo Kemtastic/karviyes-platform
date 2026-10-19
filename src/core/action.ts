@@ -38,6 +38,8 @@ export type ActionSpec<I, O> = {
   input: ZodType<I, ZodTypeDef, unknown>;
   /** Okuma sorgularında false: yazma hız sınırını tüketmez. */
   rateLimit?: boolean;
+  /** Yalnız okuyan eylem: müşteri gözüyle bakışta (salt okunur) da çalışır. Yazan eyleme konmaz. */
+  readOnlySafe?: boolean;
   audit?: (input: I, output: O) => AuditRecord | null;
   run: (ctx: ActionCtx, input: I) => Promise<O>;
 };
@@ -98,7 +100,8 @@ export function defineAction<I, O>(spec: ActionSpec<I, O>): Action<O> {
       const rt = runtime ?? (await actionRuntime());
       const user = rt.user;
       if (!user) throw new AppError('UNAUTHENTICATED', 'Oturum açmanız gerekiyor.');
-      if (user.readOnly) throw new AppError('FORBIDDEN', 'Müşteri gözüyle bakışta değişiklik yapılamaz.');
+      // Müşteri gözüyle bakış: yalnız açıkça okuma diye işaretlenen eylemler çalışır.
+      if (user.readOnly && !spec.readOnlySafe) throw new AppError('FORBIDDEN', 'Müşteri gözüyle bakışta değişiklik yapılamaz.');
       // 2FA zorunlu rollerde yalnızca ekran düzeni değil, her eylem de 2FA ister.
       if (mustEnrollTwoFactor(user, rt.cfg)) throw new AppError('FORBIDDEN', 'Önce iki adımlı doğrulamayı kurmanız gerekiyor.');
       if (spec.module) requireModule(spec.module, rt.cfg);

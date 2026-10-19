@@ -119,7 +119,7 @@ export async function acceptInvite(raw: unknown, deps: AcceptDeps): Promise<Acti
 
 // ---- Üyelik ve roller ----------------------------------------------------------------------------
 
-async function assertNotLastAdmin(tx: Parameters<Parameters<typeof withCompany>[1]>[0], membershipId: string): Promise<void> {
+export async function assertNotLastAdmin(tx: Parameters<Parameters<typeof withCompany>[1]>[0], membershipId: string): Promise<void> {
   const others = await tx
     .select({ id: memberships.id })
     .from(memberships)

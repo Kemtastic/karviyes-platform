@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { Db } from '@/core/db/client';
 import { auditLog, companies, memberships, session, user } from '@/core/db/schema';
 import { AppError } from '@/core/errors';
+import { assertNotLastAdmin } from '@/core/users/service';
 import { definePlatformAction } from './action';
 
 // Merkez panelden firma içini görme: kullanıcılar, kullanım ve denetim kaydı.
@@ -49,6 +50,7 @@ export const platformSetMemberActive = definePlatformAction({
     const changed = await ctx.inCompany(i.companyId, async (tx, audit) => {
       const [before] = await tx.select().from(memberships).where(eq(memberships.id, i.membershipId));
       if (!before) throw new AppError('NOT_FOUND', 'Bu firmada böyle bir kullanıcı yok.');
+      if (!i.active && before.active && before.roles.includes('admin')) await assertNotLastAdmin(tx, before.id);
       await tx.update(memberships).set({ active: i.active, version: sql`${memberships.version} + 1` }).where(eq(memberships.id, i.membershipId));
       await audit({ entity: 'membership', entityId: i.membershipId, before: { active: before.active }, after: { active: i.active, reason: i.reason } });
       return before;

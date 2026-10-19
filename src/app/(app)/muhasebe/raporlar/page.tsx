@@ -17,8 +17,12 @@ export default async function FinanceReportsPage({ searchParams }: { searchParam
   const today = istanbulToday();
   const q = await searchParams;
   const valid = (d?: string) => (d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : undefined);
-  const from = valid(q.bas) ?? `${today.slice(0, 4)}-01-01`;
   const to = valid(q.bit) ?? today;
+  // Rapor en çok 36 ay: daha uzun aralıkta başlangıç 35 ay geriye çekilir.
+  const m0 = Number(to.slice(0, 4)) * 12 + Number(to.slice(5, 7)) - 1 - 35;
+  const earliest = `${Math.floor(m0 / 12)}-${String((m0 % 12) + 1).padStart(2, '0')}-01`;
+  const asked = valid(q.bas) ?? `${today.slice(0, 4)}-01-01`;
+  const from = asked > to ? to : asked < earliest ? earliest : asked;
   const [ie, cf] = await Promise.all([incomeExpense({ from, to }), cashForecast({})]);
   if (!ie.ok || !cf.ok) notFound();
   const max = Math.max(1, ...cf.data.weeks.map((w) => Math.abs(num(w.balance))));

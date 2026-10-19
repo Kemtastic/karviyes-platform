@@ -97,6 +97,7 @@ export const postRecurring = defineAction({
 
 export const recurringList = defineAction({
   name: 'finance.recurringList',
+  readOnlySafe: true,
   module: 'finance',
   roles: FIN,
   rateLimit: false,

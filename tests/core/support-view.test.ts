@@ -6,7 +6,7 @@ import { auditLog, platformAdmins, platformAudit, platformViews, user } from '@/
 import { withCompany } from '@/core/db/scope';
 import type { PlatformAdmin, PlatformRuntime } from '@/core/platform/action';
 import { endSupportView, resolveSupportView, startSupportView, SUPPORT_COOKIE } from '@/core/platform/support';
-import { createParty } from '@/core/parties/service';
+import { createParty, searchParties } from '@/core/parties/service';
 import { runtime } from '../helpers/runtime';
 
 let t: TestDb;
@@ -59,6 +59,8 @@ describe('müşteri gözüyle bakış', () => {
     const viewer = (await resolveSupportView(auth, t.db, withView(v.id)))!;
     const r = await createParty({ name: 'Destek Denemesi', kind: 'customer' }, { ...runtime(t, viewer) });
     expect(r).toMatchObject({ ok: false, code: 'FORBIDDEN' });
+    // Okuma ekranları açılır (bakışın amacı bu).
+    expect(await searchParties({ q: '' }, { ...runtime(t, viewer) })).toMatchObject({ ok: true });
   });
 
   it('süresi geçen, bitirilen, başkasına ait ya da bozuk kimlikli bakış açılmaz', async () => {

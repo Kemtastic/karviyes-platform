@@ -78,17 +78,17 @@ describe('firmaya ayrı veritabanı', () => {
   it('bağlantı adresi şifreli saklanır; bozulmuş şifre açılmaz', async () => {
     process.env.PLATFORM_SECRET = 'p'.repeat(40);
     const { encryptUrl, decryptUrl } = await import('@/core/db/router');
-    const enc = encryptUrl('postgres://kullanici:gizli@host/db');
+    const a = '11111111-1111-4111-8111-111111111111';
+    const enc = encryptUrl('postgres://kullanici:gizli@host/db', a);
     expect(enc).not.toContain('gizli');
-    expect(decryptUrl(enc)).toBe('postgres://kullanici:gizli@host/db');
-    expect(() => decryptUrl(enc.slice(0, -2) + 'AA')).toThrow();
-    // PLATFORM_SECRET sonradan eklense de oturum anahtarıyla şifrelenmiş adres açılır.
+    expect(decryptUrl(enc, a)).toBe('postgres://kullanici:gizli@host/db');
+    expect(() => decryptUrl(enc.slice(0, -2) + 'AA', a)).toThrow();
+    // Başka firmanın satırına taşınan şifreli adres açılmaz.
+    expect(() => decryptUrl(enc, '22222222-2222-4222-8222-222222222222')).toThrow();
     const saved = process.env.PLATFORM_SECRET;
     delete process.env.PLATFORM_SECRET;
-    process.env.BETTER_AUTH_SECRET ??= 'b'.repeat(40);
-    const old = encryptUrl('postgres://eski@host/db');
+    expect(() => encryptUrl('postgres://x@h/db', a)).toThrow(/PLATFORM_SECRET/);
     process.env.PLATFORM_SECRET = saved;
-    expect(decryptUrl(old)).toBe('postgres://eski@host/db');
   });
 
   it('firma ayrı veritabanında açılır: ayarlar, davet ve üyelik orada; ana veritabanında iş verisi yok', async () => {

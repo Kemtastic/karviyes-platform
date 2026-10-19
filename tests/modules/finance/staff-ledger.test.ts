@@ -5,7 +5,7 @@ import { runtime, testUser } from '../../helpers/runtime';
 import { withCompany } from '@/core/db/scope';
 import { createStaff } from '@/core/users/service';
 import { finMovements } from '@/modules/finance/db/schema';
-import { createAccount, reverseMovement } from '@/modules/finance/server/actions';
+import { createAccount, reverseMovement, setPeriodLock } from '@/modules/finance/server/actions';
 import { recordStaffEntry, reverseStaffEntry, staffBalances, staffLedger } from '@/modules/finance/server/staff-ledger';
 
 let t: TestDb;
@@ -64,5 +64,13 @@ describe('personel carisi', () => {
     expect(await recordStaffEntry({ staffId: ali, kind: 'accrual', amount: '10', date: '2026-10-10' }, acc())).toMatchObject({ ok: false, fieldErrors: { period: expect.any(String) } });
     expect(await staffLedger({ staffId: ali }, { ...runtime(t, testUser(t.companyA, ['sales'])), batch: true })).toMatchObject({ ok: false, code: 'FORBIDDEN' });
     expect(await staffLedger({ staffId: ali }, { ...runtime(t, testUser(t.companyB, ['accounting'])), batch: true })).toMatchObject({ ok: false, code: 'NOT_FOUND' });
+  });
+
+  it('döviz hesabından personel ödemesi yapılamaz; kilitli döneme ve ileri tarihe tahakkuk girilemez', async () => {
+    const usd = ok(await createAccount({ kind: 'bank', name: 'USD banka', currency: 'USD', opening: '10.000', openingDate: '2026-01-01' }, acc())).id;
+    expect(await recordStaffEntry({ staffId: ali, kind: 'payment', amount: '100', date: '2026-10-10', accountId: usd }, acc())).toMatchObject({ ok: false, fieldErrors: { accountId: expect.any(String) } });
+    expect(await recordStaffEntry({ staffId: ali, kind: 'accrual', amount: '100', date: '2099-01-01', period: '2099-01' }, acc())).toMatchObject({ ok: false, code: 'VALIDATION' });
+    ok(await setPeriodLock({ lockedUntil: '2026-06-30' }, { ...runtime(t, testUser(t.companyA, ['admin'])), batch: true }));
+    expect(await recordStaffEntry({ staffId: ali, kind: 'accrual', amount: '100', date: '2026-06-15', period: '2026-06' }, acc())).toMatchObject({ ok: false, code: 'INVALID_STATE' });
   });
 });
