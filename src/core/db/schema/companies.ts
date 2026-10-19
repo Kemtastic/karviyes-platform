@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 export const companies = pgTable('companies', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -10,5 +10,7 @@ export const companies = pgTable('companies', {
   host: text('host').unique(),
   /** Firmaya ayrı veritabanı: şifreli bağlantı adresi (boşsa ana veritabanı). */
   dataUrlEnc: text('data_url_enc'),
+  /** Resmî unvan, vergi/sicil, iletişim, ana IBAN, mali müşavir (bkz. core/company/profile.ts). */
+  profile: jsonb('profile').$type<Record<string, unknown>>().notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });

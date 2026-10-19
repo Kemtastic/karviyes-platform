@@ -9,7 +9,7 @@ export function reconciliationPdf(r: { no: string; currency: Currency; asOf: str
   const fm = (v: string) => formatMoney(money(v, r.currency));
   const b = BigInt(r.balance);
   return renderReconciliationPdf({
-    no: r.no, company: r.snapshot.company, partyName: r.snapshot.partyName, taxId: r.snapshot.taxId, asOf: r.asOf,
+    no: r.no, company: r.snapshot.company, companyInfo: r.snapshot.companyInfo, partyName: r.snapshot.partyName, taxId: r.snapshot.taxId, asOf: r.asOf,
     balance: fm((b < 0n ? -b : b).toString()), side: b > 0n ? 'firmamıza borçlusunuz' : b < 0n ? 'firmamızdan alacaklısınız' : 'hesap kapalı',
     contactName: r.contactName, message: r.message, truncated: r.snapshot.truncated,
     rows: r.snapshot.rows.map((x) => ({ date: x.date, text: x.text, debit: x.debit !== '0' ? fm(x.debit) : '', credit: x.credit !== '0' ? fm(x.credit) : '', balance: fm(x.balance) })),

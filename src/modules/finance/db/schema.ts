@@ -133,6 +133,8 @@ export const RECONCILIATION_STATUSES = ['draft', 'pending', 'agreed', 'disputed'
 
 export type ReconciliationSnapshot = {
   company: string;
+  /** Mutabakat anındaki firma anteti (unvan, vergi dairesi/no, adres); eski kayıtlarda yok. */
+  companyInfo?: string;
   partyName: string;
   taxId: string;
   rows: { date: string; text: string; debit: string; credit: string; balance: string }[];

@@ -140,7 +140,7 @@ export async function renderOrderPdf(o: OrderPdfInput, stageLabels: Record<strin
 }
 
 export type ReconciliationPdfInput = {
-  no: string; company: string; partyName: string; taxId: string; asOf: string; balance: string; side: string; contactName: string; message: string;
+  no: string; company: string; companyInfo?: string; partyName: string; taxId: string; asOf: string; balance: string; side: string; contactName: string; message: string;
   rows: { date: string; text: string; debit: string; credit: string; balance: string }[]; truncated: boolean;
   response: { status: string; name: string; title: string; note: string; counterBalance: string | null; at: string } | null;
 };
@@ -149,6 +149,7 @@ export type ReconciliationPdfInput = {
 export async function renderReconciliationPdf(r: ReconciliationPdfInput): Promise<Uint8Array> {
   const { doc, w } = await start(`Mutabakat ${r.no}`);
   w.text(r.company, 10, rgb(0.4, 0.4, 0.4));
+  if (r.companyInfo) w.text(r.companyInfo, 8, rgb(0.45, 0.45, 0.45));
   w.text(`Cari hesap mutabakatı · ${r.no}`, 18);
   w.gap();
   w.row('Sayın', `${r.partyName}${r.contactName ? ` · ${r.contactName}` : ''}`);

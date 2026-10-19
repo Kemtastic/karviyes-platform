@@ -1,6 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { companyLetterhead, companyProfileSchema } from '@/core/company/profile';
 import { feature } from '@/core/features';
 import { defineAction, type ActionCtx } from '@/core/action';
 import { istanbulToday } from '@/core/dates';
@@ -78,11 +79,11 @@ export const createReconciliation = defineAction({
     if (i.asOf > istanbulToday()) throw new AppError('VALIDATION', 'Mutabakat tarihi bugünden sonra olamaz.', { asOf: 'Bugün veya önceki bir tarih seçin.' });
     const [p] = await ctx.tx.select({ name: parties.name, taxId: parties.taxId, archived: parties.archived }).from(parties).where(eq(parties.id, i.partyId));
     if (!p || p.archived) throw new AppError('VALIDATION', 'Listeden aktif bir cari seçin.', { partyId: 'Listeden aktif bir cari seçin.' });
-    const [c] = await ctx.tx.select({ name: companies.name }).from(companies).where(eq(companies.id, ctx.companyId));
+    const [c] = await ctx.tx.select({ name: companies.name, profile: companies.profile }).from(companies).where(eq(companies.id, ctx.companyId));
     const entries = ((await ledgerEntries(ctx, i.partyId, true)).get(`${i.partyId}|${i.currency}`) ?? []).filter((e) => e.date <= i.asOf);
     const st = statement(entries);
     const rows = st.rows.map((r) => ({ date: r.date, text: r.text, debit: r.debit.toString(), credit: r.credit.toString(), balance: r.balance.toString() }));
-    const snapshot: ReconciliationSnapshot = { company: c?.name ?? '', partyName: p.name, taxId: p.taxId, rows: rows.slice(-MAX_ROWS), truncated: rows.length > MAX_ROWS };
+    const snapshot: ReconciliationSnapshot = { company: c?.name ?? '', companyInfo: companyLetterhead(companyProfileSchema.parse(c?.profile ?? {})), partyName: p.name, taxId: p.taxId, rows: rows.slice(-MAX_ROWS), truncated: rows.length > MAX_ROWS };
     const [row] = await ctx.tx
       .insert(finReconciliations)
       .values({

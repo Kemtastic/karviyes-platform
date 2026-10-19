@@ -2,6 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestDb, type TestDb } from '../../helpers/db';
 import { runtime, testUser } from '../../helpers/runtime';
 import { createParty } from '@/core/parties/service';
+import { updateCompanyProfile } from '@/core/company/profile';
+import { withCompany } from '@/core/db/scope';
+import { finReconciliations } from '@/modules/finance/db/schema';
+import { eq as eqOp } from 'drizzle-orm';
 import { createAccount, recordInvoice, recordPayment } from '@/modules/finance/server/actions';
 import {
   answerReconciliation, cancelReconciliation, createReconciliation, issueReconciliationLink, makeToken, parseToken, publicReconciliation, reconciliationDetail, recordReconciliationAnswer,
@@ -87,5 +91,14 @@ describe('mutabakat akışı', () => {
     expect(ok(await reconciliationDetail({ id: r.id }, acc()))).toMatchObject({ status: 'agreed', response: { external: true } });
     expect(await createReconciliation({ partyId: party, currency: 'TRY', asOf: '2999-01-01' }, acc())).toMatchObject({ ok: false, fieldErrors: { asOf: expect.any(String) } });
     expect(await createReconciliation({ partyId: party, currency: 'TRY', asOf: '2026-10-01' }, runtime(t, testUser(t.companyA, ['sales'])))).toMatchObject({ ok: false, code: 'FORBIDDEN' });
+  });
+});
+
+describe('mutabakat antetinde firma bilgisi', () => {
+  it('firma profili mutabakat anında kayda geçer (unvan, vergi dairesi ve no, adres)', async () => {
+    ok(await updateCompanyProfile({ legalName: 'Firma A Ambalaj A.Ş.', taxOffice: 'Kozyatağı', taxNumber: '1234567890', address: 'OSB 3. Cadde No:5', city: 'İstanbul' }, { ...runtime(t, testUser(t.companyA, ['admin'])), batch: true }));
+    const r = ok(await createReconciliation({ partyId: party, currency: 'TRY', asOf: '2026-10-03' }, acc()));
+    const [row] = await withCompany(t.companyA, (tx) => tx.select().from(finReconciliations).where(eqOp(finReconciliations.id, r.id)), t.db);
+    expect(row!.snapshot.companyInfo).toBe('Firma A Ambalaj A.Ş. · Kozyatağı V.D. 1234567890 · OSB 3. Cadde No:5 İstanbul');
   });
 });
