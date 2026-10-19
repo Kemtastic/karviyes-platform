@@ -365,6 +365,12 @@ test('ön muhasebe: hesap aç, satış faturası kaydet, tahsilat al, ekstre ve 
   await expect(dialog).toBeHidden();
   await page.getByRole('link', { name: /Emre Usta/ }).click();
   await expect(page.getByRole('region', { name: 'Personel hesabı' }).getByText('3.000,00 ₺').first()).toBeVisible();
+
+  // Raporlar: gelir-gider ve nakit akış tahmini.
+  await page.goto('/muhasebe/raporlar');
+  await expect(page.getByRole('heading', { name: 'Gelir – gider' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Nakit akış tahmini (haftalık)' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: '10.000,00 ₺' }).first()).toBeVisible();
 });
 
 test('mutabakat: bakiye dondurulur, bağlantı oturumsuz açılır, karşı taraf bir kez cevaplar', async ({ page, browser }) => {

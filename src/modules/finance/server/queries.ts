@@ -17,7 +17,7 @@ type Key = `${string}|${Currency}`;
 /** Carilerin defter kayıtları (açılış, fatura, para hareketi) cari × para birimi başına. */
 /** external: karşı tarafa giden ekstre (mutabakat) — personelin iç notları yazılmaz. */
 /** Geçerli eşleştirmeler (iptal edilmemiş hareket, kayıtlı fatura): fatura id → eşleşen tutar. */
-async function allocations(ctx: ActionCtx): Promise<Map<string, bigint>> {
+export async function allocations(ctx: ActionCtx): Promise<Map<string, bigint>> {
   const rows = await ctx.tx
     .select({ invoiceId: finAllocations.invoiceId, sum: sql<string>`sum(${finAllocations.amountMinor})` })
     .from(finAllocations)
@@ -117,7 +117,7 @@ export const partyLedger = defineAction({
   },
 });
 
-async function accountBalances(ctx: ActionCtx) {
+export async function accountBalances(ctx: ActionCtx) {
   const rows = await ctx.tx
     .select({ accountId: finMovements.accountId, direction: finMovements.direction, total: sql<string>`sum(${finMovements.amountMinor})` })
     .from(finMovements)

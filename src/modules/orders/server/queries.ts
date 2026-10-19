@@ -351,7 +351,7 @@ export const orderProforma = defineAction({
         lineNo: l.lineNo, productText: sector.describe(l.product as never), quantity: l.quantity,
         unitPrice: formatUnitPrice(l.unitPrice, b.currency), vatRate: String(Number(l.vatRate)), net: fm(mulPrice(l.unitPrice, l.quantity)),
       })),
-      rates: b.rates.map((r) => ({ rate: r.rate, base: fm(r.base), vat: fm(r.vat) })),
+      rates: [...b.rates].sort((x, y) => Number(x.rate) - Number(y.rate)).map((r) => ({ rate: r.rate, base: fm(r.base), vat: fm(r.vat) })),
       base: fm(b.base), vat: fm(b.vat), total: fm(b.base + b.vat),
     };
   },
