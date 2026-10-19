@@ -221,3 +221,27 @@ export const finRecurring = pgTable(
   },
   (t) => [index('fin_recurring_company_idx').on(t.companyId, t.active)],
 );
+
+// Personel carisi: maaş/prim tahakkuku personele borcumuzu artırır; avans ve maaş ödemesi kasa/bankadan çıkar ve borcu azaltır.
+// Ödemeler aynı zamanda "Personel" kategorisinde masraf hareketi olarak yazılır (movement_id). Kesinti (ör. ceza, borç mahsubu) borcu azaltır.
+export const STAFF_ENTRY_KINDS = ['accrual', 'advance', 'payment', 'deduction'] as const;
+export const finStaffEntries = pgTable(
+  'fin_staff_entries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    companyId: uuid('company_id').notNull(),
+    staffId: uuid('staff_id').notNull(),
+    kind: text('kind', { enum: STAFF_ENTRY_KINDS }).notNull(),
+    amountMinor: bigint('amount_minor', { mode: 'bigint' }).notNull(),
+    currency: text('currency').notNull().default('TRY'),
+    date: date('date').notNull(),
+    /** Dönem (YYYY-AA): tahakkukun ait olduğu ay. */
+    period: text('period'),
+    movementId: uuid('movement_id'),
+    note: text('note').notNull().default(''),
+    reversedAt: timestamp('reversed_at', { withTimezone: true }),
+    createdBy: text('created_by').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('fin_staff_entries_staff_idx').on(t.companyId, t.staffId, t.date)],
+);

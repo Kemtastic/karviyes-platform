@@ -65,3 +65,5 @@ export async function financeTcmbRateAction(input: { currency: string; date: str
 export async function createRecurringAction(input: unknown) { return (await import('../server/recurring')).createRecurring(input); }
 export async function postRecurringAction(input: unknown) { return (await import('../server/recurring')).postRecurring(input); }
 export async function setRecurringActiveAction(input: unknown) { return (await import('../server/recurring')).setRecurringActive(input); }
+export async function recordStaffEntryAction(input: unknown) { return (await import('../server/staff-ledger')).recordStaffEntry(input); }
+export async function reverseStaffEntryAction(input: unknown) { return (await import('../server/staff-ledger')).reverseStaffEntry(input); }

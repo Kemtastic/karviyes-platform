@@ -281,6 +281,13 @@
       "when": 1792447405960,
       "tag": "0039_fin_recurring",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1792447955163,
+      "tag": "0040_fin_staff_entries",
+      "breakpoints": true
     }
   ]
 }

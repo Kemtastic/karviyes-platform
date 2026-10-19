@@ -354,6 +354,17 @@ test('ön muhasebe: hesap aç, satış faturası kaydet, tahsilat al, ekstre ve 
   await expect(page.getByRole('button', { name: /işle$/ })).toHaveCount(0);
   await page.goto('/muhasebe/hareketler');
   await expect(page.getByRole('cell', { name: /E2E internet aboneliği/ }).first()).toBeVisible();
+
+  // Personel carisi: tahakkuk ve avans, bakiye.
+  await page.goto('/muhasebe/personel');
+  await page.getByRole('button', { name: 'Kayıt ekle' }).click();
+  dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Personel').selectOption({ label: 'Emre Usta' });
+  await dialog.getByLabel('Tutar').fill('3.000');
+  await dialog.getByRole('button', { name: 'Kaydet' }).click();
+  await expect(dialog).toBeHidden();
+  await page.getByRole('link', { name: /Emre Usta/ }).click();
+  await expect(page.getByRole('region', { name: 'Personel hesabı' }).getByText('3.000,00 ₺').first()).toBeVisible();
 });
 
 test('mutabakat: bakiye dondurulur, bağlantı oturumsuz açılır, karşı taraf bir kez cevaplar', async ({ page, browser }) => {

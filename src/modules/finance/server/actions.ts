@@ -9,7 +9,7 @@ import { CURRENCIES, formatMoney, parseMoney, type Currency } from '@/core/money
 import { requireModule } from '@/core/modules/registry';
 import type { Role } from '@/core/modules/types';
 import { invoiceBreakdown, markOrderInvoiced, recordOrderPayment, revertOrderInvoiced, reverseOrderPayment } from '@/modules/orders/server/api';
-import { finAccounts, finAllocations, finChecks, finInvoices, finMovements, finOpenings, finSettings } from '../db/schema';
+import { finAccounts, finAllocations, finChecks, finInvoices, finMovements, finOpenings, finSettings, finStaffEntries } from '../db/schema';
 import { invoiceTotals } from '../domain/ledger';
 
 export const FIN: Role[] = ['admin', 'accounting'];
@@ -56,7 +56,7 @@ export async function lockedUntil(ctx: ActionCtx): Promise<string | null> {
   return s?.lockedUntil ?? null;
 }
 
-async function assertOpen(ctx: ActionCtx, date: string, field = 'date') {
+export async function assertOpen(ctx: ActionCtx, date: string, field = 'date') {
   const lock = await lockedUntil(ctx);
   if (lock && date <= lock) {
     const d = lock.split('-').reverse().join('.');
@@ -376,6 +376,8 @@ export const reverseMovement = defineAction({
     const [m] = await ctx.tx.select().from(finMovements).where(eq(finMovements.id, i.id));
     if (!m || m.reversedAt) throw new AppError('INVALID_STATE', 'Hareket bulunamadı ya da zaten iptal edilmiş.');
     if (m.checkId) throw new AppError('INVALID_STATE', 'Çek hareketleri Çekler ekranından iade veya iptal edilir.');
+    const [staffEntry] = await ctx.tx.select({ id: finStaffEntries.id }).from(finStaffEntries).where(eq(finStaffEntries.movementId, m.id));
+    if (staffEntry) throw new AppError('INVALID_STATE', 'Personel ödemesi Personel Carisi ekranından iptal edilir.');
     await assertOpen(ctx, m.date, 'reason');
     const where = m.transferGroup ? eq(finMovements.transferGroup, m.transferGroup) : eq(finMovements.id, m.id);
     await ctx.tx.update(finMovements).set({ reversedAt: new Date(), reverseReason: i.reason }).where(and(where, isNull(finMovements.reversedAt)));
