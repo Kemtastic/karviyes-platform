@@ -31,7 +31,7 @@ export default async function PlatformCompanyPage({ params }: { params: Promise<
   const screens = navFor([...ROLES], cfg);
   return (
     <div className="space-y-5">
-      <PageHeader eyebrow={<Link href="/platform" className="hover:underline">Firmalar</Link>} title={c.name} description={`${c.slug} · ${c.activeUsers} aktif kullanıcı`} actions={<SupportViewButton companyId={c.id} roles={ROLES.map((role) => ({ id: role, label: labels[role] }))} />} />
+      <PageHeader eyebrow={<Link href="/platform" className="hover:underline">Firmalar</Link>} title={c.name} description={`${c.slug} · ${c.activeUsers} aktif kullanıcı`} actions={<><a href={`/api/platform/disa-aktar/${c.id}`} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-stone-300 bg-white px-4 text-sm font-medium text-stone-800 hover:bg-stone-50">Veriyi indir (JSON)</a><SupportViewButton companyId={c.id} roles={ROLES.map((role) => ({ id: role, label: labels[role] }))} /></>} />
       <CompanySettingsForm
         company={c}
         modules={MODULE_IDS.map((m) => ({ id: m, name: MANIFESTS[m].name, dependsOn: [...MANIFESTS[m].dependsOn] }))}

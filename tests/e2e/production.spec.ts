@@ -426,4 +426,10 @@ test('merkez panel: ön muhasebe kapatılınca firmadan kalkar, açılınca geri
   await expect(page.getByRole('heading', { name: 'Firmalar' })).toBeVisible();
   await page.goto('/platform/denetim');
   await expect(page.getByRole('cell', { name: 'platform.startSupportView' }).first()).toBeVisible();
+
+  // Firma verisini indir.
+  await page.goto('/platform');
+  await page.getByRole('link', { name: 'Karviyes Ambalaj' }).click();
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('link', { name: 'Veriyi indir (JSON)' }).click()]);
+  expect(download.suggestedFilename()).toMatch(/-veri-\d{4}-\d{2}-\d{2}\.json$/);
 });
