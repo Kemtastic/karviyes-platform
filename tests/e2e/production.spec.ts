@@ -403,4 +403,13 @@ test('merkez panel: ön muhasebe kapatılınca firmadan kalkar, açılınca geri
   await expect(dialog.getByText('/davet/')).toBeVisible();
   await dialog.getByRole('button', { name: 'Tamam' }).click();
   await expect(page.getByRole('link', { name: 'E2E Plastik' })).toBeVisible();
+
+  // Firma içi görünürlük: kullanıcılar, rol–ekran tablosu, tüm firmaların denetim kaydı.
+  await page.getByRole('link', { name: 'Karviyes Ambalaj' }).click();
+  await expect(page.getByRole('heading', { name: 'Kullanıcılar' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Rol – ekran tablosu' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: /Muhasebe Özeti/ })).toBeVisible();
+  await page.goto('/platform/denetim');
+  await expect(page.getByRole('heading', { name: 'Firma kayıtları' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'platform.updateCompanySettings' }).first()).toBeVisible();
 });
