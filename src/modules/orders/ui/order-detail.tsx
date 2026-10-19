@@ -72,6 +72,19 @@ export function OrderDetail({ order: o, canMarkInvoice, stageLabels = {}, financ
       </header>
 
       {o.status === 'cancelled' && <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-800">İptal edildi: {o.cancelReason}</p>}
+      {o.status === 'ready_to_invoice' && (() => {
+        // Fatura öncesi: üretilen ya da sevk edilen adedi siparişten farklı satırlar (fatura tutarı sipariş adedine göre hesaplıdır).
+        const diff = o.lines.filter((l) => l.status === 'done' && (l.producedQty !== l.quantity || l.shippedQty !== l.producedQty));
+        return diff.length > 0 && (
+          <div role="status" className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <p className="font-semibold">Faturadan önce adetleri kontrol edin</p>
+            <ul className="mt-1 list-disc pl-5">
+              {diff.map((l) => <li key={l.id}>{l.lineNo}. ürün: sipariş {l.quantity.toLocaleString('tr-TR')} · üretilen {l.producedQty.toLocaleString('tr-TR')} · sevk {l.shippedQty.toLocaleString('tr-TR')}</li>)}
+            </ul>
+            <p className="mt-1">Sipariş tutarı sipariş adedine göredir; faturayı gerçek sevk adediyle kesecekseniz tutarı ona göre düzeltin.</p>
+          </div>
+        );
+      })()}
       {o.invoiceMark && <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800">Fatura: {o.invoiceMark.no} · <DateText value={o.invoiceMark.date} /></p>}
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">

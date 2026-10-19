@@ -164,6 +164,7 @@ test('sipariş → üretim → kesim (telefon) → kesim bitiş → kontrol → 
   await expect(page.getByRole('cell', { name: 'E2E Gıda Ltd. Şti.' })).toBeVisible();
   await page.getByRole('cell', { name: 'E2E Gıda Ltd. Şti.' }).click();
   await page.waitForURL(/\/siparisler\/[0-9a-f-]{36}$/);
+  await expect(page.getByText('Faturadan önce adetleri kontrol edin')).toBeVisible();
   const orderPdf = await page.request.get(page.url().replace('/siparisler/', '/api/pdf/siparis/'));
   expect(orderPdf.headers()['content-type']).toBe('application/pdf');
   const proforma = await page.request.get(page.url().replace('/siparisler/', '/api/pdf/proforma/'));
