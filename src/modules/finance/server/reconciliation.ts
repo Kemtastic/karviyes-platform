@@ -5,7 +5,7 @@ import { companyLetterhead, companyProfileSchema } from '@/core/company/profile'
 import { feature } from '@/core/features';
 import { defineAction, type ActionCtx } from '@/core/action';
 import { istanbulToday } from '@/core/dates';
-import { getDb, type Db } from '@/core/db/client';
+import type { Db } from '@/core/db/client';
 import { companies, parties } from '@/core/db/schema';
 import { withCompany } from '@/core/db/scope';
 import { getEnv } from '@/core/env';

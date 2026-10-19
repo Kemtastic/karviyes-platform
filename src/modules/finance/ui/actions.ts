@@ -61,3 +61,7 @@ export async function financeTcmbRateAction(input: { currency: string; date: str
     return { ok: false as const, message: (e as Error).message };
   }
 }
+
+export async function createRecurringAction(input: unknown) { return (await import('../server/recurring')).createRecurring(input); }
+export async function postRecurringAction(input: unknown) { return (await import('../server/recurring')).postRecurring(input); }
+export async function setRecurringActiveAction(input: unknown) { return (await import('../server/recurring')).setRecurringActive(input); }

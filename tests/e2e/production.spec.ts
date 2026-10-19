@@ -341,6 +341,19 @@ test('ön muhasebe: hesap aç, satış faturası kaydet, tahsilat al, ekstre ve 
   const csv = await page.request.get('/api/disa-aktar/muhasebe?tur=faturalar');
   expect(csv.headers()['content-type']).toContain('text/csv');
   expect(await csv.text()).toContain('E2E2026000000001');
+
+  // Tekrarlayan kayıt: bu ayın 1'i vadesi gelmiş sayılır; işlenince masraf hareketi olur ve ikinci kez işlenmez.
+  await page.goto('/muhasebe/tekrarlayan');
+  await page.getByRole('button', { name: 'Yeni tekrarlayan kayıt' }).click();
+  dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Adı').fill('E2E internet aboneliği');
+  await dialog.getByLabel('Tutar (KDV dahil)').fill('500');
+  await dialog.getByRole('button', { name: 'Kaydet' }).click();
+  await expect(dialog).toBeHidden();
+  await page.getByRole('button', { name: /işle$/ }).click();
+  await expect(page.getByRole('button', { name: /işle$/ })).toHaveCount(0);
+  await page.goto('/muhasebe/hareketler');
+  await expect(page.getByRole('cell', { name: /E2E internet aboneliği/ }).first()).toBeVisible();
 });
 
 test('mutabakat: bakiye dondurulur, bağlantı oturumsuz açılır, karşı taraf bir kez cevaplar', async ({ page, browser }) => {

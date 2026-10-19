@@ -4,6 +4,7 @@ import { AlertTriangle, ArrowDownLeft, ArrowUpRight, CalendarClock, Landmark, Sc
 import { formatDate, istanbulToday } from '@/core/dates';
 import { formatMoney, money, type Currency } from '@/core/money';
 import { accountOptions, financeOverview, periodLock, vatSummary } from '@/modules/finance/server/queries';
+import { recurringList } from '@/modules/finance/server/recurring';
 import { PeriodLockCard } from '@/modules/finance/ui/period-lock';
 import { requireFinancePage } from '@/modules/finance/ui/guard';
 import { FinanceToolbar } from '@/modules/finance/ui/toolbar';
@@ -23,7 +24,8 @@ export default async function FinanceHomePage({ searchParams }: { searchParams: 
   await requireFinancePage();
   const { ay } = await searchParams;
   const month = ay && /^\d{4}-\d{2}$/.test(ay) ? ay : istanbulToday().slice(0, 7);
-  const [r, accounts, vat, lock] = await Promise.all([financeOverview({}), accountOptions({}), vatSummary({ month }), periodLock({})]);
+  const [r, accounts, vat, lock, recurring] = await Promise.all([financeOverview({}), accountOptions({}), vatSummary({ month }), periodLock({}), recurringList({})]);
+  const dueRecurring = recurring.ok ? recurring.data.filter((x) => x.next?.due).length : 0;
   if (!r.ok) notFound();
   const o = r.data;
   const m = (v: string, c: Currency) => formatMoney(money(v, c));
@@ -35,6 +37,11 @@ export default async function FinanceHomePage({ searchParams }: { searchParams: 
         description="Alacaklar, borçlar, kasa ve banka, çekler ve önümüzdeki 30 günün ödeme takvimi."
         actions={<FinanceToolbar actions={['collection', 'payment', 'sales', 'expense']} accounts={accounts.ok ? accounts.data : []} />}
       />
+      {dueRecurring > 0 && (
+        <p className="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <CalendarClock aria-hidden className="h-4 w-4" /> Vadesi gelen {dueRecurring} tekrarlayan kayıt var. <Link href="/muhasebe/tekrarlayan" className="font-semibold underline">İşlemek için açın</Link>.
+        </p>
+      )}
       {!o.accounts && (
         <p className="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <AlertTriangle aria-hidden className="h-4 w-4" /> Tahsilat ve ödeme için önce <Link href="/muhasebe/hesaplar" className="font-semibold underline">kasa veya banka hesabı açın</Link>.

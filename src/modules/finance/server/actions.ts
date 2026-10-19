@@ -318,21 +318,27 @@ export const recordExpense = defineAction({
   }),
   run: async (ctx, i) => {
     const a = await account(ctx, i.accountId);
-    notFuture('date')(i.date);
-    await assertOpen(ctx, i.date);
-    const amount = positive(i.amount, a.currency, 'amount');
-    if (i.direction === 'out') await assertCashCovers(ctx, a, amount);
-    // KDV dahil tutardan KDV: tutar × oran / (100 + oran), kuruşa yuvarlanır.
-    const rate = BigInt(Math.round(i.vatRate * 100));
-    const vat = rate > 0n ? (amount * rate * 2n + (10000n + rate)) / ((10000n + rate) * 2n) : 0n;
-    const [row] = await ctx.tx
-      .insert(finMovements)
-      .values({ companyId: ctx.companyId, kind: i.direction === 'out' ? 'expense' : 'income', direction: i.direction, accountId: a.id, amountMinor: amount, vatMinor: vat, currency: a.currency, date: i.date, category: i.category, note: i.note, createdBy: ctx.user.userId })
-      .returning({ id: finMovements.id });
-    await ctx.audit({ entity: 'fin_movement', entityId: row!.id, after: { kind: i.direction === 'out' ? 'expense' : 'income', accountId: a.id, amount: amount.toString(), category: i.category } });
-    return { id: row!.id, vat: vat.toString() };
+    return writeExpense(ctx, { ...i, amountMinor: positive(i.amount, a.currency, 'amount') });
   },
 });
+
+/** Masraf/gelir hareketi (elle giriş ve tekrarlayan kayıt aynı denetimlerden geçer): tarih, dönem kilidi, kasa yeterliliği, KDV ayrımı. */
+export async function writeExpense(ctx: ActionCtx, i: { direction: 'in' | 'out'; accountId: string; amountMinor: bigint; vatRate: number; category: string; date: string; note: string }) {
+  const a = await account(ctx, i.accountId);
+  notFuture('date')(i.date);
+  await assertOpen(ctx, i.date);
+  const amount = i.amountMinor;
+  if (i.direction === 'out') await assertCashCovers(ctx, a, amount);
+  // KDV dahil tutardan KDV: tutar × oran / (100 + oran), kuruşa yuvarlanır.
+  const rate = BigInt(Math.round(i.vatRate * 100));
+  const vat = rate > 0n ? (amount * rate * 2n + (10000n + rate)) / ((10000n + rate) * 2n) : 0n;
+  const [row] = await ctx.tx
+    .insert(finMovements)
+    .values({ companyId: ctx.companyId, kind: i.direction === 'out' ? 'expense' : 'income', direction: i.direction, accountId: a.id, amountMinor: amount, vatMinor: vat, currency: a.currency, date: i.date, category: i.category, note: i.note, createdBy: ctx.user.userId })
+    .returning({ id: finMovements.id });
+  await ctx.audit({ entity: 'fin_movement', entityId: row!.id, after: { kind: i.direction === 'out' ? 'expense' : 'income', accountId: a.id, amount: amount.toString(), category: i.category } });
+  return { id: row!.id, vat: vat.toString() };
+}
 
 /** Hesaplar arası virman: aynı para biriminde iki hareket, ortak grup kimliğiyle. */
 export const transfer = defineAction({

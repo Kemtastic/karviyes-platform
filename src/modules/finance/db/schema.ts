@@ -194,3 +194,30 @@ export const finAllocations = pgTable(
   },
   (t) => [index('fin_allocations_invoice_idx').on(t.companyId, t.invoiceId), index('fin_allocations_movement_idx').on(t.companyId, t.movementId)],
 );
+
+// Tekrarlayan kayıt: her ay aynı gün işlenen masraf ya da gelir şablonu (kira, aidat, abonelik). Kendiliğinden işlenmez;
+// vadesi gelen ay ön muhasebe ekranında listelenir ve kullanıcı "İşle" der. Son işlenen ay ikinci kez işlenemez.
+export const finRecurring = pgTable(
+  'fin_recurring',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    companyId: uuid('company_id').notNull(),
+    name: text('name').notNull(),
+    direction: text('direction', { enum: ['in', 'out'] }).notNull().default('out'),
+    accountId: uuid('account_id').notNull(),
+    amountMinor: bigint('amount_minor', { mode: 'bigint' }).notNull(),
+    vatRate: numeric('vat_rate', { precision: 5, scale: 2 }).notNull().default('0'),
+    category: text('category').notNull(),
+    dayOfMonth: integer('day_of_month').notNull(),
+    /** İlk işlenecek ay (YYYY-AA). */
+    startMonth: text('start_month').notNull(),
+    /** Son işlenecek ay (dahil); boşsa süresiz. */
+    endMonth: text('end_month'),
+    lastPostedMonth: text('last_posted_month'),
+    active: boolean('active').notNull().default(true),
+    version: integer('version').notNull().default(1),
+    createdBy: text('created_by').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('fin_recurring_company_idx').on(t.companyId, t.active)],
+);
