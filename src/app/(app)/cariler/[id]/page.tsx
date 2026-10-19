@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { getCurrentUser } from '@/core/auth/session';
-import { getInstallConfig } from '@/core/install-config';
+import { getConfig } from '@/core/company/config';
 import { isModuleEnabled } from '@/core/modules/registry';
 import { partyDetail } from '@/core/parties/service';
 import { customerAccount } from '@/modules/orders/server/queries';
@@ -26,7 +26,7 @@ export default async function PartyPage({ params }: { params: Promise<{ id: stri
   if (!r.ok) notFound();
   const party = r.data;
   // Cari hesap sipariş modülünden gelir; modül kapalıysa veya cari yalnızca tedarikçiyse gösterilmez.
-  const account = isModuleEnabled('orders', getInstallConfig()) && party.kind !== 'supplier' ? await customerAccount({ partyId: party.id }) : null;
+  const account = isModuleEnabled('orders', (await getConfig())) && party.kind !== 'supplier' ? await customerAccount({ partyId: party.id }) : null;
   const sales = party.kind !== 'supplier' && !party.archived && (await canUseSales()) ? await Promise.all([partyCalls({ partyId: party.id }), salesStaffList({})]) : null;
   const finance = await canUseFinance();
   return (

@@ -1,5 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
-import { getInstallConfig } from '@/core/install-config';
+import { getConfig } from '@/core/company/config';
 import type { Currency } from '@/core/money';
 import { listSalesStaff, orderForOffice } from '@/modules/orders/server/queries';
 import { requireOrdersPage } from '@/modules/orders/ui/guard';
@@ -21,7 +21,7 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
     <div className="max-w-5xl space-y-5">
       <PageHeader eyebrow={o.no} title="Siparişi düzenle" description="Taslak sipariş üretime alınana kadar değiştirilebilir." />
       <OrderForm
-        sector={getInstallConfig().sector}
+        sector={(await getConfig()).sector}
         salesStaff={staff.ok ? staff.data.map((s) => ({ id: s.id, name: s.name })) : []}
         initialPlates={plates.ok ? plates.data.map((p) => ({ id: p.id, name: p.name, colours: p.colours })) : []}
         initial={{

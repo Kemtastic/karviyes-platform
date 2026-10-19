@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { getInstallConfig } from '@/core/install-config';
+import { getConfig } from '@/core/company/config';
 import { DEPARTMENT_ROLES } from '@/core/modules/types';
 import { getSector } from '@/sectors';
 import { requireProductionPage } from '@/modules/production/ui/guard';
@@ -11,7 +11,7 @@ const STAGE_ICONS: Record<string, LucideIcon> = { slitting: Layers, printing: Pr
 
 export default async function DepartmentIndexPage() {
   const user = await requireProductionPage(['admin', 'tracking', ...DEPARTMENT_ROLES]);
-  const stages = getSector(getInstallConfig().sector).stages;
+  const stages = getSector((await getConfig()).sector).stages;
   // Bölüm hesabı doğrudan kendi ekranına gider.
   const own = stages.find((s) => user.roles.includes(s.role) && !user.roles.some((r) => r === 'admin' || r === 'tracking'));
   if (own) redirect(`/uretim/bolum/${own.id}`);

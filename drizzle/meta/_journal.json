@@ -232,6 +232,13 @@
       "when": 1792363448314,
       "tag": "0032_invoice_fx",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1792442202377,
+      "tag": "0033_company_settings",
+      "breakpoints": true
     }
   ]
 }

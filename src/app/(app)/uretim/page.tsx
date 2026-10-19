@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { getInstallConfig } from '@/core/install-config';
+import { getConfig } from '@/core/company/config';
 import { BOARD_TABS, productionBoard, type BoardTab } from '@/modules/production/server/queries';
 import { BoardScreen } from '@/modules/production/ui/board';
 import { requireProductionPage } from '@/modules/production/ui/guard';
@@ -10,5 +10,5 @@ export default async function ProductionBoardPage({ searchParams }: { searchPara
   const tab: BoardTab = (BOARD_TABS as readonly string[]).includes(sekme ?? '') ? (sekme as BoardTab) : 'production';
   const r = await productionBoard({ tab });
   if (!r.ok) notFound();
-  return <BoardScreen tab={tab} data={r.data} sector={getInstallConfig().sector} canManage={user.roles.some((x) => x === 'admin' || x === 'tracking')} />;
+  return <BoardScreen tab={tab} data={r.data} sector={(await getConfig()).sector} canManage={user.roles.some((x) => x === 'admin' || x === 'tracking')} />;
 }

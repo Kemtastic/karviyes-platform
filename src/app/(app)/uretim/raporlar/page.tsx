@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { istanbulToday } from '@/core/dates';
-import { getInstallConfig } from '@/core/install-config';
+import { getConfig } from '@/core/company/config';
 import { machineStaffReport, type ReportRow } from '@/modules/production/server/reports';
 import { requireProductionPage } from '@/modules/production/ui/guard';
 import { stageLabel, stageTone } from '@/modules/production/ui/labels';
@@ -17,7 +17,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   const to = sp.to ?? today;
   const r = await machineStaffReport({ from, to });
   if (!r.ok) notFound();
-  const sector = getInstallConfig().sector;
+  const sector = (await getConfig()).sector;
   const totalGood = r.data.byJob.reduce((s, j) => s + j.good, 0);
   const totalCut = r.data.byJob.reduce((s, j) => s + j.cutWaste, 0);
   const totalPrint = r.data.byJob.reduce((s, j) => s + j.printWaste, 0);

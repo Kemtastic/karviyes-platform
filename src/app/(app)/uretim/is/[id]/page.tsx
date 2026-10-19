@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { getInstallConfig } from '@/core/install-config';
+import { getConfig } from '@/core/company/config';
 import { jobDetail, listFabric, listWorkshopStaff } from '@/modules/production/server/queries';
 import { requireProductionPage } from '@/modules/production/ui/guard';
 import { JobScreen } from '@/modules/production/ui/job-screen';
@@ -16,7 +16,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
   return (
     <JobScreen
       job={job.data}
-      sector={getInstallConfig().sector}
+      sector={(await getConfig()).sector}
       canManage={canManage}
       fabric={fabric?.ok ? fabric.data.map((f) => ({ id: f.id, label: `${f.colour} · ${Number(f.widthCm)} cm · ${f.gsm} gr · ${f.metres} m` })) : []}
       staff={staff.ok ? staff.data : []}

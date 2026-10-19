@@ -14,6 +14,8 @@ const schema = z.object({
   modules: z.array(z.string()).min(1),
   sector: z.enum(['bags', 'plastic-bags']),
   security: z.object({ twoFactorRequiredRoles: z.array(z.enum(ROLES)).default(['admin', 'accounting', 'tracking']) }).default({}),
+  // Modül içindeki küçük seçenekler (merkez panelden firma başına açılıp kapanır).
+  features: z.record(z.string(), z.boolean()).default({}),
 });
 
 export type InstallConfig = Omit<z.infer<typeof schema>, 'modules'> & { modules: ModuleId[] };

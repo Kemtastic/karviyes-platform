@@ -48,11 +48,11 @@ export async function partyOpenInvoicesAction(input: { partyId: string; side: 'r
 
 // TCMB kuru: veritabanı işlemi dışında (dış istek); yalnız ön muhasebe rolleri.
 export async function financeTcmbRateAction(input: { currency: string; date: string }) {
-  const [{ getCurrentUser }, { getInstallConfig }, { isModuleEnabled }, { mustEnrollTwoFactor }, { cachedTcmbRate }] = await Promise.all([
-    import('@/core/auth/session'), import('@/core/install-config'), import('@/core/modules/registry'), import('@/core/auth/policy'), import('@/core/fx/tcmb'),
+  const [{ getCurrentUser }, { getConfig }, { isModuleEnabled }, { mustEnrollTwoFactor }, { cachedTcmbRate }] = await Promise.all([
+    import('@/core/auth/session'), import('@/core/company/config'), import('@/core/modules/registry'), import('@/core/auth/policy'), import('@/core/fx/tcmb'),
   ]);
   const user = await getCurrentUser();
-  const cfg = getInstallConfig();
+  const cfg = (await getConfig());
   if (!user || !user.roles.some((r) => r === 'admin' || r === 'accounting') || mustEnrollTwoFactor(user, cfg) || !isModuleEnabled('finance', cfg)) return { ok: false as const, message: 'Bu işlem için yetkiniz yok.' };
   if ((input.currency !== 'USD' && input.currency !== 'EUR') || !/^\d{4}-\d{2}-\d{2}$/.test(input.date)) return { ok: false as const, message: 'Döviz ve tarih seçin.' };
   try {

@@ -5,7 +5,7 @@ import { getCurrentUser } from '@/core/auth/session';
 import { getDb } from '@/core/db/client';
 import { withCompany } from '@/core/db/scope';
 import { companies } from '@/core/db/schema';
-import { getInstallConfig } from '@/core/install-config';
+import { getConfig } from '@/core/company/config';
 import { navFor } from '@/core/nav';
 import { roleLabelsFor } from '@/sectors';
 import { RoleLabelsProvider } from '@/ui/role-labels';
@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic';
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
   if (!user) redirect('/giris');
-  const cfg = getInstallConfig();
+  const cfg = (await getConfig());
   if (mustEnrollTwoFactor(user, cfg)) redirect('/iki-adim-kurulum');
 
   const [company] = await withCompany(user.companyId, (tx) => tx.select().from(companies).where(eq(companies.id, user.companyId)), await getDb());

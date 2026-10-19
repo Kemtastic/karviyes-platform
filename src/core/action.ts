@@ -45,12 +45,12 @@ export type ActionSpec<I, O> = {
 export type Action<O> = (raw: unknown, runtime?: ActionRuntime) => Promise<ActionResult<O>>;
 
 async function defaultRuntime(): Promise<ActionRuntime> {
-  const [{ getCurrentUser }, { getDb }, { getInstallConfig }] = await Promise.all([
+  const [{ getCurrentUser }, { getDb }, { getConfig }] = await Promise.all([
     import('@/core/auth/session'),
     import('@/core/db/client'),
-    import('@/core/install-config'),
+    import('@/core/company/config'),
   ]);
-  return { user: await getCurrentUser(), db: await getDb(), cfg: getInstallConfig() };
+  return { user: await getCurrentUser(), db: await getDb(), cfg: await getConfig() };
 }
 
 // Sabit pencereli sayaç: pencere 60 sn; sayaç sınırı aşınca RATE_LIMITED.

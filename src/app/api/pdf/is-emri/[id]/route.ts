@@ -1,5 +1,5 @@
 import { companyProfile } from '@/core/company/service';
-import { getInstallConfig } from '@/core/install-config';
+import { getConfig } from '@/core/company/config';
 import { renderJobPdf } from '@/core/pdf/documents';
 import { pdfResponse } from '@/core/pdf/response';
 import { PACKAGING_LABELS } from '@/modules/orders/domain/packaging';
@@ -15,7 +15,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const r = await jobDetail({ id });
   if (!r.ok) return new Response('Bulunamadı', { status: r.code === 'UNAUTHENTICATED' ? 401 : 404 });
   const j = r.data;
-  const cfg = getInstallConfig();
+  const cfg = (await getConfig());
   const profile = await companyProfile({});
   const labels = Object.fromEntries(getSector(cfg.sector).stages.map((s) => [s.id, s.label]));
   const bytes = await renderJobPdf(

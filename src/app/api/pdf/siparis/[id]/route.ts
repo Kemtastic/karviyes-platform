@@ -1,5 +1,5 @@
 import { companyProfile } from '@/core/company/service';
-import { getInstallConfig } from '@/core/install-config';
+import { getConfig } from '@/core/company/config';
 import { formatMoney, money, moneyFromJSON, type Currency } from '@/core/money';
 import { renderOrderPdf } from '@/core/pdf/documents';
 import { pdfResponse } from '@/core/pdf/response';
@@ -15,7 +15,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const r = await orderForOffice({ id });
   if (!r.ok) return new Response('Bulunamadı', { status: r.code === 'UNAUTHENTICATED' ? 401 : 404 });
   const o = r.data;
-  const cfg = getInstallConfig();
+  const cfg = (await getConfig());
   const profile = await companyProfile({});
   const currency = o.currency as Currency;
   const total = moneyFromJSON(o.total);

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/core/auth/session';
-import { getInstallConfig } from '@/core/install-config';
+import { getConfig } from '@/core/company/config';
 import { formatMoney, moneyFromJSON } from '@/core/money';
 import { isModuleEnabled } from '@/core/modules/registry';
 import type { Role } from '@/core/modules/types';
@@ -29,7 +29,7 @@ export default async function HomePage() {
   // Bölüm tabletleri doğrudan kendi ekranlarına gider.
   if (user.kind === 'device') redirect('/uretim/bolum');
 
-  const cfg = getInstallConfig();
+  const cfg = (await getConfig());
   const office = has(user.roles, 'admin', 'sales', 'tracking');
   const [production, shortages, orders, today, overdue, finance, alerts] = await Promise.all([
     office && isModuleEnabled('production', cfg) ? productionSummary({}) : null,
