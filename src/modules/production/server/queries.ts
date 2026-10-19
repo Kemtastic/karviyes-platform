@@ -1,7 +1,9 @@
-import { and, asc, count, desc, eq, gte, inArray, lte, notInArray } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, lte, notInArray, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { defineAction } from '@/core/action';
-import { parties, staff } from '@/core/db/schema';
+import { companies, parties, staff } from '@/core/db/schema';
+import { companyLetterhead, companyProfileSchema } from '@/core/company/profile';
+import { PACKAGING_LABELS } from '@/modules/orders/domain/packaging';
 import { AppError } from '@/core/errors';
 import type { Role } from '@/core/modules/types';
 import { orderLines, orders } from '@/modules/orders/db/schema';
@@ -261,5 +263,40 @@ export const shipmentHistory = defineAction({
       .orderBy(desc(shipments.shippedAt), desc(shipments.createdAt))
       .limit(2000);
     return rows.map((r) => ({ id: r.s.id, shippedAt: r.s.shippedAt, qty: r.s.qty, note: r.s.note, jobId: r.jobId, jobNo: r.jobNo, partyName: r.partyName, product: sector.describe(r.product) }));
+  },
+});
+
+// Sevk fişi: tek sevkin alıcısı, ürünü, miktarı, ambalajı ve işin o ana kadarki toplam sevki; firma anteti ile.
+export const shipmentSlip = defineAction({
+  name: 'production.shipmentSlip',
+  module: 'production',
+  roles: OFFICE,
+  rateLimit: false,
+  input: z.object({ id: z.string().uuid() }),
+  run: async (ctx, i) => {
+    const [r] = await ctx.tx
+      .select({ s: shipments, jobNo: jobs.no, orderNo: orders.no, line: orderLines, party: parties })
+      .from(shipments)
+      .innerJoin(jobs, eq(jobs.id, shipments.jobId))
+      .innerJoin(orderLines, eq(orderLines.id, jobs.orderLineId))
+      .innerJoin(orders, eq(orders.id, jobs.orderId))
+      .innerJoin(parties, eq(parties.id, orders.partyId))
+      .where(eq(shipments.id, i.id));
+    if (!r) throw new AppError('NOT_FOUND', 'Sevk bulunamadı.');
+    const [total] = await ctx.tx
+      .select({ n: sql<number>`coalesce(sum(${shipments.qty}), 0)::int` })
+      .from(shipments)
+      .where(and(eq(shipments.jobId, r.s.jobId), or(sql`${shipments.shippedAt} < ${r.s.shippedAt}`, and(eq(shipments.shippedAt, r.s.shippedAt), lte(shipments.createdAt, r.s.createdAt)))));
+    const [c] = await ctx.tx.select({ name: companies.name, profile: companies.profile }).from(companies).where(eq(companies.id, ctx.companyId));
+    const pk = r.line.packaging;
+    return {
+      id: r.s.id, shippedAt: r.s.shippedAt, qty: r.s.qty, note: r.s.note, jobNo: r.jobNo, orderNo: r.orderNo,
+      product: getSector(ctx.cfg.sector).describe(r.line.product),
+      packaging: `${PACKAGING_LABELS[pk.type as keyof typeof PACKAGING_LABELS] ?? pk.type}${pk.packages ? ` · ${pk.packages} × ${pk.capacity}` : ''}`,
+      orderedQty: r.line.quantity, shippedTotal: Number(total?.n ?? 0),
+      partyName: r.party.name, partyTaxId: r.party.taxId, partyTaxOffice: r.party.taxOffice,
+      partyAddress: [r.party.address, r.party.district, r.party.city].filter(Boolean).join(' '),
+      companyName: c?.name ?? '', companyInfo: companyLetterhead(companyProfileSchema.parse(c?.profile ?? {})),
+    };
   },
 });

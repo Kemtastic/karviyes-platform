@@ -4,7 +4,8 @@ import { runtime, testUser } from '../../helpers/runtime';
 import { createParty } from '@/core/parties/service';
 import { createStaff } from '@/core/users/service';
 import { addPayment, createOrder, updateOrder } from '@/modules/orders/server/actions';
-import { exportOrders, orderForOffice } from '@/modules/orders/server/queries';
+import { exportOrders, orderForOffice, orderProforma } from '@/modules/orders/server/queries';
+import { updateCompanyProfile } from '@/core/company/profile';
 import { addFabricRolls, approveReview, cancelJob, finishStage, reserveFabric, sendToStage, startProduction, startStage } from '@/modules/production/server/actions';
 import { jobDetail } from '@/modules/production/server/queries';
 import { createPlate } from '@/modules/production/server/plates';
@@ -162,5 +163,19 @@ describe('satırda klişe/poze', () => {
     if (!started.ok) throw new Error(started.message);
     const d = await jobDetail({ id: started.data.ids[0]! }, tracking());
     expect(d.ok && d.data.plate).toMatchObject({ name: 'Logo ön yüz', colours: 'siyah' });
+  });
+});
+
+describe('proforma fatura', () => {
+  it('satırlar KDV hariç, oran bazında KDV, genel toplam; firmanın IBANı ve geçerlilik tarihi', async () => {
+    await updateCompanyProfile({ legalName: 'Firma A Ambalaj A.Ş.', bank: 'Ziraat', iban: 'TR330006100519786457841326' }, runtime(t, testUser(t.companyA, ['admin'])));
+    const o = await createOrder({ ...header(), lines: twoLines() }, sales());
+    if (!o.ok) throw new Error(o.message);
+    const r = await orderProforma({ id: o.data.id, validDays: 10, today: '2026-10-20' }, sales());
+    if (!r.ok) throw new Error(r.message);
+    expect(r.data.lines.map((l) => [l.quantity, l.unitPrice, l.vatRate, l.net])).toEqual([[1000, '10,00 ₺', '10', '10.000,00 ₺'], [500, '4,00 ₺', '20', '2.000,00 ₺']]);
+    expect(r.data.rates).toEqual([{ rate: '10', base: '10.000,00 ₺', vat: '1.000,00 ₺' }, { rate: '20', base: '2.000,00 ₺', vat: '400,00 ₺' }]);
+    expect(r.data).toMatchObject({ base: '12.000,00 ₺', vat: '1.400,00 ₺', total: '13.400,00 ₺', validUntil: '2026-10-30', iban: 'TR33 0006 1005 1978 6457 8413 26', bank: 'Ziraat', partyName: 'Çok Ürünlü' });
+    expect(await orderProforma({ id: o.data.id }, runtime(t, testUser(t.companyB, ['sales'])))).toMatchObject({ ok: false, code: 'NOT_FOUND' });
   });
 });

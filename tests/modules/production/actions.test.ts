@@ -17,7 +17,8 @@ import {
   startProduction,
   startStage,
 } from '@/modules/production/server/actions';
-import { departmentQueue, jobDetail, productionSummary, shipmentHistory } from '@/modules/production/server/queries';
+import { departmentQueue, jobDetail, productionSummary, shipmentHistory, shipmentSlip } from '@/modules/production/server/queries';
+import { updateCompanyProfile } from '@/core/company/profile';
 
 let t: TestDb;
 let partyId: string;
@@ -189,5 +190,29 @@ describe('sevk geçmişi', () => {
     expect(r.data.map((s) => [s.shippedAt, s.qty, s.note, s.partyName])).toEqual([['2026-11-02', 1000, 'İlk parti', 'Örnek']]);
     expect(r.data[0]!.jobNo).toMatch(/\/1$/);
     expect(await shipmentHistory({ from: '2026-11-01', to: '2026-11-30' }, device('finishing'))).toMatchObject({ ok: false, code: 'FORBIDDEN' });
+  });
+});
+
+describe('sevk fişi', () => {
+  it('sevkin alıcısı, ürünü, miktarı ve firmanın anteti; bölüm tableti ve başka firma alamaz', async () => {
+    await updateCompanyProfile({ legalName: 'Firma A Ambalaj A.Ş.', taxOffice: 'Kozyatağı', taxNumber: '1234567890' }, runtime(t, testUser(t.companyA, ['admin'])));
+    const { jobId } = await readyAtCutting();
+    await startStage({ jobId, machine: 'Kesim 1', staffIds: [operatorId], version: await version(jobId) }, device('cutting'));
+    await finishStage({ jobId, good: 2200, cutWaste: 5, version: await version(jobId) }, device('cutting'));
+    await startStage({ jobId, machine: 'Masa 1', staffIds: [operatorId], version: await version(jobId) }, device('finishing'));
+    await finishStage({ jobId, good: 2180, cutWaste: 20, sacks: 3, version: await version(jobId) }, device('finishing'));
+    await approveReview({ jobId, version: await version(jobId) }, tracking());
+    await shipJob({ jobId, qty: 700, shippedAt: '2026-12-01', note: 'Kamyon 34 AB 123', version: await version(jobId) }, tracking());
+    await shipJob({ jobId, qty: 300, shippedAt: '2026-12-02', version: await version(jobId) }, tracking());
+    const h = await shipmentHistory({ from: '2026-12-02', to: '2026-12-02' }, tracking());
+    if (!h.ok) throw new Error(h.message);
+    const slip = await shipmentSlip({ id: h.data[0]!.id }, tracking());
+    expect(slip).toMatchObject({
+      ok: true,
+      data: { qty: 300, shippedAt: '2026-12-02', partyName: 'Örnek', companyInfo: 'Firma A Ambalaj A.Ş. · Kozyatağı V.D. 1234567890', shippedTotal: 1000, orderedQty: expect.any(Number) },
+    });
+    expect(slip.ok && slip.data.product).toContain('45');
+    expect(await shipmentSlip({ id: h.data[0]!.id }, device('finishing'))).toMatchObject({ ok: false, code: 'FORBIDDEN' });
+    expect(await shipmentSlip({ id: h.data[0]!.id }, runtime(t, testUser(t.companyB, ['tracking'])))).toMatchObject({ ok: false, code: 'NOT_FOUND' });
   });
 });

@@ -311,7 +311,7 @@ function Ship({ job, onDone }: { job: Job; onDone: () => void }) {
       <Button disabled={ship.pending}>Sevk et</Button>
       {job.shipments.length > 0 && (
         <ul className="text-sm text-stone-600">
-          {job.shipments.map((s) => <li key={s.id}><DateText value={s.shippedAt} /> · {s.qty.toLocaleString('tr-TR')} adet {s.note && `· ${s.note}`}</li>)}
+          {job.shipments.map((s) => <li key={s.id}><DateText value={s.shippedAt} /> · {s.qty.toLocaleString('tr-TR')} adet {s.note && `· ${s.note}`} · <a href={`/api/pdf/sevk/${s.id}`} className="font-medium text-[var(--brand-strong)] hover:underline">Sevk fişi</a></li>)}
         </ul>
       )}
     </form>

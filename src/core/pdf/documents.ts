@@ -180,3 +180,70 @@ export async function renderReconciliationPdf(r: ReconciliationPdfInput): Promis
   w.text('Bu belge bilgi amaçlıdır; yasal defter kayıtları esastır.', 8, rgb(0.5, 0.5, 0.5));
   return doc.save();
 }
+
+export type ShipmentSlipPdfInput = {
+  companyName: string; companyInfo: string; jobNo: string; orderNo: string; shippedAt: string; qty: number; note: string; product: string; packaging: string;
+  orderedQty: number; shippedTotal: number; partyName: string; partyTaxId: string; partyTaxOffice: string; partyAddress: string;
+};
+
+// Sevk / teslim fişi: malın kime, ne kadar, hangi ambalajla gittiği; iki imza alanı.
+export async function renderShipmentSlipPdf(s: ShipmentSlipPdfInput): Promise<Uint8Array> {
+  const { doc, w } = await start(`Sevk fişi ${s.jobNo}`);
+  w.text(s.companyName, 10, rgb(0.4, 0.4, 0.4));
+  if (s.companyInfo) w.text(s.companyInfo, 8, rgb(0.45, 0.45, 0.45));
+  w.text('Sevk / teslim fişi', 18);
+  w.gap();
+  w.row('Sevk tarihi', formatDate(s.shippedAt));
+  w.row('Alıcı', s.partyName);
+  if (s.partyTaxId) w.row('Vergi / T.C. no', `${s.partyTaxOffice ? `${s.partyTaxOffice} V.D. ` : ''}${s.partyTaxId}`);
+  if (s.partyAddress) w.row('Teslim adresi', s.partyAddress);
+  w.row('Sipariş / iş', `${s.orderNo} · ${s.jobNo}`);
+  w.gap(6);
+  w.row('Ürün', s.product);
+  w.row('Ambalaj', s.packaging);
+  w.box('BU SEVKTE', `${n(s.qty)} adet`);
+  w.row('Sipariş miktarı', `${n(s.orderedQty)} adet`);
+  w.row('Bu sevkle birlikte toplam', `${n(s.shippedTotal)} adet${s.shippedTotal < s.orderedQty ? ` · kalan ${n(s.orderedQty - s.shippedTotal)}` : ''}`);
+  if (s.note) w.row('Not', s.note);
+  w.gap(36);
+  w.row('Teslim eden', 'Ad soyad / imza: ..........................................');
+  w.gap(18);
+  w.row('Teslim alan', 'Ad soyad / imza: ..........................................');
+  w.gap(16);
+  w.text('Bu fiş iç kullanım ve teslim teyidi içindir; sevk irsaliyesi (matbu ya da e-İrsaliye) yerine geçmez.', 8, rgb(0.5, 0.5, 0.5));
+  return doc.save();
+}
+
+export type ProformaPdfInput = {
+  no: string; date: string; validUntil: string; companyName: string; companyInfo: string; bank: string; iban: string;
+  partyName: string; partyTaxId: string; partyTaxOffice: string; partyAddress: string;
+  lines: { lineNo: number; productText: string; quantity: number; unitPrice: string; vatRate: string; net: string }[];
+  rates: { rate: string; base: string; vat: string }[]; base: string; vat: string; total: string;
+};
+
+// Proforma fatura: teklif / ön bilgi. Fatura yerine geçmez.
+export async function renderProformaPdf(p: ProformaPdfInput): Promise<Uint8Array> {
+  const { doc, w } = await start(`Proforma ${p.no}`);
+  w.text(p.companyName, 10, rgb(0.4, 0.4, 0.4));
+  if (p.companyInfo) w.text(p.companyInfo, 8, rgb(0.45, 0.45, 0.45));
+  w.text(`Proforma fatura · ${p.no}`, 18);
+  w.gap();
+  w.row('Tarih', formatDate(p.date));
+  w.row('Geçerlilik', `${formatDate(p.validUntil)} tarihine kadar`);
+  w.row('Sayın', p.partyName);
+  if (p.partyTaxId) w.row('Vergi / T.C. no', `${p.partyTaxOffice ? `${p.partyTaxOffice} V.D. ` : ''}${p.partyTaxId}`);
+  if (p.partyAddress) w.row('Adres', p.partyAddress);
+  w.gap(8);
+  for (const l of p.lines) {
+    w.text(`${l.lineNo}. ${l.productText}`, 11);
+    w.row('', `${n(l.quantity)} adet × ${l.unitPrice} · KDV %${l.vatRate} · tutar (KDV hariç) ${l.net}`);
+  }
+  w.gap(8);
+  w.row('Ara toplam (KDV hariç)', p.base);
+  for (const r of p.rates) w.row(`KDV %${r.rate}`, `${r.vat} (matrah ${r.base})`);
+  w.box('GENEL TOPLAM (KDV DAHİL)', p.total);
+  if (p.iban) w.row('Ödeme', `${p.bank ? `${p.bank} · ` : ''}${p.iban}`);
+  w.gap(16);
+  w.text('Bu belge proforma faturadır; teklif ve ön bilgi amaçlıdır. Fatura yerine geçmez, muhasebe kaydı oluşturmaz.', 8, rgb(0.5, 0.5, 0.5));
+  return doc.save();
+}

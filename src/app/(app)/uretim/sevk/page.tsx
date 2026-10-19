@@ -41,7 +41,7 @@ export default async function ShipmentsPage({ searchParams }: { searchParams: Pr
       <div className="overflow-x-auto rounded-2xl border border-stone-200/80 bg-white shadow-[var(--shadow-card)]">
         <table className="w-full text-sm">
           <thead className="border-b border-stone-200 bg-stone-50/80 text-left text-xs uppercase tracking-wide text-stone-500">
-            <tr><th className="px-4 py-3 font-semibold">Tarih</th><th className="px-4 py-3 font-semibold">İş</th><th className="px-4 py-3 font-semibold">Müşteri</th><th className="px-4 py-3 font-semibold">Ürün</th><th className="px-4 py-3 font-semibold text-right">Adet</th><th className="px-4 py-3 font-semibold">Not</th></tr>
+            <tr><th className="px-4 py-3 font-semibold">Tarih</th><th className="px-4 py-3 font-semibold">İş</th><th className="px-4 py-3 font-semibold">Müşteri</th><th className="px-4 py-3 font-semibold">Ürün</th><th className="px-4 py-3 font-semibold text-right">Adet</th><th className="px-4 py-3 font-semibold">Not</th><th className="px-4 py-3" /></tr>
           </thead>
           <tbody className="divide-y divide-stone-100">
             {r.data.map((s) => (
@@ -52,9 +52,10 @@ export default async function ShipmentsPage({ searchParams }: { searchParams: Pr
                 <td className="px-4 py-3 text-stone-600">{s.product}</td>
                 <td className="px-4 py-3 text-right font-medium tabular-nums">{s.qty.toLocaleString('tr-TR')}</td>
                 <td className="px-4 py-3 text-stone-600">{s.note}</td>
+                <td className="px-4 py-3 text-right"><a href={`/api/pdf/sevk/${s.id}`} className="whitespace-nowrap text-sm font-medium text-[var(--brand-strong)] hover:underline">Sevk fişi</a></td>
               </tr>
             ))}
-            {!r.data.length && <tr><td colSpan={6} className="px-3 py-10 text-center text-stone-500">Bu aralıkta sevk yok.</td></tr>}
+            {!r.data.length && <tr><td colSpan={7} className="px-3 py-10 text-center text-stone-500">Bu aralıkta sevk yok.</td></tr>}
           </tbody>
         </table>
       </div>

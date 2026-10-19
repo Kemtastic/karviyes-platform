@@ -156,8 +156,17 @@ test('sipariş → üretim → kesim (telefon) → kesim bitiş → kontrol → 
   await page.goto('/siparisler?durum=ready_to_invoice');
   await expect(page.getByRole('cell', { name: 'E2E Gıda Ltd. Şti.' })).toBeVisible();
   await page.getByRole('cell', { name: 'E2E Gıda Ltd. Şti.' }).click();
+  await page.waitForURL(/\/siparisler\/[0-9a-f-]{36}$/);
   const orderPdf = await page.request.get(page.url().replace('/siparisler/', '/api/pdf/siparis/'));
-  expect(orderPdf.status()).toBe(200);
+  expect(orderPdf.headers()['content-type']).toBe('application/pdf');
+  const proforma = await page.request.get(page.url().replace('/siparisler/', '/api/pdf/proforma/'));
+  expect(proforma.headers()['content-type']).toBe('application/pdf');
+  await expect(page.getByRole('link', { name: 'Proforma' })).toBeVisible();
+
+  // Sevk fişi
+  await page.goto('/uretim/sevk');
+  const slip = await page.request.get((await page.getByRole('link', { name: 'Sevk fişi' }).first().getAttribute('href'))!);
+  expect(slip.headers()['content-type']).toBe('application/pdf');
 });
 
 test('iki ürünlü sipariş: satır başına tutar, toplam ve ürün tablosu', async ({ page }) => {

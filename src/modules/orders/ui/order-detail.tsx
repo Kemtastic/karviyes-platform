@@ -63,6 +63,7 @@ export function OrderDetail({ order: o, canMarkInvoice, stageLabels = {}, financ
         </div>
         <div className="flex flex-wrap gap-2">
           <a href={`/api/pdf/siparis/${o.id}`} className={buttonClasses('secondary')}><Printer aria-hidden className="h-4 w-4" /> Sipariş PDF</a>
+          <a href={`/api/pdf/proforma/${o.id}`} className={buttonClasses('secondary')}><Printer aria-hidden className="h-4 w-4" /> Proforma</a>
           {o.status === 'draft' && <Link href={`/siparisler/${o.id}/duzenle`} className={buttonClasses('secondary')}><Pencil aria-hidden className="h-4 w-4" /> Düzenle</Link>}
           {o.status !== 'cancelled' && <Button variant="secondary" onClick={() => setPaying(true)}><Wallet aria-hidden className="h-4 w-4" /> Tahsilat ekle</Button>}
           {o.status === 'ready_to_invoice' && canMarkInvoice && <Button onClick={() => setInvoicing(true)}>Fatura kesildi olarak işaretle</Button>}

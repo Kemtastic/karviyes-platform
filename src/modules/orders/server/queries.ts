@@ -3,11 +3,14 @@ import { z } from 'zod';
 import { defineAction, type ActionCtx } from '@/core/action';
 import { parties, staff } from '@/core/db/schema';
 import { AppError } from '@/core/errors';
-import { CURRENCIES, money, moneyToJSON, type Currency } from '@/core/money';
+import { CURRENCIES, formatMoney, formatUnitPrice, money, moneyToJSON, mulPrice, type Currency } from '@/core/money';
+import { companies } from '@/core/db/schema';
+import { companyLetterhead, companyProfileSchema } from '@/core/company/profile';
+import { invoiceBreakdown } from './api';
 import { DEPARTMENT_ROLES, type Role } from '@/core/modules/types';
 import { decimalCell } from '@/core/export/csv';
 import { normalizeSearch } from '@/core/parties/search';
-import { formatDate } from '@/core/dates';
+import { formatDate, istanbulToday } from '@/core/dates';
 import { plates } from '@/modules/production/db/schema';
 import { getSector } from '@/sectors';
 import { LINE_STATUS_LABELS as LINE_TEXT, ORDER_STATUS_LABELS as STATUS_TEXT } from '../ui/status-labels';
@@ -315,5 +318,41 @@ export const lastOrderLines = defineAction({
     if (!o) return null;
     const lines = ((await linesOf(ctx, [o.id])).get(o.id) ?? []).filter((l) => l.status !== 'cancelled');
     return { ...o, lines: lines.map((l) => ({ product: l.product, quantity: l.quantity, unitPrice: l.unitPrice, vatRate: l.vatRate, packaging: l.packaging, departmentNotes: l.departmentNotes, plateId: l.plateId })) };
+  },
+});
+
+/**
+ * Proforma fatura: siparişin iptal edilmemiş satırları KDV hariç, oran bazında KDV ve genel toplam; firmanın anteti ve IBAN'ı.
+ * Teklif/ön bilgi belgesidir; fatura yerine geçmez ve muhasebe kaydı oluşturmaz.
+ */
+export const orderProforma = defineAction({
+  name: 'orders.proforma',
+  module: 'orders',
+  roles: OFFICE,
+  rateLimit: false,
+  input: z.object({ id: z.string().uuid(), validDays: z.number().int().min(1).max(90).default(15), today: z.string().date().optional() }),
+  run: async (ctx, i) => {
+    const b = await invoiceBreakdown(ctx, i.id);
+    const fm = (minor: bigint | string) => formatMoney(money(minor, b.currency));
+    const [party] = await ctx.tx.select().from(parties).where(eq(parties.id, b.order.partyId));
+    const lines = await ctx.tx.select().from(orderLines).where(and(eq(orderLines.orderId, i.id), ne(orderLines.status, 'cancelled'))).orderBy(asc(orderLines.lineNo));
+    const [c] = await ctx.tx.select({ name: companies.name, profile: companies.profile }).from(companies).where(eq(companies.id, ctx.companyId));
+    const profile = companyProfileSchema.parse(c?.profile ?? {});
+    const sector = getSector(ctx.cfg.sector);
+    const today = i.today ?? istanbulToday();
+    const until = new Date(`${today}T00:00:00Z`);
+    until.setUTCDate(until.getUTCDate() + i.validDays);
+    return {
+      no: b.order.no, date: today, validUntil: until.toISOString().slice(0, 10), currency: b.currency,
+      companyName: c?.name ?? '', companyInfo: companyLetterhead(profile), bank: profile.bank, iban: profile.iban.replace(/(.{4})(?=.)/g, '$1 '),
+      partyName: party?.name ?? '', partyTaxId: party?.taxId ?? '', partyTaxOffice: party?.taxOffice ?? '',
+      partyAddress: party ? [party.address, party.district, party.city].filter(Boolean).join(' ') : '',
+      lines: lines.map((l) => ({
+        lineNo: l.lineNo, productText: sector.describe(l.product as never), quantity: l.quantity,
+        unitPrice: formatUnitPrice(l.unitPrice, b.currency), vatRate: String(Number(l.vatRate)), net: fm(mulPrice(l.unitPrice, l.quantity)),
+      })),
+      rates: b.rates.map((r) => ({ rate: r.rate, base: fm(r.base), vat: fm(r.vat) })),
+      base: fm(b.base), vat: fm(b.vat), total: fm(b.base + b.vat),
+    };
   },
 });

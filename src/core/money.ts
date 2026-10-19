@@ -64,6 +64,14 @@ export function formatMoney(m: Money): string {
   return `${negative ? '−' : ''}${whole},${cents} ${SYMBOL[m.currency]}`;
 }
 
+/** Birim fiyat (4 haneye kadar ondalık) Türkçe biçimde: "8.7500" → "8,75 ₺", "8.7525" → "8,7525 ₺". */
+export function formatUnitPrice(price: string, currency: Currency): string {
+  const negative = price.trim().startsWith('-');
+  const [int = '0', frac = ''] = price.trim().replace(/^-/, '').split('.');
+  const shown = frac.replace(/0+$/, '').padEnd(2, '0');
+  return `${negative ? '−' : ''}${intFormat.format(BigInt(int || '0'))},${shown} ${SYMBOL[currency]}`;
+}
+
 // Kabul: "1.234,56", "1234,56", "1234.56", "1.234". Ondalık en çok 2 hane.
 export function parseMoney(input: string, currency: Currency): Money {
   let text = input.trim().replace(/\s/g, '');
