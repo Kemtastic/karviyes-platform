@@ -22,6 +22,8 @@ export type JobEvent =
   | { type: 'approve' }
   | { type: 'returnFromReview'; to: StageId }
   | { type: 'ship'; qty: number }
+  | { type: 'reopen' }
+  | { type: 'correctQty'; qty: number }
   | { type: 'cancel' };
 
 export const CLOSED: JobStage[] = ['completed', 'shipped', 'cancelled'];
@@ -95,6 +97,18 @@ export function transition<P extends Product>(state: JobState, event: JobEvent, 
       if (event.qty > remaining) throw new AppError('VALIDATION', `Üretilenden fazla sevk edilemez (kalan ${remaining}).`, { qty: `En fazla ${remaining}.` });
       const shippedQty = s.shippedQty + event.qty;
       return { ...s, shippedQty, stage: shippedQty >= s.producedQty ? 'shipped' : 'completed' };
+    }
+
+    case 'reopen':
+      if (s.stage !== 'completed' || s.shippedQty > 0) throw invalid('Yalnızca onaylanmış ve hiç sevk edilmemiş iş kontrole geri alınabilir.');
+      return { ...s, stage: 'review', stageStatus: 'waiting' };
+
+    case 'correctQty': {
+      if (s.stage !== 'review' && s.stage !== 'completed') throw invalid('Adet yalnızca kontroldeki ya da onaylanmış işte düzeltilir.');
+      if (!Number.isInteger(event.qty) || event.qty <= 0) throw new AppError('VALIDATION', 'Adet sıfırdan büyük tam sayı olmalı.', { qty: 'Geçerli adet girin.' });
+      if (event.qty < s.shippedQty) throw new AppError('VALIDATION', `Sevk edilen ${s.shippedQty} adedin altına düşürülemez.`, { qty: `En az ${s.shippedQty}.` });
+      const stage = s.stage === 'completed' && s.shippedQty > 0 && event.qty === s.shippedQty ? 'shipped' : s.stage;
+      return { ...s, producedQty: event.qty, stage };
     }
 
     case 'cancel':

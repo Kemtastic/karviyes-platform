@@ -15,5 +15,7 @@ export async function approveAction(input: unknown) { return a.approveReview(inp
 export async function returnFromReviewAction(input: unknown) { return a.returnFromReview(input); }
 export async function shipAction(input: unknown) { return a.shipJob(input); }
 export async function cancelJobAction(input: unknown) { return a.cancelJob(input); }
+export async function reopenReviewAction(input: unknown) { return a.reopenReview(input); }
+export async function correctQtyAction(input: unknown) { return a.correctProducedQty(input); }
 export async function queueAction(input: { stage: string }) { return departmentQueue(input); }
 export async function createPlateAction(input: unknown) { return createPlate(input); }

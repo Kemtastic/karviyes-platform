@@ -5,11 +5,14 @@ import { createParty } from '@/core/parties/service';
 import { createStaff } from '@/core/users/service';
 import { createOrder } from '@/modules/orders/server/actions';
 import { orderForOffice } from '@/modules/orders/server/queries';
+import { markInvoiced } from '@/modules/orders/server/actions';
 import {
   addFabricRolls,
   approveReview,
   cancelJob,
+  correctProducedQty,
   finishStage,
+  reopenReview,
   reserveFabric,
   sendToRepair,
   sendToStage,
@@ -214,5 +217,58 @@ describe('sevk fişi', () => {
     expect(slip.ok && slip.data.product).toContain('45');
     expect(await shipmentSlip({ id: h.data[0]!.id }, device('finishing'))).toMatchObject({ ok: false, code: 'FORBIDDEN' });
     expect(await shipmentSlip({ id: h.data[0]!.id }, runtime(t, testUser(t.companyB, ['tracking'])))).toMatchObject({ ok: false, code: 'NOT_FOUND' });
+  });
+});
+
+describe('onayı geri alma ve adet düzeltme', () => {
+  async function approved() {
+    const { orderId, jobId } = await readyAtCutting();
+    await startStage({ jobId, machine: 'Kesim 1', staffIds: [operatorId], version: await version(jobId) }, device('cutting'));
+    await finishStage({ jobId, good: 2200, cutWaste: 5, version: await version(jobId) }, device('cutting'));
+    await startStage({ jobId, machine: 'Masa 1', staffIds: [operatorId], version: await version(jobId) }, device('finishing'));
+    await finishStage({ jobId, good: 2180, cutWaste: 20, sacks: 3, version: await version(jobId) }, device('finishing'));
+    return { orderId, jobId };
+  }
+
+  it('kontrolde adet gerekçeyle düzeltilir; sipariş adedi de değişir; olay kaydı kalır', async () => {
+    const { orderId, jobId } = await approved();
+    expect(await correctProducedQty({ jobId, qty: 2100, reason: '', version: await version(jobId) }, tracking())).toMatchObject({ ok: false, code: 'VALIDATION' });
+    expect(await correctProducedQty({ jobId, qty: 2100, reason: 'Sayımda 80 eksik çıktı', version: await version(jobId) }, tracking())).toMatchObject({ ok: true });
+    const d = await jobDetail({ id: jobId }, tracking());
+    expect(d.ok && d.data.producedQty).toBe(2100);
+    const o = await orderForOffice({ id: orderId }, tracking());
+    expect(o.ok && o.data.producedQty).toBe(2100);
+    expect(await correctProducedQty({ jobId, qty: 2000, reason: 'Deneme', version: await version(jobId) }, device('finishing'))).toMatchObject({ ok: false, code: 'FORBIDDEN' });
+  });
+
+  it('onaylanan ve sevk edilmemiş iş kontrole geri alınır; sipariş yeniden üretimde olur', async () => {
+    const { orderId, jobId } = await approved();
+    await approveReview({ jobId, version: await version(jobId) }, tracking());
+    let o = await orderForOffice({ id: orderId }, tracking());
+    expect(o.ok && o.data.status).toBe('ready_to_invoice');
+    expect(await reopenReview({ jobId, reason: 'Yanlışlıkla onaylandı', version: await version(jobId) }, tracking())).toMatchObject({ ok: true });
+    const d = await jobDetail({ id: jobId }, tracking());
+    expect(d.ok && d.data.stage).toBe('review');
+    o = await orderForOffice({ id: orderId }, tracking());
+    expect(o.ok && o.data.status).toBe('in_production');
+  });
+
+  it('sevk edilen iş geri alınamaz; adet sevk edilenin altına düşürülemez', async () => {
+    const { jobId } = await approved();
+    await approveReview({ jobId, version: await version(jobId) }, tracking());
+    await shipJob({ jobId, qty: 1500, shippedAt: '2026-10-19', version: await version(jobId) }, tracking());
+    expect(await reopenReview({ jobId, reason: 'Geri al', version: await version(jobId) }, tracking())).toMatchObject({ ok: false, code: 'INVALID_STATE' });
+    expect(await correctProducedQty({ jobId, qty: 1400, reason: 'Düzeltme', version: await version(jobId) }, tracking())).toMatchObject({ ok: false, code: 'VALIDATION' });
+    expect(await correctProducedQty({ jobId, qty: 1600, reason: 'Sayım düzeltmesi', version: await version(jobId) }, tracking())).toMatchObject({ ok: true });
+  });
+
+  it('faturası kesilmiş siparişin işi geri alınamaz ve adedi düzeltilemez', async () => {
+    const { orderId, jobId } = await approved();
+    await approveReview({ jobId, version: await version(jobId) }, tracking());
+    const o = await orderForOffice({ id: orderId }, tracking());
+    if (!o.ok) throw new Error(o.message);
+    expect(await markInvoiced({ id: orderId, version: o.data.version, invoiceNo: 'GIB2026000000099', invoiceDate: '2026-10-19' }, runtime(t, testUser(t.companyA, ['admin'])))).toMatchObject({ ok: true });
+    expect(await reopenReview({ jobId, reason: 'Geri al', version: await version(jobId) }, tracking())).toMatchObject({ ok: false, code: 'INVALID_STATE' });
+    expect(await correctProducedQty({ jobId, qty: 2000, reason: 'Düzeltme', version: await version(jobId) }, tracking())).toMatchObject({ ok: false, code: 'INVALID_STATE' });
   });
 });

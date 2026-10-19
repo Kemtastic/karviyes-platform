@@ -72,6 +72,15 @@ export const markLineInProduction = (tx: Tx, lineId: string) => lineTransition(t
 
 export const markLineDone = (tx: Tx, lineId: string) => lineTransition(tx, lineId, ['in_production'], 'done');
 
+/** Satırın siparişi faturalanmışsa üretim tarafında adet/onay değişikliği yapılamaz. */
+export async function assertLineNotInvoiced(tx: Tx, lineId: string): Promise<void> {
+  const [row] = await tx.select({ status: orders.status }).from(orderLines).innerJoin(orders, eq(orders.id, orderLines.orderId)).where(eq(orderLines.id, lineId));
+  if (row?.status === 'invoiced') throw new AppError('INVALID_STATE', 'Siparişin faturası kesilmiş; önce fatura işaretini geri alın.');
+}
+
+/** Onayı geri alınan iş: satır yeniden üretimde, sipariş "faturaya hazır"dan çıkar. */
+export const reopenLine = (tx: Tx, lineId: string) => lineTransition(tx, lineId, ['done'], 'in_production');
+
 export const cancelLine = (tx: Tx, lineId: string, reason: string) => lineTransition(tx, lineId, ['open', 'in_production'], 'cancelled', { cancelReason: reason });
 
 // Üretilen ve sevk edilen adetler (mutlak değer olarak) satıra, toplamları siparişe yansıtılır.

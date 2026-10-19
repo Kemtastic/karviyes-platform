@@ -25,6 +25,8 @@ export const EVENT_LABELS: Record<string, string> = {
   returned: 'Kontrolden geri gönderildi',
   shipped: 'Sevk edildi',
   cancelled: 'İptal edildi',
+  reopened: 'Onay geri alındı',
+  corrected: 'Adet düzeltildi',
 };
 
 // Aşama rozet tonu: bekleyen mavi, bölümde marka rengi, kontrol amber, bitti yeşil.

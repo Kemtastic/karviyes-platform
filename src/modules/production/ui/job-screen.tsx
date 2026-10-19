@@ -13,7 +13,7 @@ import { ConfirmDialog } from '@/ui/confirm-dialog';
 import { DateText } from '@/ui/date-text';
 import { FormField, fieldClass } from '@/ui/form-field';
 import { useAction } from '@/ui/use-action';
-import { approveAction, cancelJobAction, reserveFabricAction, returnFromReviewAction, sendToStageAction, shipAction, toRepairAction, toTurningAction } from './actions';
+import { approveAction, cancelJobAction, correctQtyAction, reopenReviewAction, reserveFabricAction, returnFromReviewAction, sendToStageAction, shipAction, toRepairAction, toTurningAction } from './actions';
 import { EVENT_LABELS, stageLabel, stageTone } from './labels';
 import { StageWork } from './stage-work';
 
@@ -85,6 +85,7 @@ export function JobScreen({ job, sector, canManage, fabric, staff, userRoles }: 
               {job.stage === 'finishing' && canWork && job.stageStatus === 'waiting' && <FinishingExtras job={job} onDone={refresh} />}
               {job.stage === 'review' && canManage && <Review job={job} sector={sector} onDone={refresh} />}
               {job.stage === 'completed' && canManage && <Ship job={job} onDone={refresh} />}
+              {(job.stage === 'review' || job.stage === 'completed') && canManage && <Corrections job={job} onDone={refresh} />}
               {!canManage && !canWork && <p className="text-stone-600">Bu iş şu an {stageLabel(sector, job.stage)} aşamasında.</p>}
               {closed && job.stage !== 'completed' && <p className="text-stone-600">{stageLabel(sector, job.stage)}.</p>}
             </div>
@@ -182,7 +183,7 @@ function Info({ label, value }: { label: string; value: React.ReactNode }) {
 // Olay verisindeki alan adları (good, cutWaste…) kullanıcıya Türkçe gösterilir.
 const DATA_LABELS: Record<string, string> = {
   good: 'sağlam', cutWaste: 'kesim firesi', printWaste: 'baskı firesi (m)', metres: 'metre', sacks: 'çuval', boxes: 'koli', samples: 'numune',
-  rolls: 'bobin', qty: 'adet', to: 'hedef', quantityAcknowledged: 'düşük adet onaylandı', materialsSkipped: 'malzeme ayırmadan başlatıldı',
+  rolls: 'bobin', qty: 'adet', from: 'önceki adet', to: 'hedef', quantityAcknowledged: 'düşük adet onaylandı', materialsSkipped: 'malzeme ayırmadan başlatıldı',
 };
 
 function eventDataText(data: Record<string, unknown>): string {
@@ -315,5 +316,30 @@ function Ship({ job, onDone }: { job: Job; onDone: () => void }) {
         </ul>
       )}
     </form>
+  );
+}
+
+// Sayım farkı (adet düzeltme) ve yanlış onayın geri alınması; ikisi de gerekçe ister ve iş geçmişine yazılır.
+function Corrections({ job, onDone }: { job: Job; onDone: () => void }) {
+  const correct = useAction(correctQtyAction);
+  const reopen = useAction(reopenReviewAction);
+  const [qty, setQty] = useState(String(job.producedQty));
+  const [reason, setReason] = useState('');
+  const canReopen = job.stage === 'completed' && job.shippedQty === 0;
+  return (
+    <details className="rounded-lg border border-stone-200 p-3">
+      <summary className="cursor-pointer text-sm font-medium text-stone-700">Düzeltme</summary>
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <FormField label="Sağlam adet" error={correct.fieldErrors.qty} hint={job.shippedQty ? `En az ${job.shippedQty.toLocaleString('tr-TR')} (sevk edilen)` : undefined}>
+          <input inputMode="numeric" value={qty} onChange={(e) => setQty(e.target.value)} className={fieldClass} />
+        </FormField>
+        <FormField label="Gerekçe" required error={correct.fieldErrors.reason || reopen.fieldErrors.reason}><input value={reason} onChange={(e) => setReason(e.target.value)} className={fieldClass} placeholder="örn. sayım farkı" /></FormField>
+        <div className="flex flex-wrap items-end gap-2">
+          <Button variant="secondary" disabled={correct.pending} onClick={() => correct.run({ jobId: job.id, version: job.version, qty, reason }, onDone)}>Adedi düzelt</Button>
+          {canReopen && <Button variant="secondary" disabled={reopen.pending} onClick={() => reopen.run({ jobId: job.id, version: job.version, reason }, onDone)}>Onayı geri al</Button>}
+        </div>
+      </div>
+      {(correct.error || reopen.error) && <p role="alert" className="mt-2 text-sm text-red-700">{correct.error || reopen.error}</p>}
+    </details>
   );
 }

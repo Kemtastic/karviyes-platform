@@ -139,9 +139,16 @@ test('sipariş → üretim → kesim (telefon) → kesim bitiş → kontrol → 
 
   // Kontrol ve sevk
   await page.getByRole('button', { name: 'Onayla — faturaya hazır' }).click();
-  await page.getByLabel('Adet').fill('1000');
+  await page.locator('input[name="qty"]').fill('1000');
   await page.getByRole('button', { name: 'Sevk et' }).click();
   await expect(page.getByText('Sevk edilebilir: 1.180 adet')).toBeVisible();
+
+  // Sayım farkı: sağlam adet gerekçeyle düzeltilir.
+  await page.getByText('Düzeltme', { exact: true }).click();
+  await page.getByLabel('Sağlam adet').fill('2100');
+  await page.getByLabel('Gerekçe').fill('Sayımda 80 eksik');
+  await page.getByRole('button', { name: 'Adedi düzelt' }).click();
+  await expect(page.getByText('Sevk edilebilir: 1.100 adet')).toBeVisible();
 
   // İş emri PDF (fiyatsız) ve rapor
   const jobId = jobUrl.split('/').pop();

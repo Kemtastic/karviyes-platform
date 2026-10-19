@@ -5,7 +5,7 @@ import { istanbulToday } from '@/core/dates';
 import { staff } from '@/core/db/schema';
 import { AppError } from '@/core/errors';
 import type { Role } from '@/core/modules/types';
-import { cancelLine, getLineForProduction, markLineDone, markLineInProduction, onLineProgress, openLinesForProduction } from '@/modules/orders/server/public';
+import { assertLineNotInvoiced, cancelLine, getLineForProduction, markLineDone, reopenLine, markLineInProduction, onLineProgress, openLinesForProduction } from '@/modules/orders/server/public';
 import { getSector } from '@/sectors';
 import type { SectorPackage } from '@/sectors/types';
 import { fabricRolls, jobEvents, jobs, shipments } from '../db/schema';
@@ -330,5 +330,38 @@ export const cancelJob = defineAction({
     await ctx.tx.update(fabricRolls).set({ status: 'available', reservedJobId: null, reservedFor: null }).where(and(eq(fabricRolls.reservedJobId, i.jobId), eq(fabricRolls.status, 'reserved')));
     await ctx.audit({ entity: 'job', entityId: i.jobId, after: { cancelled: true, reason: i.reason } });
     return { id: i.jobId };
+  },
+});
+
+/** Onaylanmış ama hiç sevk edilmemiş işi kontrole geri alır (yanlış onay); sipariş satırı yeniden üretimde olur. */
+export const reopenReview = defineAction({
+  name: 'production.reopenReview',
+  module: 'production',
+  roles: TRACKING,
+  input: z.object({ ...jobRef, reason: z.string().trim().min(3, 'Nedenini yazın.').max(500) }),
+  run: async (ctx, i) => {
+    const loaded = await load(ctx, i.jobId, i.version);
+    await assertLineNotInvoiced(ctx.tx, loaded.job.orderLineId);
+    await apply(ctx, loaded, i.version, { type: 'reopen' }, { kind: 'reopened', note: i.reason });
+    await reopenLine(ctx.tx, loaded.job.orderLineId);
+    await ctx.audit({ entity: 'job', entityId: i.jobId, after: { reopened: true, reason: i.reason } });
+    return { id: i.jobId };
+  },
+});
+
+/** Kontroldeki ya da onaylanmış işte sağlam adedi gerekçeyle düzeltir (sayım farkı); sevk edilenin altına inemez. */
+export const correctProducedQty = defineAction({
+  name: 'production.correctQty',
+  module: 'production',
+  roles: TRACKING,
+  input: z.object({ ...jobRef, qty: z.coerce.number().int(), reason: z.string().trim().min(3, 'Nedenini yazın.').max(500) }),
+  run: async (ctx, i) => {
+    const loaded = await load(ctx, i.jobId, i.version);
+    await assertLineNotInvoiced(ctx.tx, loaded.job.orderLineId);
+    const before = loaded.job.producedQty;
+    const next = await apply(ctx, loaded, i.version, { type: 'correctQty', qty: i.qty }, { kind: 'corrected', data: { from: before, qty: i.qty }, note: i.reason });
+    await onLineProgress(ctx.tx, { lineId: loaded.job.orderLineId, producedQty: next.producedQty });
+    await ctx.audit({ entity: 'job', entityId: i.jobId, before: { producedQty: before }, after: { producedQty: i.qty, reason: i.reason } });
+    return { id: i.jobId, producedQty: next.producedQty };
   },
 });
