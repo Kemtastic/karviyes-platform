@@ -412,4 +412,18 @@ test('merkez panel: ön muhasebe kapatılınca firmadan kalkar, açılınca geri
   await page.goto('/platform/denetim');
   await expect(page.getByRole('heading', { name: 'Firma kayıtları' })).toBeVisible();
   await expect(page.getByRole('cell', { name: 'platform.updateCompanySettings' }).first()).toBeVisible();
+
+  // Müşteri gözüyle bak: salt okunur şerit görünür, bitirince panele dönülür.
+  await page.goto('/platform');
+  await page.getByRole('link', { name: 'Karviyes Ambalaj' }).click();
+  await page.getByRole('button', { name: 'Müşteri gözüyle bak' }).click();
+  const sv = page.getByRole('dialog');
+  await sv.getByLabel('Rol').selectOption({ label: 'Satış' });
+  await sv.getByLabel('Gerekçe').fill('E2E destek talebi 42 inceleme');
+  await sv.getByRole('button', { name: 'Bakışı başlat' }).click();
+  await expect(page.getByText('Müşteri gözüyle bakıyorsunuz')).toBeVisible();
+  await page.getByRole('button', { name: 'Bakışı bitir' }).click();
+  await expect(page.getByRole('heading', { name: 'Firmalar' })).toBeVisible();
+  await page.goto('/platform/denetim');
+  await expect(page.getByRole('cell', { name: 'platform.startSupportView' }).first()).toBeVisible();
 });

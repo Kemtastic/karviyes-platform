@@ -7,10 +7,10 @@ import { invites } from './invites';
 import { parties } from './parties';
 import { files } from './files';
 import { companySettings } from './company-settings';
-import { platformAdmins, platformAudit } from './platform';
+import { platformAdmins, platformAudit, platformViews } from './platform';
 import { account, rateLimit, session, twoFactor, user, verification } from './auth';
 
-export { platformAdmins, platformAudit, companySettings, companies, auditLog, memberships, user, session, account, verification, twoFactor, rateLimit, rateLimits, staff, invites, parties, files };
+export { platformAdmins, platformAudit, platformViews, companySettings, companies, auditLog, memberships, user, session, account, verification, twoFactor, rateLimit, rateLimits, staff, invites, parties, files };
 
-export const schema = { platformAdmins, platformAudit, companySettings, companies, auditLog, memberships, user, session, account, verification, twoFactor, rateLimit, rateLimits, staff, invites, parties, files };
+export const schema = { platformAdmins, platformAudit, platformViews, companySettings, companies, auditLog, memberships, user, session, account, verification, twoFactor, rateLimit, rateLimits, staff, invites, parties, files };
 export type Schema = typeof schema;

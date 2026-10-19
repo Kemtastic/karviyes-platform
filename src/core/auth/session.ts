@@ -23,6 +23,9 @@ export type CurrentUser = {
   kind: AccountKind;
   staffId: string | null;
   twoFactorEnabled: boolean;
+  /** Merkez panelden müşteri gözüyle bakış: hiçbir eylem çalıştırılamaz. */
+  readOnly?: boolean;
+  support?: { viewId: string; until: string; companyName: string };
 };
 
 let authInstance: Promise<Auth> | undefined;
@@ -78,8 +81,15 @@ export async function resolveCurrentUser(auth: Auth, db: Db, companyId: string, 
 // Aynı istekte (layout, sayfa, eylemler) oturum bir kez çözülür.
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const { headers } = await import('next/headers');
+  const h = await headers();
+  // Müşteri gözüyle bakış çerezi geçerliyse firma ve rol bakıştan gelir; geçersizse normal oturuma düşülür.
+  const { resolveSupportView, supportViewIdFrom } = await import('@/core/platform/support');
+  if (supportViewIdFrom(h)) {
+    const viewer = await resolveSupportView(await getAuth(), await getDb(), h);
+    if (viewer) return viewer;
+  }
   const companyId = await getCompanyId();
-  return resolveCurrentUser(await getAuth(), await dataDbFor(companyId, await getDb()), companyId, await headers());
+  return resolveCurrentUser(await getAuth(), await dataDbFor(companyId, await getDb()), companyId, h);
 });
 
 export async function requireUser(): Promise<CurrentUser> {

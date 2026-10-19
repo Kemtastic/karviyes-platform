@@ -260,6 +260,13 @@
       "when": 1792443307932,
       "tag": "0036_company_data_url",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1792444172517,
+      "tag": "0037_platform_views",
+      "breakpoints": true
     }
   ]
 }

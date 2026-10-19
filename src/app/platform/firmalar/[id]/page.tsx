@@ -11,6 +11,7 @@ import { getInstallConfig, parseInstallConfig } from '@/core/install-config';
 import { getSector, roleLabelsFor, SECTOR_IDS } from '@/sectors';
 import { PageHeader } from '@/ui/page-header';
 import { CompanySettingsForm } from './settings-form';
+import { SupportViewButton } from './support-view';
 import { UsersTable } from './users-table';
 
 const AREA: Record<string, string> = { orders: 'Sipariş', production: 'Üretim', sales: 'Satış', finance: 'Ön muhasebe', users: 'Kullanıcılar', staff: 'Personel', parties: 'Cariler', company: 'Firma ayarları', platform: 'Merkez panel' };
@@ -30,7 +31,7 @@ export default async function PlatformCompanyPage({ params }: { params: Promise<
   const screens = navFor([...ROLES], cfg);
   return (
     <div className="space-y-5">
-      <PageHeader eyebrow={<Link href="/platform" className="hover:underline">Firmalar</Link>} title={c.name} description={`${c.slug} · ${c.activeUsers} aktif kullanıcı`} />
+      <PageHeader eyebrow={<Link href="/platform" className="hover:underline">Firmalar</Link>} title={c.name} description={`${c.slug} · ${c.activeUsers} aktif kullanıcı`} actions={<SupportViewButton companyId={c.id} roles={ROLES.map((role) => ({ id: role, label: labels[role] }))} />} />
       <CompanySettingsForm
         company={c}
         modules={MODULE_IDS.map((m) => ({ id: m, name: MANIFESTS[m].name, dependsOn: [...MANIFESTS[m].dependsOn] }))}

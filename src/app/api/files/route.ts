@@ -8,7 +8,9 @@ export const preferredRegion = 'fra1';
 
 // Çok parçalı form ile tek dosya yükleme. Tür içerikten belirlenir; boyut sınırı servistedir.
 export async function POST(req: Request) {
-  const rejected = uploadPrecheck(req, Boolean(await getCurrentUser()));
+  const user = await getCurrentUser();
+  // Müşteri gözüyle bakış salt okunurdur: dosya da yüklenemez.
+  const rejected = uploadPrecheck(req, Boolean(user && !user.readOnly));
   if (rejected) return rejected;
   const body = await readBodyCapped(req);
   if (!body) return Response.json({ ok: false, code: 'VALIDATION', message: 'Dosya en fazla 10 MB olabilir.' }, { status: 413 });
